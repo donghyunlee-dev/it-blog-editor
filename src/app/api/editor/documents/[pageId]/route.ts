@@ -1,0 +1,50 @@
+import { NextResponse } from "next/server";
+import { requireSessionEmail } from "@/lib/auth-guard";
+import { toErrorResponse } from "@/lib/api-response";
+import { deleteDocument, updateDocument } from "@/lib/editor/documents";
+import { ValidationError } from "@/lib/editor/errors";
+
+interface RouteContext {
+  params: Promise<{ pageId: string }>;
+}
+
+export async function PUT(request: Request, { params }: RouteContext) {
+  try {
+    await requireSessionEmail();
+    const { pageId } = await params;
+
+    const payload = (await request.json()) as {
+      title?: string;
+      body?: string;
+      version?: number;
+    };
+
+    if (typeof payload.version !== "number") {
+      throw new ValidationError("version 값은 필수입니다.");
+    }
+
+    const result = await updateDocument({
+      pageId,
+      title: payload.title ?? "",
+      markdown: payload.body ?? "",
+      expectedVersion: payload.version,
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(_request: Request, { params }: RouteContext) {
+  try {
+    await requireSessionEmail();
+    const { pageId } = await params;
+
+    await deleteDocument(pageId);
+
+    return new NextResponse(null, { status: 204 });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
