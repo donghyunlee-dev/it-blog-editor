@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearPageRestrictions, getCurrentConfluenceUser, movePage, restrictPageToAccount } from "./client";
+import { addLabels, clearPageRestrictions, getCurrentConfluenceUser, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -100,5 +100,53 @@ describe("clearPageRestrictions", () => {
       { operation: "read", restrictions: { user: [] } },
       { operation: "update", restrictions: { user: [] } },
     ]);
+  });
+});
+
+describe("listLabels", () => {
+  it("페이지에 붙은 라벨 목록을 반환한다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ results: [{ id: "1", name: "React" }] }),
+            { status: 200 }
+          )
+      )
+    );
+
+    const labels = await listLabels("111");
+
+    expect(labels).toEqual([{ id: "1", name: "React" }]);
+  });
+});
+
+describe("addLabels", () => {
+  it("global prefix로 라벨을 추가하는 POST 요청을 보낸다", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await addLabels("111", ["React", "Backend"]);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(init!.body as string)).toEqual([
+      { prefix: "global", name: "React" },
+      { prefix: "global", name: "Backend" },
+    ]);
+  });
+});
+
+describe("removeLabel", () => {
+  it("이름으로 라벨을 삭제하는 DELETE 요청을 보낸다", async () => {
+    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await removeLabel("111", "React");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/rest/api/content/111/label?name=React`);
+    expect(init?.method).toBe("DELETE");
   });
 });

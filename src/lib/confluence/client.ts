@@ -421,3 +421,35 @@ export async function clearPageRestrictions(pageId: string): Promise<void> {
     ]),
   });
 }
+
+// ── Labels (태그) ──
+
+export interface ConfluenceLabel {
+  id: string;
+  name: string;
+}
+
+export async function listLabels(pageId: string): Promise<ConfluenceLabel[]> {
+  const result = await confluenceRequest<{ results: ConfluenceLabel[] }>(
+    `/rest/api/content/${pageId}/label`
+  );
+  return result.results;
+}
+
+export async function addLabels(pageId: string, labels: string[]): Promise<void> {
+  await confluenceRequest<{ results: ConfluenceLabel[] }>(
+    `/rest/api/content/${pageId}/label`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(labels.map((name) => ({ prefix: "global", name }))),
+    }
+  );
+}
+
+export async function removeLabel(pageId: string, name: string): Promise<void> {
+  await confluenceRequest<void>(
+    `/rest/api/content/${pageId}/label?name=${encodeURIComponent(name)}`,
+    { method: "DELETE" }
+  );
+}
