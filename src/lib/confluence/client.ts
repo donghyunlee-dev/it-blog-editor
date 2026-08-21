@@ -388,3 +388,36 @@ export async function listFooterComments(
 
   return comments;
 }
+
+// ── Restrictions (v1 REST API — v2에는 페이지 제한 엔드포인트가 없음) ──
+
+export async function restrictPageToAccount(
+  pageId: string,
+  accountId: string
+): Promise<void> {
+  await confluenceRequest<void>(`/rest/api/content/${pageId}/restriction`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([
+      {
+        operation: "read",
+        restrictions: { user: [{ type: "known", accountId }] },
+      },
+      {
+        operation: "update",
+        restrictions: { user: [{ type: "known", accountId }] },
+      },
+    ]),
+  });
+}
+
+export async function clearPageRestrictions(pageId: string): Promise<void> {
+  await confluenceRequest<void>(`/rest/api/content/${pageId}/restriction`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify([
+      { operation: "read", restrictions: { user: [] } },
+      { operation: "update", restrictions: { user: [] } },
+    ]),
+  });
+}

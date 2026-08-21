@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getCurrentConfluenceUser, movePage } from "./client";
+import { clearPageRestrictions, getCurrentConfluenceUser, movePage, restrictPageToAccount } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -62,5 +62,43 @@ describe("movePage", () => {
     const body = JSON.parse((putCall![1] as RequestInit).body as string);
     expect(body.parentId).toBe("999");
     expect(body.version.number).toBe(4);
+  });
+});
+
+describe("restrictPageToAccount", () => {
+  it("read/update 제한을 지정한 accountId로 PUT 요청을 보낸다", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(null, { status: 204 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await restrictPageToAccount("111", "acc-service");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/rest/api/content/111/restriction`);
+    expect(init?.method).toBe("PUT");
+    const body = JSON.parse(init!.body as string);
+    expect(body).toEqual([
+      { operation: "read", restrictions: { user: [{ type: "known", accountId: "acc-service" }] } },
+      { operation: "update", restrictions: { user: [{ type: "known", accountId: "acc-service" }] } },
+    ]);
+  });
+});
+
+describe("clearPageRestrictions", () => {
+  it("read/update 제한을 빈 목록으로 PUT 요청을 보낸다", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(null, { status: 204 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await clearPageRestrictions("111");
+
+    const [, init] = fetchMock.mock.calls[0];
+    const body = JSON.parse(init!.body as string);
+    expect(body).toEqual([
+      { operation: "read", restrictions: { user: [] } },
+      { operation: "update", restrictions: { user: [] } },
+    ]);
   });
 });
