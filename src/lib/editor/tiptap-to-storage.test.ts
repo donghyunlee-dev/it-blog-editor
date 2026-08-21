@@ -57,3 +57,42 @@ describe("tiptapDocToStorageFormat", () => {
     );
   });
 });
+
+describe("이미지·글자색·하이라이트", () => {
+  it("이미지 노드를 ac:image 매크로로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { filename: "photo.png" } }],
+    });
+
+    expect(html).toBe('<ac:image><ri:attachment ri:filename="photo.png" /></ac:image>');
+  });
+
+  it("글자 색상과 하이라이트를 인라인 style로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "색상 텍스트",
+              marks: [{ type: "textStyle", attrs: { color: "#ff0000" } }],
+            },
+            {
+              type: "text",
+              text: "하이라이트",
+              marks: [{ type: "highlight", attrs: { color: "#fff3b0" } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      '<p><span style="color:#ff0000">색상 텍스트</span>' +
+        '<span style="background-color:#fff3b0">하이라이트</span></p>'
+    );
+  });
+});

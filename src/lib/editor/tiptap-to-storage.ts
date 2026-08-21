@@ -19,6 +19,14 @@ const MARK_TAGS: Record<string, (attrs: Record<string, unknown> | undefined) => 
   italic: () => ["<em>", "</em>"],
   strike: () => ["<s>", "</s>"],
   link: (attrs) => [`<a href="${escapeHtml(String(attrs?.href ?? ""))}">`, "</a>"],
+  textStyle: (attrs) =>
+    attrs?.color
+      ? [`<span style="color:${escapeHtml(String(attrs.color))}">`, "</span>"]
+      : ["", ""],
+  highlight: (attrs) => [
+    `<span style="background-color:${escapeHtml(String(attrs?.color ?? "#ffff00"))}">`,
+    "</span>",
+  ],
 };
 
 function serializeText(node: JSONContent): string {
@@ -59,6 +67,8 @@ function serializeNode(node: JSONContent): string {
       return `<blockquote>${serializeChildren(node)}</blockquote>`;
     case "codeBlock":
       return `<pre><code>${serializeChildren(node)}</code></pre>`;
+    case "image":
+      return `<ac:image><ri:attachment ri:filename="${escapeHtml(String(node.attrs?.filename ?? ""))}" /></ac:image>`;
     default:
       return serializeChildren(node);
   }
