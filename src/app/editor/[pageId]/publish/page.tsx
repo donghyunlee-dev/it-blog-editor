@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getDocumentDetail } from "@/lib/editor/documents";
+import { getDocumentDetail, requireDocumentOwner } from "@/lib/editor/documents";
 import { getPublishState } from "@/lib/editor/publish";
-import { NotFoundError } from "@/lib/editor/errors";
+import { NotFoundError, UnauthorizedError } from "@/lib/editor/errors";
 import { PublishForm } from "@/components/editor/PublishForm";
 
 interface PublishSettingsPageProps {
@@ -14,7 +14,8 @@ export default async function PublishSettingsPage({
   params,
 }: PublishSettingsPageProps) {
   const session = await auth();
-  if (!session?.user) {
+  const email = session?.user?.email;
+  if (!email) {
     redirect("/login");
   }
 
@@ -27,10 +28,13 @@ export default async function PublishSettingsPage({
       getDocumentDetail(pageId),
       getPublishState(pageId),
     ]);
+    // 남의 문서는 "없는 문서"와 똑같이 404로 처리한다(권한 오류 화면을 따로 두면 pageId를
+    // 찍어보는 직원이 문서의 존재 여부를 알아낼 수 있다).
+    await requireDocumentOwner(pageId, email);
     title = document.title;
     publishState = state;
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof UnauthorizedError) {
       notFound();
     }
     throw error;

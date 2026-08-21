@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { getDocumentDetail } from "@/lib/editor/documents";
-import { NotFoundError } from "@/lib/editor/errors";
+import { getDocumentDetail, requireDocumentOwner } from "@/lib/editor/documents";
+import { NotFoundError, UnauthorizedError } from "@/lib/editor/errors";
 import { DocumentEditor } from "@/components/editor/DocumentEditor";
 
 interface EditDocumentPageProps {
@@ -13,7 +13,8 @@ export default async function EditDocumentPage({
   params,
 }: EditDocumentPageProps) {
   const session = await auth();
-  if (!session?.user) {
+  const email = session?.user?.email;
+  if (!email) {
     redirect("/login");
   }
 
@@ -22,8 +23,11 @@ export default async function EditDocumentPage({
   let document;
   try {
     document = await getDocumentDetail(pageId);
+    // 남의 문서는 "없는 문서"와 똑같이 404로 처리한다. 별도의 권한 오류 화면을 보여주면
+    // pageId를 찍어보는 직원이 "존재하지 않음"과 "존재하지만 내 것이 아님"을 구별할 수 있다.
+    await requireDocumentOwner(pageId, email);
   } catch (error) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof NotFoundError || error instanceof UnauthorizedError) {
       notFound();
     }
     throw error;
