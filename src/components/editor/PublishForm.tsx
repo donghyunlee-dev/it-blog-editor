@@ -3,13 +3,16 @@
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 
+interface ViewerMetadata {
+  slug: string;
+  metaDescription: string;
+}
+
 interface PublishFormProps {
   pageId: string;
   initial: {
     isPublished: boolean;
-    targetViewers: string[];
-    slug?: string;
-    metaDescription?: string;
+    viewers: Record<string, ViewerMetadata>;
   };
 }
 
@@ -18,12 +21,12 @@ const VIEWER_OPTIONS = [{ value: "tech-blog", label: "Tech Blog" }];
 export function PublishForm({ pageId, initial }: PublishFormProps) {
   const router = useRouter();
   const [isPublished, setIsPublished] = useState(initial.isPublished);
-  const [targetViewers, setTargetViewers] = useState<string[]>(
-    initial.targetViewers.length ? initial.targetViewers : ["tech-blog"]
+  const [enabledViewers, setEnabledViewers] = useState<string[]>(
+    Object.keys(initial.viewers).length ? Object.keys(initial.viewers) : ["tech-blog"]
   );
-  const [slug, setSlug] = useState(initial.slug ?? "");
+  const [slug, setSlug] = useState(initial.viewers["tech-blog"]?.slug ?? "");
   const [metaDescription, setMetaDescription] = useState(
-    initial.metaDescription ?? ""
+    initial.viewers["tech-blog"]?.metaDescription ?? ""
   );
   const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -35,16 +38,16 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
     setError(null);
     setSavedAt(null);
 
+    const viewers: Record<string, ViewerMetadata> = {};
+    for (const viewerId of enabledViewers) {
+      viewers[viewerId] = { slug, metaDescription };
+    }
+
     try {
       const response = await fetch(`/api/editor/documents/${pageId}/publish`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          isPublished,
-          targetViewers,
-          slug,
-          metaDescription,
-        }),
+        body: JSON.stringify({ isPublished, viewers }),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -101,9 +104,9 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
           <label key={option.value} style={{ fontWeight: 400 }}>
             <input
               type="checkbox"
-              checked={targetViewers.includes(option.value)}
+              checked={enabledViewers.includes(option.value)}
               onChange={(event) => {
-                setTargetViewers((prev) =>
+                setEnabledViewers((prev) =>
                   event.target.checked
                     ? [...prev, option.value]
                     : prev.filter((value) => value !== option.value)

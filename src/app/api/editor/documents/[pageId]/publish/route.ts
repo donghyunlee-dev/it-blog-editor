@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
-import { setPublishState } from "@/lib/editor/publish";
+import { setPublishState, type PublishViewerMetadata } from "@/lib/editor/publish";
 
 interface RouteContext {
   params: Promise<{ pageId: string }>;
@@ -14,17 +14,13 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const payload = (await request.json()) as {
       isPublished?: boolean;
-      targetViewers?: string[];
-      slug?: string;
-      metaDescription?: string;
+      viewers?: Record<string, PublishViewerMetadata>;
     };
 
     const result = await setPublishState({
       pageId,
       isPublished: Boolean(payload.isPublished),
-      targetViewers: payload.targetViewers,
-      slug: payload.slug,
-      metaDescription: payload.metaDescription,
+      viewers: payload.viewers,
     });
 
     return NextResponse.json(result);
