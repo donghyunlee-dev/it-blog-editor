@@ -12,8 +12,10 @@ import {
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { markdownToStorageFormat } from "./markdown";
 import { hidePageFromOthers } from "./access";
+import { getContentRoots } from "./roots";
 
 const SOURCE_MARKDOWN_PROPERTY_KEY = "sourceMarkdown";
+const AUTHOR_PROPERTY_KEY = "authorMeta";
 
 export interface DocumentSummary {
   pageId: string;
@@ -39,16 +41,52 @@ async function getPageOrThrow(pageId: string) {
   }
 }
 
-/** 개인 폴더 하위 문서 목록을 조회한다. */
+/** 페이지의 authorMeta property에서 실제 작성자 이메일을 읽는다(없으면 null). */
+async function readAuthorEmail(pageId: string): Promise<string | null> {
+  const property = await getPageProperty<{ actualAuthorEmail?: string }>(
+    pageId,
+    AUTHOR_PROPERTY_KEY
+  );
+  return property?.value?.actualAuthorEmail ?? null;
+}
+
+/**
+ * 작성자가 볼 수 있는 문서 목록을 조회한다.
+ * 게시하면 문서가 개인 폴더에서 "게시됨" 루트로 물리적으로 이동하므로, 개인 폴더 하위 초안과
+ * "게시됨" 루트 하위의 본인 작성 문서(authorMeta 기준)를 합쳐서 반환한다.
+ */
 export async function listDocuments(
-  folderId: string
+  folderId: string,
+  authorEmail: string
 ): Promise<DocumentSummary[]> {
-  const pages = await listChildPages(folderId);
-  return pages.map((page) => ({
-    pageId: page.id,
-    title: page.title,
-    updatedAt: page.version.createdAt,
-  }));
+  const { publishedRootId } = await getContentRoots();
+
+  const [draftPages, publishedPages] = await Promise.all([
+    listChildPages(folderId),
+    listChildPages(publishedRootId),
+  ]);
+
+  const ownedPublishedPages: typeof publishedPages = [];
+  for (const page of publishedPages) {
+    if ((await readAuthorEmail(page.id)) === authorEmail) {
+      ownedPublishedPages.push(page);
+    }
+  }
+
+  const seen = new Set<string>();
+  return [...draftPages, ...ownedPublishedPages]
+    .filter((page) => {
+      if (seen.has(page.id)) {
+        return false;
+      }
+      seen.add(page.id);
+      return true;
+    })
+    .map((page) => ({
+      pageId: page.id,
+      title: page.title,
+      updatedAt: page.version.createdAt,
+    }));
 }
 
 /**

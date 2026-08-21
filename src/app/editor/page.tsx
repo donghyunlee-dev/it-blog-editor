@@ -25,7 +25,7 @@ export default async function EditorExplorerPage() {
     }
   }
 
-  const documents = folder ? await listDocuments(folder.folderId) : [];
+  const documents = folder ? await listDocuments(folder.folderId, email) : [];
 
   return (
     <main className="page">

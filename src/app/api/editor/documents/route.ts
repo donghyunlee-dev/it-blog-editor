@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ documents: [] });
     }
 
-    const documents = await listDocuments(folder.folderId);
+    const documents = await listDocuments(folder.folderId, email);
     return NextResponse.json({ documents });
   } catch (error) {
     return toErrorResponse(error);
