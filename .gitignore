@@ -18,3 +18,6 @@
 # misc
 .DS_Store
 npm-debug.log*
+
+# git worktrees (superpowers subagent-driven-development)
+/.worktrees
