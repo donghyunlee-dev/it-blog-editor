@@ -2,6 +2,7 @@ import {
   ConfluenceApiError,
   findPublishedPageBySlug,
   getConfiguredSpace,
+  getPage,
   getPageProperty,
   movePage,
   upsertPageProperty,
@@ -82,11 +83,25 @@ async function assertNoSlugConflict(
   }
 }
 
-/** 문서의 게시 여부·뷰어별 slug/메타 설명을 설정한다. */
+/**
+ * 문서의 게시 여부·뷰어별 slug/메타 설명을 설정한다.
+ *
+ * 현재 게시 여부는 저장된 `publishMetadata.isPublished` 플래그가 아니라 **실제 페이지 위치**
+ * (부모가 "게시됨" 루트인지)로 판단하고, 물리적 이동/권한 제한 토글을 메타데이터 기록보다
+ * **먼저** 수행한다. 중간에 실패하더라도 저장된 메타데이터가 실제 상태보다 뒤처지기만 하므로
+ * (공개 루트에 있는 문서를 "초안"이라고 잘못 표시하는 fail-open 상태가 생기지 않음),
+ * 같은 요청을 그대로 재시도하면 실제 위치에서 올바른 동작이 다시 도출된다.
+ */
 export async function setPublishState(input: SetPublishStateInput) {
   const existingProperty = await getPublishPropertyOrThrow(input.pageId);
   const previousState: PublishMetadata =
     existingProperty?.value ?? { isPublished: false, viewers: {} };
+
+  const [currentPage, { publishedRootId }] = await Promise.all([
+    getPage(input.pageId),
+    getContentRoots(),
+  ]);
+  const isCurrentlyPublished = currentPage.parentId === publishedRootId;
 
   if (input.isPublished) {
     const viewers = input.viewers ?? previousState.viewers;
@@ -95,6 +110,11 @@ export async function setPublishState(input: SetPublishStateInput) {
     }
     await assertNoSlugConflict(input.pageId, previousState.viewers, viewers);
 
+    if (!isCurrentlyPublished) {
+      await movePage(input.pageId, publishedRootId);
+      await revealPageToSpace(input.pageId);
+    }
+
     const value: PublishMetadata = {
       isPublished: true,
       publishedAt: new Date().toISOString(),
@@ -102,19 +122,10 @@ export async function setPublishState(input: SetPublishStateInput) {
     };
     await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
 
-    if (!previousState.isPublished) {
-      const { publishedRootId } = await getContentRoots();
-      await movePage(input.pageId, publishedRootId);
-      await revealPageToSpace(input.pageId);
-    }
-
     return { pageId: input.pageId, isPublished: true, viewers, publishedAt: value.publishedAt };
   }
 
-  const value: PublishMetadata = { isPublished: false, viewers: previousState.viewers };
-  await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
-
-  if (previousState.isPublished) {
+  if (isCurrentlyPublished) {
     const authorProperty = await getPageProperty<{ actualAuthorEmail: string }>(
       input.pageId,
       AUTHOR_PROPERTY_KEY
@@ -129,6 +140,9 @@ export async function setPublishState(input: SetPublishStateInput) {
     await movePage(input.pageId, targetFolder.folderId);
     await hidePageFromOthers(input.pageId);
   }
+
+  const value: PublishMetadata = { isPublished: false, viewers: previousState.viewers };
+  await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
 
   return { pageId: input.pageId, isPublished: false, viewers: value.viewers };
 }
