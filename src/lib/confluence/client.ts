@@ -117,13 +117,31 @@ export interface ConfluencePage {
   body?: { storage: { value: string; representation: "storage" } };
 }
 
+/**
+ * 특정 페이지의 모든 하위 페이지를 페이지네이션을 따라가며 조회한다.
+ * v2 API의 기본 페이지 크기(25)에 걸려 조용히 잘리면 개인 폴더나 문서가 목록에서 사라지므로
+ * 반드시 _links.next 커서를 끝까지 따라간다.
+ */
 export async function listChildPages(
   parentId: string
 ): Promise<ConfluencePage[]> {
-  const result = await confluenceRequest<{ results: ConfluencePage[] }>(
-    `/api/v2/pages/${parentId}/children`
-  );
-  return result.results;
+  const pages: ConfluencePage[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const query: string = cursor
+      ? cursor
+      : `/api/v2/pages/${parentId}/children?limit=100`;
+    const page = await confluenceRequest<{
+      results: ConfluencePage[];
+      _links: { next?: string };
+    }>(query);
+
+    pages.push(...page.results);
+    cursor = page._links?.next ?? null;
+  } while (cursor);
+
+  return pages;
 }
 
 export async function findChildPageByTitle(
@@ -328,9 +346,15 @@ export async function findPublishedPageBySlug(
 
     for (const candidate of page.results) {
       const property = await getPageProperty<{
+        isPublished?: boolean;
         viewers?: Record<string, { slug?: string }>;
       }>(candidate.id, propertyKey);
-      if (property?.value?.viewers?.[viewerId]?.slug === slug) {
+      // 게시 취소된 문서는 viewers 메타데이터(재게시 시 이전 slug 제안용)를 그대로 유지하므로,
+      // 현재 게시 중인 문서만 slug를 점유한 것으로 본다.
+      if (
+        property?.value?.isPublished === true &&
+        property?.value?.viewers?.[viewerId]?.slug === slug
+      ) {
         return candidate;
       }
     }

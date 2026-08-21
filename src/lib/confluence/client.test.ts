@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
+import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listChildPages, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -181,7 +181,7 @@ describe("findPublishedPageBySlug", () => {
               {
                 id: "p1",
                 key: "publishMetadata",
-                value: { viewers: { "tech-blog": { slug: "other-post" } } },
+                value: { isPublished: true, viewers: { "tech-blog": { slug: "other-post" } } },
                 version: { number: 1 },
               },
             ],
@@ -196,7 +196,7 @@ describe("findPublishedPageBySlug", () => {
               {
                 id: "p2",
                 key: "publishMetadata",
-                value: { viewers: { "tech-blog": { slug: "my-post" } } },
+                value: { isPublished: true, viewers: { "tech-blog": { slug: "my-post" } } },
                 version: { number: 1 },
               },
             ],
@@ -211,5 +211,80 @@ describe("findPublishedPageBySlug", () => {
     const result = await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
 
     expect(result?.id).toBe("2");
+  });
+
+  it("slug가 같아도 게시 취소된 문서는 중복으로 보지 않는다", async () => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url.includes("/pages?limit=100")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "1", status: "current", title: "A", spaceId: "1", parentId: null, version: { number: 1, createdAt: "" } },
+            ],
+            _links: {},
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pages/1/properties")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "p1",
+                key: "publishMetadata",
+                value: { isPublished: false, viewers: { "tech-blog": { slug: "my-post" } } },
+                version: { number: 1 },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+
+    expect(result).toBeNull();
+  });
+});
+
+describe("listChildPages", () => {
+  it("_links.next 커서를 따라가며 모든 하위 페이지를 모아 반환한다", async () => {
+    const nextCursor = "/api/v2/pages/parent-1/children?limit=100&cursor=page2";
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+      if (url.endsWith(nextCursor)) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "c3", status: "current", title: "C", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
+            ],
+            _links: {},
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pages/parent-1/children")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "c1", status: "current", title: "A", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
+              { id: "c2", status: "current", title: "B", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
+            ],
+            _links: { next: nextCursor },
+          }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pages = await listChildPages("parent-1");
+
+    expect(pages.map((page) => page.id)).toEqual(["c1", "c2", "c3"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
