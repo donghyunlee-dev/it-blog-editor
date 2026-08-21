@@ -14,7 +14,10 @@ describe("getCurrentConfluenceUser", () => {
   it("서비스 계정의 accountId를 반환한다", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => new Response(JSON.stringify({ accountId: "acc-1" }), { status: 200 }))
+      vi.fn(
+        async (_url: string, _init?: RequestInit) =>
+          new Response(JSON.stringify({ accountId: "acc-1" }), { status: 200 })
+      )
     );
 
     const user = await getCurrentConfluenceUser();
@@ -68,7 +71,7 @@ describe("movePage", () => {
 describe("restrictPageToAccount", () => {
   it("read/update 제한을 지정한 accountId로 PUT 요청을 보낸다", async () => {
     const fetchMock = vi.fn(
-      async () => new Response(null, { status: 204 })
+      async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -88,7 +91,7 @@ describe("restrictPageToAccount", () => {
 describe("clearPageRestrictions", () => {
   it("read/update 제한을 빈 목록으로 PUT 요청을 보낸다", async () => {
     const fetchMock = vi.fn(
-      async () => new Response(null, { status: 204 })
+      async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -108,7 +111,7 @@ describe("listLabels", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(
-        async () =>
+        async (_url: string, _init?: RequestInit) =>
           new Response(
             JSON.stringify({ results: [{ id: "1", name: "React" }] }),
             { status: 200 }
@@ -124,7 +127,10 @@ describe("listLabels", () => {
 
 describe("addLabels", () => {
   it("global prefix로 라벨을 추가하는 POST 요청을 보낸다", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) =>
+        new Response(JSON.stringify({ results: [] }), { status: 200 })
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await addLabels("111", ["React", "Backend"]);
@@ -140,7 +146,9 @@ describe("addLabels", () => {
 
 describe("removeLabel", () => {
   it("이름으로 라벨을 삭제하는 DELETE 요청을 보낸다", async () => {
-    const fetchMock = vi.fn(async () => new Response(null, { status: 204 }));
+    const fetchMock = vi.fn(
+      async (_url: string, _init?: RequestInit) => new Response(null, { status: 204 })
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     await removeLabel("111", "React");
@@ -153,7 +161,7 @@ describe("removeLabel", () => {
 
 describe("findPublishedPageBySlug", () => {
   it("지정한 viewerId의 slug가 일치하는 페이지를 찾는다", async () => {
-    const fetchMock = vi.fn(async (url: string) => {
+    const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url.includes("/pages?limit=100")) {
         return new Response(
           JSON.stringify({
