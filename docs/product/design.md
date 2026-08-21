@@ -1,0 +1,146 @@
+# 🎨 디자인 시스템 적용 가이드 — SFOOD IT Editor
+
+## 개요
+- 사내 디자인 시스템 `@sfood/ui`(Storybook 문서: https://sfood-design-system.vercel.app/?path=/docs/docs-getting-started--docs)를 이 프로젝트에 도입한다.
+- 지금까지 `src/app/globals.css`에 직접 만들어 쓰던 커스텀 클래스(`.page`, `.card`, `.button-primary` 등)는 `@sfood/ui` 컴포넌트와 토큰으로 단계적으로 대체한다.
+- 관련 문서: [requirements.md](./requirements.md), [architecture.md](./architecture.md), [prd.md](./prd.md), 화면 설계는 [docs/superpowers/specs/2026-08-21-editor-ui-ux-design.md](../superpowers/specs/2026-08-21-editor-ui-ux-design.md) 참고.
+
+## 설치 및 설정
+
+Storybook의 "Getting Started" 문서 기준. 실제 설치는 구현 플랜(Task로 정리)에서 진행한다.
+
+**1. 설치**
+```bash
+npm install @sfood/ui
+```
+`@sfood/ui`는 public npm 레지스트리에 배포되어 있어 별도 저장소 접근 권한 없이 설치할 수 있다.
+
+**2. Tailwind 설정** — 이 프로젝트는 아직 Tailwind CSS를 쓰지 않으므로, `@sfood/ui` 도입 시 Tailwind 자체도 함께 새로 설치해야 한다.
+```js
+// tailwind.config.js
+import sfoodPreset from '@sfood/ui/tailwind.config.js'
+
+export default {
+  presets: [sfoodPreset],
+  content: [
+    './src/**/*.{ts,tsx}',
+    './node_modules/@sfood/ui/dist/**/*.js',
+  ],
+}
+```
+
+**3. 글로벌 CSS**
+```ts
+// src/app/layout.tsx (기존 globals.css import 옆에 추가)
+import '@sfood/ui/global.css'
+```
+
+**4. 사용 예시(로그인 화면)**
+```tsx
+import { LoginSimple } from '@sfood/ui'
+
+export default function App() {
+  return (
+    <LoginSimple
+      logo={<span className="text-2xl font-bold text-brand">SFOOD IT Editor</span>}
+      onLogin={(email, password) => console.log(email, password)}
+      onSignup={() => {}}
+    />
+  )
+}
+```
+이 프로젝트는 이메일/비밀번호 로그인이 아니라 AX Auth 리다이렉트 방식이므로, `LoginSimple`의 `onLogin`/`onSignup` 콜백은 쓰지 않고 슬롯(로고, 버튼 영역)만 커스터마이징해서 "MS 계정으로 로그인" 버튼을 넣는 형태로 맞춘다.
+
+## 이 프로젝트에서 쓸 컴포넌트 매핑
+
+Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 화면 설계에서 쓰기로 한 것만 정리한다(전체 목록은 Storybook 사이드바 참고).
+
+| 화면/요소 | 컴포넌트 | 비고 |
+|---|---|---|
+| 로그인 화면 | `LoginSimple` (Template) | 슬롯으로 AX Auth 버튼 커스터마이징 |
+| 좌측 사이드바(앱 셸) | `Sidebar` | 문서 목록·태그 필터·"새 문서" 버튼을 담는 컨테이너 |
+| 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트 |
+| 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`, 필터 바의 다중 선택은 `ChipGroup` |
+| 문서 목록 항목 | `List` | 기존 `<ul className="doc-list">`를 대체 |
+| 문서함 빈 상태 | `EmptyState` | 기존 `.empty-state` 카드를 대체 |
+| 버튼 전체 | `Button` (`variant="primary"/"secondary"/"danger"`) | 한 화면에 `primary`는 1개만 쓰는 원칙(Do/Don't 참고) |
+| 폼 필드(게시 설정 등) | `FormField`, `Input`, `Textarea`, `Switch` | 라벨·에러를 `FormField`로 감싸는 패턴 |
+| 문서 삭제 확인 | `Modal` | 기존 `window.confirm()`을 대체 |
+| 저장 성공/실패 알림 | `Toast`(`useToast()`) | 기존 인라인 `<p className="error-text">`를 대체 |
+| 게시 설정의 뷰어별 카드 | `Card` | 뷰어(Tech Blog 등)마다 하나씩 |
+| 버블 툴바 / 슬래시 메뉴 위치 지정 | `Popover` | 텍스트 선택 위치·커서 위치에 뜨는 오버레이의 기반으로 사용 |
+
+## Do / Don't (Component Guide 발췌)
+
+**색상**: 토큰 클래스를 쓰고 하드코딩하지 않는다.
+```tsx
+// Do
+<div className="text-foreground bg-surface border-border">
+
+// Don't
+<div className="text-gray-900 bg-white border-gray-200">
+```
+
+**버튼 계층**: 한 화면에 `primary` 버튼은 1개만 둔다.
+```tsx
+// Do
+<Button variant="primary">저장</Button>
+<Button variant="secondary">취소</Button>
+
+// Don't
+<Button variant="primary">저장</Button>
+<Button variant="primary">취소</Button>
+<Button variant="primary">삭제</Button>
+```
+→ 편집 화면 하단 버튼(저장/삭제/게시 설정 이동)을 재설계할 때, "저장"만 `primary`로 두고 "삭제"는 `danger`, "게시 설정"은 `secondary`로 구분한다(지금 코드의 `button-danger-outline`과 방향은 같지만 컴포넌트로 교체).
+
+**폼 구조**: 라벨/에러를 `FormField`로 감싼다.
+```tsx
+// Do
+<FormField label="이메일" error="필수 항목" required>
+  <Input type="email" error />
+</FormField>
+```
+
+**자주 쓰는 조합 — 삭제 확인 모달**
+```tsx
+<Modal
+  open={open}
+  onClose={() => setOpen(false)}
+  title="삭제 확인"
+  footer={
+    <>
+      <Button variant="secondary" onClick={() => setOpen(false)}>취소</Button>
+      <Button variant="danger" onClick={handleDelete}>삭제</Button>
+    </>
+  }
+>
+  이 작업은 되돌릴 수 없습니다.
+</Modal>
+```
+
+**Toast 알림**
+```tsx
+const { toast } = useToast()
+
+toast('저장되었습니다.', 'success')
+toast('오류가 발생했습니다.', 'danger')
+```
+
+## 토큰 레퍼런스 (요약)
+
+모든 토큰은 `@sfood/ui`의 `tokens/semantic.css`에 정의되어 있고, 이 프로젝트에서는 직접 수정하지 않는다(테마 커스터마이징이 필요해지면 별도로 논의).
+
+| 구분 | 대표 토큰 | 용도 |
+|---|---|---|
+| 색상 | `--color-brand`, `--color-surface`, `--color-foreground`, `--color-danger`, `--color-success`, `--color-warning`, `--color-info` | 액션 색상, 카드 배경, 기본 텍스트, 상태 색상 |
+| Spacing | `--spacing-xs`(4px) ~ `--spacing-2xl`(80px), `--page-padding`(24px) | 컴포넌트 내부/섹션 간격 |
+| Shadow | `--shadow-sm`/`md`/`lg`/`card`/`raised`/`overlay` | Input, Card, Modal 등 |
+| Motion | `--motion-fast`(100ms) / `default`(150ms) / `slow`(300ms) | 호버, 전환, 모달 등장 |
+| Radius | `--radius-btn`/`card`/`input`/`badge` | 컴포넌트별 모서리 반경 |
+
+기존 `globals.css`의 `--color-brand: #e4002b;` 등 커스텀 토큰 값은 `@sfood/ui` 도입 시 그대로 유지할지, 디자인 시스템의 기본 브랜드 색으로 맞출지는 실제 도입 작업(Task)에서 디자인 담당자와 다시 확인한다 — 이 문서에서는 "토큰 체계를 `@sfood/ui` 방식으로 통일한다"까지만 정하고, 정확한 색상 값은 확인되지 않은 사항으로 남긴다.
+
+## 확인되지 않은 사항
+- `ChipGroup`이 "태그를 자유롭게 입력해서 추가"하는 입력 모드를 지원하는지, 아니면 이미 정해진 목록에서 선택하는 용도로만 만들어졌는지는 Storybook의 `ChipGroup` 컴포넌트 스토리를 직접 확인해야 한다. 지원하지 않으면 `Input` + `ChipGroup`(표시용)을 조합한 커스텀 태그 입력을 만든다.
+- 기존 브랜드 색상(`#e4002b`)을 `@sfood/ui` 토큰에 그대로 반영할지 여부.
