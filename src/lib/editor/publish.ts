@@ -48,6 +48,8 @@ async function assertNoSlugConflict(
   previousViewers: Record<string, PublishViewerMetadata>,
   nextViewers: Record<string, PublishViewerMetadata>
 ) {
+  const space = await getConfiguredSpace();
+
   for (const [viewerId, meta] of Object.entries(nextViewers)) {
     if (!meta.slug || !meta.metaDescription) {
       throw new ValidationError(`뷰어(${viewerId})의 slug와 metaDescription은 필수입니다.`);
@@ -58,7 +60,6 @@ async function assertNoSlugConflict(
       continue;
     }
 
-    const space = await getConfiguredSpace();
     const conflictingPage = await findPublishedPageBySlug(
       space.id,
       viewerId,
