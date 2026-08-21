@@ -137,8 +137,13 @@ export async function setPublishState(input: SetPublishStateInput) {
 
     const targetFolder =
       (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
-    await movePage(input.pageId, targetFolder.folderId);
+
+    // 제한을 먼저 걸고 나서 옮긴다. Confluence 페이지 제한은 부모로부터 상속되지 않으므로
+    // (설계 문서 "숨김 메커니즘 — 상속에 의존하지 않는 명시적 제한"), 순서를 뒤집으면 이동
+    // 성공 후 제한 실패 시 문서가 제한 없이 개인 폴더에 놓여 Space 구성원에게 노출된다.
+    // 이 순서에서는 최악의 경우가 "제한된 상태로 잘못된 위치에 남음"이라 노출 창이 없다.
     await hidePageFromOthers(input.pageId);
+    await movePage(input.pageId, targetFolder.folderId);
   }
 
   const value: PublishMetadata = { isPublished: false, viewers: previousState.viewers };

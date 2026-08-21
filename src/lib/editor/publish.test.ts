@@ -120,7 +120,7 @@ describe("setPublishState — 생명주기", () => {
     expect(calls).toEqual(["move", "reveal", "upsert"]);
   });
 
-  it("게시 취소 시 작성자의 개인 폴더로 되돌리고 다시 숨긴 뒤 메타데이터를 쓴다", async () => {
+  it("게시 취소 시 먼저 제한을 걸고 나서 개인 폴더로 옮긴 뒤 메타데이터를 쓴다", async () => {
     vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
       if (key === "publishMetadata") {
         return {
@@ -176,7 +176,10 @@ describe("setPublishState — 생명주기", () => {
 
     expect(moveSpy).toHaveBeenCalledWith("doc-1", "folder-1");
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
-    expect(calls).toEqual(["move", "hide", "upsert"]);
+    // Confluence 제한은 상속되지 않으므로(설계 문서 "숨김 메커니즘 — 상속에 의존하지 않는
+    // 명시적 제한"), 이동보다 제한을 먼저 걸어야 한다. 이동 후 제한 실패 시 문서가 제한 없이
+    // 개인 폴더에 놓여 Space 구성원에게 노출되는 창이 생긴다.
+    expect(calls).toEqual(["hide", "move", "upsert"]);
   });
 
   it("저장된 플래그가 아니라 실제 페이지 위치로 게시 여부를 판단한다", async () => {
@@ -271,6 +274,7 @@ describe("setPublishState — 생명주기", () => {
       spaceKey: "SFOODIT",
     });
     const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+    const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
     vi.spyOn(client, "movePage").mockRejectedValue(new Error("Confluence 이동 실패"));
 
     await expect(
@@ -278,5 +282,7 @@ describe("setPublishState — 생명주기", () => {
     ).rejects.toThrow("Confluence 이동 실패");
 
     expect(upsertSpy).not.toHaveBeenCalled();
+    // 이동이 실패하더라도 제한은 이미 걸려 있어야 한다(노출 창 없음)
+    expect(hideSpy).toHaveBeenCalledWith("doc-1");
   });
 });
