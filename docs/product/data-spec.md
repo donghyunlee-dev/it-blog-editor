@@ -16,12 +16,15 @@
 ## 테이블 명세
 
 ### 테이블 — DraftsRoot / PublishedRoot
-Confluence 페이지 그 자체이며, 별도 content property는 없다. 최초 1회 수동으로 생성하고, `DraftsRoot`에는 서비스 계정 전용 Restriction을 수동으로 설정한다.
+Confluence 페이지 그 자체이며, 별도 content property는 없다. 최초 1회 운영자가 수동으로 생성하고, `DraftsRoot`에는 서비스 계정 전용 Restriction을 수동으로 설정한다(README.md의 "최초 1회 운영 작업" 참고).
+
+두 루트 페이지의 pageId를 환경변수로 주입하지 않는다. `src/lib/editor/roots.ts`의 `getContentRoots()`가 `CONFLUENCE_SPACE_KEY`로 지정된 Space의 홈페이지 하위에서 **제목 완전 일치**로 두 페이지를 찾아낸다(제목이 곧 식별자이므로 페이지를 다시 만들거나 옮겨도 환경변수를 고칠 필요가 없다). 두 페이지 중 하나라도 없으면 `getContentRoots()`가 오류를 던지고, 개인 폴더 생성·문서 목록 조회 등 관련 기능이 동작하지 않는다.
 
 | 속성 | 타입 | 제약조건 | 설명 |
 |---|---|---|---|
-| pageId | string | Confluence가 발급, 불변 | 각 서비스에서 환경변수로 참조(예: `CONFLUENCE_DRAFTS_ROOT_ID`, `CONFLUENCE_PUBLISHED_ROOT_ID`) |
-| title | string | 고정값("초안", "게시됨") | 관리자가 Confluence UI에서 직접 지정 |
+| pageId | string | Confluence가 발급, 불변 | 애플리케이션이 제목으로 조회해 런타임에 얻는다(환경변수 없음) |
+| title | string | 고정값("초안", "게시됨"), Space 홈페이지 하위에서 unique | 루트 페이지의 실질적 식별자. 운영자가 Confluence UI에서 직접 지정하며, 변경하면 조회가 실패한다 |
+| parentId | string | 항상 Space 홈페이지의 pageId | 홈페이지 직속 하위여야 조회된다 |
 
 ### 테이블 — PersonalFolder (Confluence Page)
 | 속성 | 타입 | 제약조건 | 설명 |
