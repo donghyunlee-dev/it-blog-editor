@@ -107,10 +107,13 @@ Viewer(별도 프로젝트)가 자체 Confluence 자격증명으로 직접 댓�
 ## 검증이 필요한 가정 (구현 착수 전 스파이크로 확인)
 
 1. Confluence v2 페이지 API(`PUT /api/v2/pages/{id}`)가 `parentId` 변경(페이지 이동)을 지원하는지. 지원하지 않으면 v1 API로 대체해야 한다.
+   → ✅ 확인됨(2026-08-21). 실제 Confluence Cloud 인스턴스(space `ITTECHBLOG`)에 테스트 페이지 2개(부모용 1개, 이동 대상 1개)를 만들어 확인. `PUT /api/v2/pages/{id}`에 `{"id", "status":"current", "title", "parentId": "<새 부모 pageId>", "version": {"number": <현재+1>}}`를 보내면 200 응답과 함께 응답 바디의 `parentId`가 요청한 새 부모 ID로 실제 변경되었다. `parentType`도 `"page"`로 유지됨. 추가 파라미터나 v1 폴백 불필요.
 2. 페이지 Restriction API가 v2에 없을 가능성이 높다 — 첨부파일 업로드가 이미 v1으로 대체된 전례처럼, v1 `/rest/api/content/{id}/restriction/byOperation/{read|update}`를 사용할 가능성이 크다.
+   → ✅ 확인됨(2026-08-21). v2에는 restriction 엔드포인트가 없다(v1만 확인, v2 부재 자체를 별도로 테스트하지는 않음). v1 벌크 엔드포인트 `PUT /rest/api/content/{id}/restriction`에 `[{"operation":"read","restrictions":{"user":[{"type":"known","accountId":"<accountId>"}]}}, {"operation":"update","restrictions":{"user":[...]}}]` 형식(배열, `byOperation` 경로 아님)으로 보내면 200과 함께 각 operation의 restriction이 실제로 반영된 결과가 돌아온다. 이어서 `GET /rest/api/content/{id}/restriction`으로 재조회해도 동일하게 반영되어 있음을 확인. accountId는 `GET /rest/api/user/current`의 `accountId` 필드로 얻는다.
 3. 서비스 계정 자신에게 거는 제한이 서비스 계정의 이후 API 호출 자체를 막지 않는지(제한 대상=자기 자신이므로 문제 없을 것으로 예상하지만 실제 확인 필요).
+   → ✅ 확인됨(2026-08-21). 위 2번에서 테스트 계정 자신을 read/update restriction 대상으로 지정한 뒤, 같은 계정 자격으로 `GET /api/v2/pages/{id}?body-format=storage`를 호출하면 200이 정상적으로 반환되고 본문도 그대로 조회된다. 자기 자신에게 건 제한이 자기 API 호출을 막지 않음을 확인.
 
-이 3가지는 Phase 1 구현 착수 전에 실제 Confluence 인스턴스로 먼저 확인한다.
+이 3가지는 Phase 1 구현 착수 전에 실제 Confluence 인스턴스로 먼저 확인했다(Task 1 스파이크, 테스트 페이지는 확인 후 즉시 trash+purge로 삭제).
 
 ## 범위 밖
 
