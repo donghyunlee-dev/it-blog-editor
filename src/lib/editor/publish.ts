@@ -3,11 +3,16 @@ import {
   findPublishedPageBySlug,
   getConfiguredSpace,
   getPageProperty,
+  movePage,
   upsertPageProperty,
 } from "@/lib/confluence/client";
+import { hidePageFromOthers, revealPageToSpace } from "./access";
+import { getContentRoots } from "./roots";
+import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 
 const PUBLISH_PROPERTY_KEY = "publishMetadata";
+const AUTHOR_PROPERTY_KEY = "authorMeta";
 
 export interface PublishViewerMetadata {
   slug: string;
@@ -97,11 +102,33 @@ export async function setPublishState(input: SetPublishStateInput) {
     };
     await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
 
+    if (!previousState.isPublished) {
+      const { publishedRootId } = await getContentRoots();
+      await movePage(input.pageId, publishedRootId);
+      await revealPageToSpace(input.pageId);
+    }
+
     return { pageId: input.pageId, isPublished: true, viewers, publishedAt: value.publishedAt };
   }
 
   const value: PublishMetadata = { isPublished: false, viewers: previousState.viewers };
   await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
+
+  if (previousState.isPublished) {
+    const authorProperty = await getPageProperty<{ actualAuthorEmail: string }>(
+      input.pageId,
+      AUTHOR_PROPERTY_KEY
+    );
+    const authorEmail = authorProperty?.value.actualAuthorEmail;
+    if (!authorEmail) {
+      throw new Error("작성자 정보를 찾을 수 없어 초안 폴더로 되돌릴 수 없습니다.");
+    }
+
+    const targetFolder =
+      (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
+    await movePage(input.pageId, targetFolder.folderId);
+    await hidePageFromOthers(input.pageId);
+  }
 
   return { pageId: input.pageId, isPublished: false, viewers: value.viewers };
 }
