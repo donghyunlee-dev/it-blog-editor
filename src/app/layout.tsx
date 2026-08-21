@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "@sfood/ui/global.css";
 
 export const metadata: Metadata = {
   title: "SFOOD IT Editor",
