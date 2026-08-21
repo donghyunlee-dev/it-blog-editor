@@ -32,6 +32,30 @@ describe("setTags", () => {
 
     expect(addSpy).toHaveBeenCalledWith("doc-1", ["Backend"]);
     expect(removeSpy).toHaveBeenCalledWith("doc-1", "Old");
-    expect(result).toEqual(["React", "Backend"]);
+    // 반환값은 입력을 되풀이하지 않고 Confluence의 최신 상태(getTags 재조회)를 쓴다
+    expect(result).toEqual(["React", "Old"]);
+  });
+
+  it("Confluence가 라벨을 소문자로 저장해도 같은 태그를 다시 저장하면 아무 변경이 없다", async () => {
+    // Confluence는 라벨을 소문자로 저장하므로, 두 번째 저장 시 current는 ["react"]가 된다
+    vi.spyOn(client, "listLabels").mockResolvedValue([{ id: "1", name: "react" }]);
+    const addSpy = vi.spyOn(client, "addLabels").mockResolvedValue(undefined);
+    const removeSpy = vi.spyOn(client, "removeLabel").mockResolvedValue(undefined);
+
+    const result = await setTags("doc-1", ["React"]);
+
+    expect(addSpy).not.toHaveBeenCalled();
+    expect(removeSpy).not.toHaveBeenCalled();
+    expect(result).toEqual(["react"]);
+  });
+
+  it("추가 요청은 호출자가 준 원래 대소문자로 보낸다", async () => {
+    vi.spyOn(client, "listLabels").mockResolvedValue([]);
+    const addSpy = vi.spyOn(client, "addLabels").mockResolvedValue(undefined);
+    vi.spyOn(client, "removeLabel").mockResolvedValue(undefined);
+
+    await setTags("doc-1", ["React"]);
+
+    expect(addSpy).toHaveBeenCalledWith("doc-1", ["React"]);
   });
 });
