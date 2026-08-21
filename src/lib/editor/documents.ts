@@ -11,6 +11,7 @@ import {
 } from "@/lib/confluence/client";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { markdownToStorageFormat } from "./markdown";
+import { hidePageFromOthers } from "./access";
 
 const SOURCE_MARKDOWN_PROPERTY_KEY = "sourceMarkdown";
 
@@ -99,6 +100,7 @@ export async function createDocument(input: CreateDocumentInput) {
     upsertPageProperty(page.id, SOURCE_MARKDOWN_PROPERTY_KEY, {
       markdown: input.markdown,
     }),
+    hidePageFromOthers(page.id),
   ]);
 
   return { pageId: page.id, version: page.version.number };
