@@ -53,8 +53,34 @@ async function confluenceRequest<T>(
   return response.json() as Promise<T>;
 }
 
-export async function getCurrentConfluenceUser() {
-  return confluenceRequest("/rest/api/user/current");
+export interface ConfluenceUser {
+  accountId: string;
+}
+
+export async function getCurrentConfluenceUser(): Promise<ConfluenceUser> {
+  return confluenceRequest<ConfluenceUser>("/rest/api/user/current");
+}
+
+export async function movePage(
+  pageId: string,
+  newParentId: string
+): Promise<ConfluencePage> {
+  const current = await getPage(pageId);
+
+  return confluenceRequest<ConfluencePage>(`/api/v2/pages/${pageId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: pageId,
+      status: "current",
+      title: current.title,
+      parentId: newParentId,
+      body: current.body
+        ? { representation: "storage", value: current.body.storage.value }
+        : undefined,
+      version: { number: current.version.number + 1 },
+    }),
+  });
 }
 
 // ── Space ──────────────────────────────────────────────
