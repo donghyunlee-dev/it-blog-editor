@@ -311,6 +311,7 @@ export async function listAllSpacePages(
 
 export async function findPublishedPageBySlug(
   spaceId: string,
+  viewerId: string,
   slug: string,
   propertyKey: string
 ): Promise<ConfluencePage | null> {
@@ -326,11 +327,10 @@ export async function findPublishedPageBySlug(
     }>(query);
 
     for (const candidate of page.results) {
-      const property = await getPageProperty<{ slug?: string }>(
-        candidate.id,
-        propertyKey
-      );
-      if (property?.value?.slug === slug) {
+      const property = await getPageProperty<{
+        viewers?: Record<string, { slug?: string }>;
+      }>(candidate.id, propertyKey);
+      if (property?.value?.viewers?.[viewerId]?.slug === slug) {
         return candidate;
       }
     }

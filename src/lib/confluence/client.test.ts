@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, getCurrentConfluenceUser, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
+import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -148,5 +148,60 @@ describe("removeLabel", () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe(`${BASE_URL}/rest/api/content/111/label?name=React`);
     expect(init?.method).toBe("DELETE");
+  });
+});
+
+describe("findPublishedPageBySlug", () => {
+  it("지정한 viewerId의 slug가 일치하는 페이지를 찾는다", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/pages?limit=100")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "1", status: "current", title: "A", spaceId: "1", parentId: null, version: { number: 1, createdAt: "" } },
+              { id: "2", status: "current", title: "B", spaceId: "1", parentId: null, version: { number: 1, createdAt: "" } },
+            ],
+            _links: {},
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pages/1/properties")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "p1",
+                key: "publishMetadata",
+                value: { viewers: { "tech-blog": { slug: "other-post" } } },
+                version: { number: 1 },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pages/2/properties")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "p2",
+                key: "publishMetadata",
+                value: { viewers: { "tech-blog": { slug: "my-post" } } },
+                version: { number: 1 },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+
+    expect(result?.id).toBe("2");
   });
 });
