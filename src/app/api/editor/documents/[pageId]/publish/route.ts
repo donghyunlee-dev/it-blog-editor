@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
 import { setPublishState, type PublishViewerMetadata } from "@/lib/editor/publish";
+import { requireDocumentOwner } from "@/lib/editor/documents";
 
 interface RouteContext {
   params: Promise<{ pageId: string }>;
@@ -9,8 +10,9 @@ interface RouteContext {
 
 export async function PATCH(request: Request, { params }: RouteContext) {
   try {
-    await requireSessionEmail();
+    const email = await requireSessionEmail();
     const { pageId } = await params;
+    await requireDocumentOwner(pageId, email);
 
     const payload = (await request.json()) as {
       isPublished?: boolean;

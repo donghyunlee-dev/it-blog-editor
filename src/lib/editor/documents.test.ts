@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as roots from "./roots";
-import { createDocument, listDocuments } from "./documents";
+import { UnauthorizedError } from "./errors";
+import { createDocument, listDocuments, requireDocumentOwner } from "./documents";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -72,6 +73,41 @@ describe("listDocuments", () => {
     const documents = await listDocuments("folder-1", "user@s-food.com");
 
     expect(documents.map((doc) => doc.pageId)).toEqual(["doc-1", "doc-2"]);
+  });
+});
+
+describe("requireDocumentOwner", () => {
+  function stubAuthorMeta(value: unknown) {
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key !== "authorMeta" || value === null) {
+        return null;
+      }
+      return { id: "prop-1", key, value, version: { number: 1 } };
+    });
+  }
+
+  it("작성자 본인이면 통과한다", async () => {
+    stubAuthorMeta({ actualAuthorEmail: "user@s-food.com" });
+
+    await expect(
+      requireDocumentOwner("doc-1", "user@s-food.com")
+    ).resolves.toBeUndefined();
+  });
+
+  it("다른 사용자면 UnauthorizedError를 던진다", async () => {
+    stubAuthorMeta({ actualAuthorEmail: "owner@s-food.com" });
+
+    await expect(
+      requireDocumentOwner("doc-1", "attacker@s-food.com")
+    ).rejects.toThrow(UnauthorizedError);
+  });
+
+  it("authorMeta가 없으면 UnauthorizedError를 던진다", async () => {
+    stubAuthorMeta(null);
+
+    await expect(
+      requireDocumentOwner("doc-1", "user@s-food.com")
+    ).rejects.toThrow(UnauthorizedError);
   });
 });
 

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { UnauthorizedError } from "@/lib/auth-guard";
-import { ConflictError, NotFoundError, ValidationError } from "@/lib/editor/errors";
+import {
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "@/lib/editor/errors";
 import { sendSlackAlert } from "@/lib/notifications/slack";
 
 function errorBody(code: string, message: string) {

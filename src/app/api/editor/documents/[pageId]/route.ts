@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
-import { deleteDocument, updateDocument } from "@/lib/editor/documents";
+import {
+  deleteDocument,
+  requireDocumentOwner,
+  updateDocument,
+} from "@/lib/editor/documents";
 import { ValidationError } from "@/lib/editor/errors";
 
 interface RouteContext {
@@ -10,8 +14,9 @@ interface RouteContext {
 
 export async function PUT(request: Request, { params }: RouteContext) {
   try {
-    await requireSessionEmail();
+    const email = await requireSessionEmail();
     const { pageId } = await params;
+    await requireDocumentOwner(pageId, email);
 
     const payload = (await request.json()) as {
       title?: string;
@@ -38,8 +43,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
 export async function DELETE(_request: Request, { params }: RouteContext) {
   try {
-    await requireSessionEmail();
+    const email = await requireSessionEmail();
     const { pageId } = await params;
+    await requireDocumentOwner(pageId, email);
 
     await deleteDocument(pageId);
 

@@ -1,11 +1,7 @@
 import { auth } from "@/lib/auth";
+import { UnauthorizedError } from "@/lib/editor/errors";
 
-export class UnauthorizedError extends Error {
-  constructor(message = "로그인이 필요합니다.") {
-    super(message);
-    this.name = "UnauthorizedError";
-  }
-}
+export { UnauthorizedError };
 
 /**
  * Editor API의 인증 경계. 유효한 세션이 없으면 UnauthorizedError를 던진다.

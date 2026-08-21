@@ -9,7 +9,12 @@ import {
   updatePage,
   upsertPageProperty,
 } from "@/lib/confluence/client";
-import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import {
+  ConflictError,
+  NotFoundError,
+  UnauthorizedError,
+  ValidationError,
+} from "./errors";
 import { markdownToStorageFormat } from "./markdown";
 import { hidePageFromOthers } from "./access";
 import { getContentRoots } from "./roots";
@@ -87,6 +92,21 @@ export async function listDocuments(
       title: page.title,
       updatedAt: page.version.createdAt,
     }));
+}
+
+/**
+ * 문서의 실제 작성자가 로그인 사용자인지 확인한다. authorMeta가 없거나 이메일이 다르면
+ * UnauthorizedError(401)를 던져, pageId만 알아낸 다른 직원이 남의 문서를 수정·게시·삭제하는
+ * 것을 막는다.
+ */
+export async function requireDocumentOwner(
+  pageId: string,
+  email: string
+): Promise<void> {
+  const authorEmail = await readAuthorEmail(pageId);
+  if (!authorEmail || authorEmail !== email) {
+    throw new UnauthorizedError("이 문서에 대한 권한이 없습니다.");
+  }
 }
 
 /**
