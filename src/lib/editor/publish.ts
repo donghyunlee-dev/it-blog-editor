@@ -48,7 +48,7 @@ async function assertNoSlugConflict(
   previousViewers: Record<string, PublishViewerMetadata>,
   nextViewers: Record<string, PublishViewerMetadata>
 ) {
-  const space = await getConfiguredSpace();
+  let space: Awaited<ReturnType<typeof getConfiguredSpace>> | undefined;
 
   for (const [viewerId, meta] of Object.entries(nextViewers)) {
     if (!meta.slug || !meta.metaDescription) {
@@ -58,6 +58,11 @@ async function assertNoSlugConflict(
     const previousSlug = previousViewers[viewerId]?.slug;
     if (previousSlug === meta.slug) {
       continue;
+    }
+
+    // Lazy load space only when a slug conflict check is actually needed
+    if (!space) {
+      space = await getConfiguredSpace();
     }
 
     const conflictingPage = await findPublishedPageBySlug(
