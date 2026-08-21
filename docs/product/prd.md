@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 10 / 23 항목 완료 (최근 갱신: 2026-08-21)
+> 전체 진행률: 16 / 23 항목 완료 (최근 갱신: 2026-08-21)
 
 ## 🎯 서비스 정의
 - 사내 직원이 WYSIWYG 에디터로 문서를 작성해 Confluence에 보관하고, 원할 때 Tech Blog 등 외부 뷰어에 게시할 수 있게 하는 사내 전용 문서 작성·게시 도구다.
@@ -146,11 +146,11 @@
 - [x] (완료) 문서 정의 단계(요구사항/아키텍처/PRD) — 산출물: docs/product/requirements.md, docs/product/architecture.md, docs/product/prd.md, docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md
 
 ### Phase 1 — Confluence 콘텐츠 구조 개편
-- [ ] (대기) 스파이크 — parentId 변경(페이지 이동), Restriction API 버전, 자기 제한이 자기 API 호출을 막는지 검증 — 산출물: (없음)
-- [ ] (대기) 초안(Drafts Root)/게시됨(Published Root) 루트 페이지 생성 및 초기 Restriction 설정 — 산출물: (없음)
-- [ ] (대기) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: (없음)
-- [ ] (대기) `publish.ts` 개편 — 게시/게시취소 시 페이지 이동 + 제한 토글, `publishMetadata.viewers` 구조로 변경 — 산출물: (없음)
-- [ ] (대기) 태그(라벨) 추가/조회 연동 — 산출물: (없음)
+- [x] (완료) 스파이크 — parentId 변경(페이지 이동), Restriction API 버전, 자기 제한이 자기 API 호출을 막는지 검증 — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
+- [x] (완료) 초안(Drafts Root)/게시됨(Published Root) 루트 페이지 생성 및 초기 Restriction 설정 — 산출물: src/lib/editor/roots.ts, src/lib/editor/access.ts
+- [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts
+- [x] (완료) `publish.ts` 개편 — 게시/게시취소 시 페이지 이동 + 제한 토글, `publishMetadata.viewers` 구조로 변경 — 산출물: src/lib/editor/publish.ts, src/app/api/editor/documents/[pageId]/publish/route.ts
+- [x] (완료) 태그(라벨) 추가/조회 연동 — 산출물: src/lib/editor/tags.ts, src/app/api/editor/documents/[pageId]/tags/route.ts
 - [x] (완료) 댓글 저장 구조(`commenterMeta`) 문서화 반영 — 산출물: docs/product/data-spec.md
 
 ### Phase 2 — 화면 UI/UX 개편 (WYSIWYG · 앱 셸 · 디자인 시스템)

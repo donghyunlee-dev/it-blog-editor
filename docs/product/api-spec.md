@@ -31,6 +31,7 @@
 | DELETE | /api/editor/documents/{pageId} | 문서 삭제 | 문서 작성·수정·삭제 |
 | POST | /api/editor/documents/{pageId}/images | 이미지 첨부 | 이미지 첨부 |
 | PATCH | /api/editor/documents/{pageId}/publish | 게시 설정 변경 | 초안-게시 생명주기, 게시 메타데이터의 뷰어별 확장 |
+| PUT | /api/editor/documents/{pageId}/tags | 문서 태그 설정 | 문서 태그 지정 |
 
 ## 엔드포인트 상세
 
@@ -209,53 +210,49 @@
 ### PATCH /api/editor/documents/{pageId}/publish — 게시 설정 변경
 **Header**: Cookie(세션) 필수
 
-**Request Body (현재 구현)**
+**Request Body**
 ```json
-{ "isPublished": true, "targetViewers": ["tech-blog"], "slug": "my-first-post", "metaDescription": "설명" }
+{ "isPublished": true, "viewers": { "tech-blog": { "slug": "my-first-post", "metaDescription": "설명" } } }
 ```
+게시 시 `isPublished: true`와 `viewers` 객체가 필수. `viewers`의 각 항목은 `slug`와 `metaDescription`을 포함해야 한다.
 
-**Response Body (성공, 현재 구현)**
+**Response Body (성공)**
 ```json
-{ "pageId": "111", "isPublished": true, "slug": "my-first-post", "publishedAt": "2026-08-21T00:00:00.000Z" }
+{ "pageId": "111", "isPublished": true, "viewers": { "tech-blog": { "slug": "my-first-post", "metaDescription": "설명" } }, "publishedAt": "2026-08-21T00:00:00.000Z" }
 ```
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
 | 401 | UNAUTHORIZED | 로그인 필요 |
-| 400 | INVALID_REQUEST | 게시 시 slug/metaDescription 누락 |
+| 400 | INVALID_REQUEST | 게시 시 뷰어별 slug/metaDescription 누락 또는 최소 하나의 뷰어 설정 필요 |
 | 404 | NOT_FOUND | 문서 없음 |
-| 409 | CONFLICT | slug 중복 |
+| 409 | CONFLICT | 같은 뷰어 내에서 slug 중복 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-> ⚠️ **Phase 1에서 변경 예정** — `docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md`에서 확정된 대로, 게시 메타데이터가 뷰어별 구조로 바뀐다. Phase 1 구현 시 이 절이 다음과 같이 갱신된다.
-> - Request Body: `targetViewers` 제거, `viewers: { [viewerId]: { slug, metaDescription } }` 추가
-> - slug 중복 체크(409) 판단 기준이 "전체 게시 문서 중 중복"에서 "같은 viewerId 내에서 중복"으로 변경
-> - 게시/게시취소 시 문서 페이지의 parentId 이동과 Confluence 페이지 제한(Restriction) 적용/해제가 함께 일어남(현재는 content property만 갱신)
-
-## 계획된 신규 엔드포인트 (Phase 1, 구현 전)
+게시/게시취소 시 문서 페이지의 부모 폴더가 자동으로 변경되고(초안 ↔ 게시됨), Confluence 페이지 제한(Restriction) 적용/해제가 함께 일어난다.
 
 ### PUT /api/editor/documents/{pageId}/tags — 문서 태그(라벨) 설정
-> 아직 구현되지 않았고, Phase 1에서 추가될 예정이다. 아래는 현재까지 합의된 요구사항을 기준으로 한 초안이며, 실제 구현 시 이 절을 확정본으로 갱신한다.
-
 **Header**: Cookie(세션) 필수
 
-**Request Body (초안)**
+**Request Body**
 ```json
 { "tags": ["React", "Backend"] }
 ```
 
-**Response Body (성공, 초안)**
+**Response Body (성공)**
 ```json
 { "pageId": "111", "tags": ["React", "Backend"] }
 ```
 
-**Response (실패, 초안)**
+**Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
 | 401 | UNAUTHORIZED | 로그인 필요 |
 | 404 | NOT_FOUND | 문서 없음 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+태그는 Confluence 네이티브 페이지 라벨로 저장되며, 자유 텍스트로 입력할 수 있다. 문서함의 태그 필터링과 자동완성에 사용된다.
 
 ## 참고 — 외부 연동 API (이 서비스가 호출하는 쪽)
 - **Confluence Cloud REST API**: `src/lib/confluence/client.ts`에서 v2를 우선 사용하고, v2에 없는 기능(첨부파일 업로드, 예상되는 페이지 제한 기능)은 v1으로 대체한다. 공식 문서: Atlassian Confluence Cloud REST API Reference.
