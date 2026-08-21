@@ -1,7 +1,7 @@
 # Architecture: SFOOD IT Editor
 
 ## 개요
-- 사내 직원이 Markdown으로 문서를 작성해 Confluence에 보관하고, 원할 때 Tech Blog 등 외부 뷰어에 게시하는 사내 전용 문서 작성·게시 도구다.
+- 사내 직원이 WYSIWYG 에디터로 문서를 작성해 Confluence에 보관하고, 원할 때 Tech Blog 등 외부 뷰어에 게시하는 사내 전용 문서 작성·게시 도구다.
 - 실행 환경은 웹 브라우저, 예상 사용자 규모는 조직·다수(10명+)다. 배포는 AWS 클라우드, 별도 스테이징 환경 없이 단일 환경으로 운영한다.
 - 자체 데이터베이스는 두지 않고 Confluence Cloud를 유일한 저장소로 사용한다. 로그인은 사내 SSO 대행 서비스(AX Auth)와 연동하고, 운영 이상 감지는 Slack Webhook으로 알린다.
 - 개발은 Claude(AI)와 개발자가 함께 진행하며, GitHub로 버전 관리하고 GitHub Actions로 lint/build를 검증한다. 사내 대외비 데이터를 다루므로 접근 통제(초안 비공개)가 설계 초기부터 반영된다.
@@ -32,6 +32,8 @@
 
 ## 기술 스택 제안
 - **프레임워크**: Next.js 16(App Router) + React 19 + TypeScript — 이미 채택되어 구현 중. 서버 컴포넌트(`src/app/editor/**/page.tsx`)로 데이터 조회, 클라이언트 컴포넌트(`src/components/editor/*.tsx`, `"use client"`)로 상호작용을 분리한다.
+- **에디터 엔진**: TipTap(ProseMirror 기반) — WYSIWYG 편집, 슬래시 삽입 메뉴(`@tiptap/suggestion`), 텍스트 선택 시 뜨는 버블 툴바(`BubbleMenu`), 표 병합 등을 공식 익스텐션으로 지원해 직접 구현할 부분이 적다. 문서 원본은 TipTap JSON(ProseMirror 트리)으로 저장하고, Confluence storage format으로의 변환은 자체 변환기(`tiptap-to-storage`)를 새로 작성한다.
+- **UI 컴포넌트/스타일**: 사내 디자인 시스템 `@sfood/ui` + Tailwind CSS(이번에 신규 도입). 화면을 직접 마크업하지 않고 `@sfood/ui`의 컴포넌트·템플릿을 우선 사용한다. 상세는 [design.md](./design.md) 참고.
 - **인증**: next-auth(Auth.js) v5, Credentials 프로바이더로 AX Auth와 연동. 세션에는 이메일만 저장하고, 그 외 개인정보는 다루지 않는다.
 - **데이터 저장소**: 별도 DB 없음. Confluence Cloud REST API가 저장소 역할을 겸한다 — 서버 운영 부담과 데이터 이중화 문제를 줄이는 대신, Confluence API 제약(GDPR상 이메일 기반 계정 조회 불가, v1/v2 API 기능 차이 등)을 그대로 감당해야 한다는 트레이드오프가 있다.
 - **배포**: AWS. Next.js 앱을 컨테이너 또는 서버리스(Amplify/ECS/Lambda 등) 중 하나로 배포하는 것을 권장하며, 구체적인 서비스 선택은 팀의 AWS 운영 경험에 따라 정한다(이 문서에서는 특정 서비스로 고정하지 않는다 — 추후 배포 단계에서 결정).
@@ -44,7 +46,7 @@ Confluence Cloud가 유일한 저장소다. 문서 관련 데이터는 페이지
 
 | 데이터 | 저장 위치 |
 |---|---|
-| 문서 본문 원본(Markdown) | content property `sourceMarkdown` |
+| 문서 본문 원본(TipTap JSON) | content property `sourceDocument` |
 | 작성자 식별 | content property `authorMeta.actualAuthorEmail` |
 | 게시 여부·slug·메타 설명(뷰어별) | content property `publishMetadata` |
 | 태그 | Confluence 네이티브 페이지 라벨(label) |

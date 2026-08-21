@@ -87,7 +87,7 @@ React/Next.js 생태계에서 가장 성숙한 WYSIWYG 엔진이며, 글자색·
 - `docs/product/data-spec.md`의 Document 엔티티: `sourceMarkdown` property → `sourceDocument` property로 교체.
 - `docs/product/architecture.md`의 기술 스택: TipTap, `@sfood/ui`, Tailwind CSS 추가.
 - `docs/product/prd.md`: 화면 정의 표를 이 설계 기준으로 갱신, "개인 에디터 기능 강화(2차)" 항목을 이 설계로 구체화.
-- `docs/superpowers/plans/2026-08-21-confluence-content-structure-implementation.md`: Task 10~12(`publish.ts`의 문서 본문 관련 부분, `PublishForm.tsx`)가 이 설계와 어긋나지 않는지 다시 확인하고 필요한 만큼 다시 쓴다. 게시 생명주기(이동·제한 토글) 자체는 이 설계와 무관하게 유효하다.
+- `docs/superpowers/plans/2026-08-21-confluence-content-structure-implementation.md`: 실제로는 이 문서 본문(Markdown/TipTap) 저장 형식을 건드리는 태스크가 없다(Task 9는 `documents.ts`에 `hidePageFromOthers` 호출만 추가할 뿐 본문 처리 방식은 그대로 두고, `publish.ts`·`PublishForm.tsx`는 게시 메타데이터만 다룬다). 따라서 이 플랜은 수정 없이 그대로 유효하며, 본문 저장 형식 전환(`sourceMarkdown` → `sourceDocument`, `documents.ts`의 `CreateDocumentInput`/`markdownToStorageFormat` 교체)은 이번 화면 UI/UX 설계의 구현 플랜에서 별도로 다룬다.
 
 ## 검증이 필요한 가정
 

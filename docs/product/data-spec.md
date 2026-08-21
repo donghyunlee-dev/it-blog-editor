@@ -39,7 +39,7 @@ Confluence 페이지 그 자체이며, 별도 content property는 없다. 최초
 | body(storage format) | string(XHTML) | markdownToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
 | parentId | string | PersonalFolder(초안) 또는 PublishedRoot(게시) 중 하나 | 게시 여부에 따라 이동 |
 | restriction | Confluence Restriction | 초안=서비스 계정 제한, 게시=제한 없음 | 초안-게시 생명주기의 핵심 |
-| property: `sourceMarkdown` | `{ markdown: string }` | 필수 | 편집 원본(Markdown) |
+| property: `sourceDocument` | `{ doc: JSONContent }` | 필수 | 편집 원본(TipTap/ProseMirror JSON 트리). 2차 UI/UX 설계(WYSIWYG 전환)에서 `sourceMarkdown`을 대체함 — Markdown이 아니라 에디터 고유 문서 트리를 그대로 저장 |
 | property: `authorMeta` | `{ actualAuthorEmail: string }` | 필수, 불변 | 실제 작성자 식별(Confluence 신원과 무관) |
 | property: `publishMetadata` | `{ isPublished: boolean; publishedAt?: string; viewers: { [viewerId: string]: { slug: string; metaDescription: string } } }` | `isPublished=true`이면 `viewers`에 최소 1개 항목 필요 | 뷰어별로 slug·메타 설명을 따로 관리 |
 | label(태그) | string[] | 자유 텍스트, 다중 허용 | Confluence 네이티브 라벨 기능 사용 |

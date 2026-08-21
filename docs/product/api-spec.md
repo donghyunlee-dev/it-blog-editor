@@ -106,8 +106,20 @@
 
 **Response Body (성공)**
 ```json
-{ "documents": [ { "pageId": "111", "title": "제목", "updatedAt": "2026-08-21T00:00:00.000Z" } ] }
+{
+  "documents": [
+    {
+      "pageId": "111",
+      "title": "제목",
+      "updatedAt": "2026-08-21T00:00:00.000Z",
+      "isPublished": false,
+      "tags": ["React", "Backend"]
+    }
+  ]
+}
 ```
+
+> ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 각 문서의 `publishMetadata` property와 라벨을 함께 조회해야 한다(문서 수가 개인 단위라 N+1 호출을 허용).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -119,8 +131,9 @@
 
 **Request Body**
 ```json
-{ "title": "문서 제목", "body": "Markdown 본문" }
+{ "title": "문서 제목", "doc": { "type": "doc", "content": [] } }
 ```
+`doc`은 TipTap/ProseMirror JSON(`JSONContent`)이다. 화면 UI/UX 설계(2차)에서 `body`(Markdown 문자열) 필드를 대체했다.
 
 **Response Body (성공, 201)**
 ```json
@@ -140,8 +153,9 @@
 
 **Request Body**
 ```json
-{ "title": "수정된 제목", "body": "수정된 Markdown", "version": 1 }
+{ "title": "수정된 제목", "doc": { "type": "doc", "content": [] }, "version": 1 }
 ```
+`doc`은 TipTap/ProseMirror JSON(`JSONContent`)이다. 화면 UI/UX 설계(2차)에서 `body`(Markdown 문자열) 필드를 대체했다.
 
 **Response Body (성공)**
 ```json
