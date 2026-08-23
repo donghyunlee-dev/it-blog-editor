@@ -96,3 +96,55 @@ describe("이미지·글자색·하이라이트", () => {
     );
   });
 });
+
+describe("표·패널 매크로", () => {
+  it("표(셀 병합 포함)를 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                { type: "tableHeader", attrs: { colspan: 2 }, content: [{ type: "paragraph", content: [{ type: "text", text: "제목" }] }] },
+              ],
+            },
+            {
+              type: "tableRow",
+              content: [
+                { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "A" }] }] },
+                { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "B" }] }] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      "<table>" +
+        '<tr><th colspan="2"><p>제목</p></th></tr>' +
+        "<tr><td><p>A</p></td><td><p>B</p></td></tr>" +
+        "</table>"
+    );
+  });
+
+  it("패널 매크로(정보/경고/노트)를 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "panel",
+          attrs: { panelType: "warning" },
+          content: [{ type: "paragraph", content: [{ type: "text", text: "주의" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      '<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>주의</p></ac:rich-text-body></ac:structured-macro>'
+    );
+  });
+});

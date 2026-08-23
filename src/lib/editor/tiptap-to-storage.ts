@@ -69,6 +69,22 @@ function serializeNode(node: JSONContent): string {
       return `<pre><code>${serializeChildren(node)}</code></pre>`;
     case "image":
       return `<ac:image><ri:attachment ri:filename="${escapeHtml(String(node.attrs?.filename ?? ""))}" /></ac:image>`;
+    case "table":
+      return `<table>${serializeChildren(node)}</table>`;
+    case "tableRow":
+      return `<tr>${serializeChildren(node)}</tr>`;
+    case "tableCell":
+      return `<td${node.attrs?.colspan ? ` colspan="${node.attrs.colspan}"` : ""}${
+        node.attrs?.rowspan ? ` rowspan="${node.attrs.rowspan}"` : ""
+      }>${serializeChildren(node)}</td>`;
+    case "tableHeader":
+      return `<th${node.attrs?.colspan ? ` colspan="${node.attrs.colspan}"` : ""}${
+        node.attrs?.rowspan ? ` rowspan="${node.attrs.rowspan}"` : ""
+      }>${serializeChildren(node)}</th>`;
+    case "panel": {
+      const panelType = String(node.attrs?.panelType ?? "info");
+      return `<ac:structured-macro ac:name="${panelType}"><ac:rich-text-body>${serializeChildren(node)}</ac:rich-text-body></ac:structured-macro>`;
+    }
     default:
       return serializeChildren(node);
   }
