@@ -147,4 +147,21 @@ describe("표·패널 매크로", () => {
       '<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>주의</p></ac:rich-text-body></ac:structured-macro>'
     );
   });
+
+  it("패널 매크로의 panelType을 이스케이프 처리한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "panel",
+          attrs: { panelType: `info"><script>alert("xss")</script><div class="` },
+          content: [{ type: "paragraph", content: [{ type: "text", text: "콘텐츠" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      '<ac:structured-macro ac:name="info&quot;&gt;&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;&lt;div class=&quot;"><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
+    );
+  });
 });

@@ -82,7 +82,7 @@ function serializeNode(node: JSONContent): string {
         node.attrs?.rowspan ? ` rowspan="${node.attrs.rowspan}"` : ""
       }>${serializeChildren(node)}</th>`;
     case "panel": {
-      const panelType = String(node.attrs?.panelType ?? "info");
+      const panelType = escapeHtml(String(node.attrs?.panelType ?? "info"));
       return `<ac:structured-macro ac:name="${panelType}"><ac:rich-text-body>${serializeChildren(node)}</ac:rich-text-body></ac:structured-macro>`;
     }
     default:
