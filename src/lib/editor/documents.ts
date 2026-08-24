@@ -18,6 +18,8 @@ import {
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
 import { getContentRoots } from "./roots";
+import { getPublishState } from "./publish";
+import { getTags } from "./tags";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
@@ -26,6 +28,8 @@ export interface DocumentSummary {
   pageId: string;
   title: string;
   updatedAt: string;
+  isPublished: boolean;
+  tags: string[];
 }
 
 export interface DocumentDetail {
@@ -99,19 +103,29 @@ export async function listDocuments(
   }
 
   const seen = new Set<string>();
-  return [...draftPages, ...ownedPublishedPages]
-    .filter((page) => {
-      if (seen.has(page.id)) {
-        return false;
-      }
-      seen.add(page.id);
-      return true;
+  const mergedPages = [...draftPages, ...ownedPublishedPages].filter((page) => {
+    if (seen.has(page.id)) {
+      return false;
+    }
+    seen.add(page.id);
+    return true;
+  });
+
+  return Promise.all(
+    mergedPages.map(async (page) => {
+      const [publishState, tagList] = await Promise.all([
+        getPublishState(page.id),
+        getTags(page.id),
+      ]);
+      return {
+        pageId: page.id,
+        title: page.title,
+        updatedAt: page.version.createdAt,
+        isPublished: publishState.isPublished,
+        tags: tagList,
+      };
     })
-    .map((page) => ({
-      pageId: page.id,
-      title: page.title,
-      updatedAt: page.version.createdAt,
-    }));
+  );
 }
 
 /**

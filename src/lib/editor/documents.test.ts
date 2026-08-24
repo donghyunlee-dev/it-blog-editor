@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as roots from "./roots";
+import * as publish from "./publish";
+import * as tags from "./tags";
 import { UnauthorizedError, ValidationError } from "./errors";
 import {
   createDocument,
@@ -67,11 +69,22 @@ describe("listDocuments", () => {
       }
       return [];
     });
+    vi.spyOn(publish, "getPublishState").mockResolvedValue({
+      isPublished: false,
+      viewers: {},
+    });
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
 
     const documents = await listDocuments("folder-1", "user@s-food.com");
 
     expect(documents).toEqual([
-      { pageId: "doc-1", title: "초안 문서", updatedAt: "2026-08-21T00:00:00.000Z" },
+      {
+        pageId: "doc-1",
+        title: "초안 문서",
+        updatedAt: "2026-08-21T00:00:00.000Z",
+        isPublished: false,
+        tags: [],
+      },
     ]);
   });
 
@@ -104,10 +117,48 @@ describe("listDocuments", () => {
         version: { number: 1 },
       };
     });
+    vi.spyOn(publish, "getPublishState").mockResolvedValue({
+      isPublished: false,
+      viewers: {},
+    });
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
 
     const documents = await listDocuments("folder-1", "user@s-food.com");
 
     expect(documents.map((doc) => doc.pageId)).toEqual(["doc-1", "doc-2"]);
+  });
+
+  it("각 문서의 게시 상태와 태그를 함께 반환한다(초안·게시 병합 이후 조회, 중복 조회 없음)", async () => {
+    vi.spyOn(roots, "getContentRoots").mockResolvedValue({
+      draftsRootId: "drafts-1",
+      publishedRootId: "published-1",
+    });
+    vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
+      if (parentId === "folder-1") {
+        return [page("doc-1", "문서1", "folder-1")];
+      }
+      return [];
+    });
+    const publishSpy = vi
+      .spyOn(publish, "getPublishState")
+      .mockResolvedValue({ isPublished: true, viewers: {} });
+    const tagsSpy = vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
+
+    const documents = await listDocuments("folder-1", "user@s-food.com");
+
+    expect(documents).toEqual([
+      {
+        pageId: "doc-1",
+        title: "문서1",
+        updatedAt: "2026-08-21T00:00:00.000Z",
+        isPublished: true,
+        tags: ["React"],
+      },
+    ]);
+    expect(publishSpy).toHaveBeenCalledTimes(1);
+    expect(publishSpy).toHaveBeenCalledWith("doc-1");
+    expect(tagsSpy).toHaveBeenCalledTimes(1);
+    expect(tagsSpy).toHaveBeenCalledWith("doc-1");
   });
 });
 
