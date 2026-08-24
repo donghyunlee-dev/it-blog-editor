@@ -1,0 +1,22 @@
+diff --git a/node_modules/@sfood/ui/dist/index.js b/node_modules/@sfood/ui/dist/index.js
+index 8be6bda..33336d7 100644
+--- a/node_modules/@sfood/ui/dist/index.js
++++ b/node_modules/@sfood/ui/dist/index.js
+@@ -5,6 +5,7 @@ import { useSensors as qr, useSensor as Fs, PointerSensor as Ur, KeyboardSensor
+ import { SortableContext as Jr, horizontalListSortingStrategy as Xr, arrayMove as Zr, useSortable as Qr } from "@dnd-kit/sortable";
+ import { CSS as et } from "@dnd-kit/utilities";
+ import { ResponsiveContainer as bs, LineChart as st, CartesianGrid as Qs, XAxis as er, YAxis as sr, Tooltip as fs, Legend as hs, Line as rt, BarChart as tt, Bar as at, PieChart as nt, Pie as lt, Cell as dt } from "recharts";
++import * as PatchedJsxRuntime from "react/jsx-runtime";
+ var xs = { exports: {} }, $e = {};
+ /**
+  * @license React
+@@ -629,8 +630,7 @@ React keys must be passed directly to JSX without using spread:
+     Be.Fragment = a, Be.jsx = Lr, Be.jsxs = zr;
+   }()), Be;
+ }
+-process.env.NODE_ENV === "production" ? xs.exports = it() : xs.exports = ot();
+-var e = xs.exports;
++var e = PatchedJsxRuntime;
+ function rr(s) {
+   var r, t, a = "";
+   if (typeof s == "string" || typeof s == "number") a += s;
