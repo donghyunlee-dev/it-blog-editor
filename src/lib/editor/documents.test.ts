@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as roots from "./roots";
-import { UnauthorizedError } from "./errors";
+import { UnauthorizedError, ValidationError } from "./errors";
 import {
   createDocument,
   getDocumentDetail,
@@ -15,6 +15,28 @@ const SAMPLE_DOC = {
   type: "doc",
   content: [
     { type: "paragraph", content: [{ type: "text", text: "본문" }] },
+  ],
+};
+
+const EMPTY_PARAGRAPH_DOC = {
+  type: "doc",
+  content: [{ type: "paragraph" }],
+};
+
+const WHITESPACE_ONLY_DOC = {
+  type: "doc",
+  content: [
+    { type: "paragraph", content: [{ type: "text", text: "   " }] },
+  ],
+};
+
+const IMAGE_ONLY_DOC = {
+  type: "doc",
+  content: [
+    {
+      type: "paragraph",
+      content: [{ type: "image", attrs: { filename: "photo.png" } }],
+    },
   ],
 };
 
@@ -166,6 +188,60 @@ describe("createDocument", () => {
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
     expect(result).toEqual({ pageId: "doc-1", version: 1 });
   });
+
+  it("텍스트 없는 빈 문단만 있으면 ValidationError를 던진다", async () => {
+    await expect(
+      createDocument({
+        folderId: "folder-1",
+        title: "제목",
+        doc: EMPTY_PARAGRAPH_DOC,
+        actualAuthorEmail: "user@s-food.com",
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("공백 문자만 있으면 ValidationError를 던진다", async () => {
+    await expect(
+      createDocument({
+        folderId: "folder-1",
+        title: "제목",
+        doc: WHITESPACE_ONLY_DOC,
+        actualAuthorEmail: "user@s-food.com",
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("텍스트 없이 이미지만 있어도 유효한 본문으로 통과한다", async () => {
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "createPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "authorMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+
+    const result = await createDocument({
+      folderId: "folder-1",
+      title: "제목",
+      doc: IMAGE_ONLY_DOC,
+      actualAuthorEmail: "user@s-food.com",
+    });
+
+    expect(result).toEqual({ pageId: "doc-1", version: 1 });
+  });
 });
 
 describe("getDocumentDetail", () => {
@@ -232,5 +308,27 @@ describe("updateDocument", () => {
       doc: SAMPLE_DOC,
     });
     expect(result).toEqual({ pageId: "doc-1", version: 2 });
+  });
+
+  it("텍스트 없는 빈 문단만 있으면 ValidationError를 던진다(createDocument와 동일한 검증 경로)", async () => {
+    await expect(
+      updateDocument({
+        pageId: "doc-1",
+        title: "새 제목",
+        doc: EMPTY_PARAGRAPH_DOC,
+        expectedVersion: 1,
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("공백 문자만 있으면 ValidationError를 던진다", async () => {
+    await expect(
+      updateDocument({
+        pageId: "doc-1",
+        title: "새 제목",
+        doc: WHITESPACE_ONLY_DOC,
+        expectedVersion: 1,
+      })
+    ).rejects.toThrow(ValidationError);
   });
 });
