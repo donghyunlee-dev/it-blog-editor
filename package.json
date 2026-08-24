@@ -23,7 +23,6 @@
     "@tiptap/react": "^3.30.2",
     "@tiptap/starter-kit": "^3.30.2",
     "@tiptap/suggestion": "^3.30.2",
-    "marked": "^15.0.12",
     "next": "16.3.0",
     "next-auth": "5.0.0-beta.32",
     "patch-package": "^8.0.1",
@@ -32,6 +31,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/typography": "^0.5.20",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
