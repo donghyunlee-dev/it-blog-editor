@@ -77,6 +77,22 @@ describe("PublishForm", () => {
     );
   });
 
+  it("두 토글 모두 저장 결과를 예고하는 안내 문구를 aria-describedby로 연결한다", () => {
+    renderForm(
+      <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
+    );
+
+    // 문구 자체는 카피라 바뀔 수 있으므로, 연결 여부만 확인한다.
+    // (노출을 모두 끄면 게시 저장이 거부되고, 게시함을 끈 채 저장하면 뷰어 설정이
+    //  저장되지 않는다는 점을 사용자가 미리 알 수 있어야 한다.)
+    expect(
+      screen.getByRole("switch", { name: "게시함" })
+    ).toHaveAccessibleDescription();
+    expect(
+      screen.getByRole("switch", { name: "Tech Blog 노출" })
+    ).toHaveAccessibleDescription();
+  });
+
   it("뷰어 카드마다 slug/메타 설명을 입력할 수 있고, 저장 시 viewers 구조로 전송한다", async () => {
     const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
 

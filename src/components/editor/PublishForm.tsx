@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, FormField, Input, Switch, Textarea, useToast } from "@sfood/ui";
 
@@ -45,6 +45,8 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
     )
   );
   const [status, setStatus] = useState<"idle" | "saving">("idle");
+  // 토글 옆 안내 문구를 aria-describedby로 연결하기 위한 id 접두사.
+  const hintId = useId();
 
   function updateViewerField(
     viewerId: string,
@@ -115,16 +117,28 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
     <form className="stack" onSubmit={handleSubmit}>
       {/* Switch의 label prop은 sr-only로만 렌더되므로 화면용 텍스트를 따로 두고,
           중복 안내를 막기 위해 그 텍스트는 aria-hidden으로 감춘다. */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-foreground" aria-hidden="true">
-          게시함
-        </span>
-        <Switch
-          checked={isPublished}
-          onChange={setIsPublished}
-          label="게시함"
-          disabled={status === "saving"}
-        />
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span
+            className="text-sm font-medium text-foreground"
+            aria-hidden="true"
+          >
+            게시함
+          </span>
+          <Switch
+            checked={isPublished}
+            onChange={setIsPublished}
+            label="게시함"
+            disabled={status === "saving"}
+            aria-describedby={`${hintId}-publish`}
+          />
+        </div>
+        {/* 게시를 내린 채로 저장하면 서버가 뷰어 설정을 이전 값으로 유지하므로
+            (setPublishState의 미게시 경로), 입력이 저장되지 않는 이유를 미리 알린다. */}
+        <p id={`${hintId}-publish`} className="text-xs text-muted">
+          게시함을 끈 채로 저장하면 아래 뷰어 설정은 저장되지 않고 이전 설정이
+          그대로 유지됩니다.
+        </p>
       </div>
 
       {VIEWER_OPTIONS.map((option) => (
@@ -134,16 +148,27 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
           description="이 뷰어로 공개할 때 사용할 주소와 검색 노출 문구입니다."
         >
           <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted" aria-hidden="true">
-                노출
-              </span>
-              <Switch
-                checked={enabledViewers.includes(option.value)}
-                onChange={(enabled) => toggleViewer(option.value, enabled)}
-                label={`${option.label} 노출`}
-                disabled={status === "saving"}
-              />
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted" aria-hidden="true">
+                  노출
+                </span>
+                <Switch
+                  checked={enabledViewers.includes(option.value)}
+                  onChange={(enabled) => toggleViewer(option.value, enabled)}
+                  label={`${option.label} 노출`}
+                  disabled={status === "saving"}
+                  aria-describedby={`${hintId}-viewer-${option.value}`}
+                />
+              </div>
+              {/* 노출 뷰어가 하나도 없으면 게시 저장이 거부되므로(서버의
+                  "게시 시 최소 하나의 뷰어 설정이 필요합니다") 미리 알린다. */}
+              <p
+                id={`${hintId}-viewer-${option.value}`}
+                className="text-xs text-muted"
+              >
+                게시하려면 최소 1개 뷰어가 노출 상태여야 합니다.
+              </p>
             </div>
 
             <FormField label={`${option.label} 공개 경로(slug)`}>
