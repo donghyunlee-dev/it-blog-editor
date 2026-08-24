@@ -162,6 +162,72 @@ describe("listDocuments", () => {
   });
 });
 
+describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
+  // 실제 Next.js(App Router) 요청 안에서는 React의 `cache()`가 렌더 트리 내 동일 인자
+  // 호출을 dedup한다. Vitest/Node 환경에는 이 dispatcher가 없어 `cache()`가 아무 캐싱도
+  // 하지 않고 그대로 통과시킨다는 것을 이미 별도로 확인했으므로(직접 node로 실행해
+  // 두 번째 호출도 원본 함수가 다시 실행됨을 확인), 여기서는 `react`의 `cache`를 진짜로
+  // 동작하는(같은 인자면 메모이즈하는) 구현으로 교체해 "우리 코드가 `cache()`를 올바르게
+  // 감싸 사용하고 있는지"를 검증한다 — dispatcher가 있는 실제 런타임에서 기대하는 동작과
+  // 정확히 같은 것을 이 스텁으로 재현한다.
+  it("같은 (folderId, authorEmail)로 다시 호출해도 하위 목록 조회는 한 번만 실행된다", async () => {
+    vi.resetModules();
+    vi.doMock("react", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("react")>();
+      return {
+        ...actual,
+        cache<Fn extends (...args: never[]) => unknown>(fn: Fn): Fn {
+          const store = new Map<string, ReturnType<Fn>>();
+          return ((...args: Parameters<Fn>) => {
+            const key = JSON.stringify(args);
+            if (!store.has(key)) {
+              store.set(key, fn(...args) as ReturnType<Fn>);
+            }
+            return store.get(key);
+          }) as Fn;
+        },
+      };
+    });
+
+    try {
+      const freshClient = await import("@/lib/confluence/client");
+      const freshRoots = await import("./roots");
+      const freshPublish = await import("./publish");
+      const freshTags = await import("./tags");
+      const { listDocuments: freshListDocuments } = await import("./documents");
+
+      vi.spyOn(freshRoots, "getContentRoots").mockResolvedValue({
+        draftsRootId: "drafts-1",
+        publishedRootId: "published-1",
+      });
+      const listChildPagesSpy = vi
+        .spyOn(freshClient, "listChildPages")
+        .mockImplementation(async (parentId) => {
+          if (parentId === "folder-1") {
+            return [page("doc-1", "문서1", "folder-1")];
+          }
+          return [];
+        });
+      vi.spyOn(freshPublish, "getPublishState").mockResolvedValue({
+        isPublished: false,
+        viewers: {},
+      });
+      vi.spyOn(freshTags, "getTags").mockResolvedValue([]);
+
+      await freshListDocuments("folder-1", "user@s-food.com");
+      await freshListDocuments("folder-1", "user@s-food.com");
+
+      // listChildPages는 listDocuments 한 번 호출당 2번(개인 폴더 + 게시됨 루트) 불린다.
+      // cache()가 제대로 적용됐다면 두 번째 listDocuments 호출은 완전히 스킵되어
+      // 총 호출 수는 2(1회분)로 유지된다 — dedup이 없다면 4가 된다.
+      expect(listChildPagesSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.doUnmock("react");
+      vi.resetModules();
+    }
+  });
+});
+
 describe("requireDocumentOwner", () => {
   function stubAuthorMeta(value: unknown) {
     vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
