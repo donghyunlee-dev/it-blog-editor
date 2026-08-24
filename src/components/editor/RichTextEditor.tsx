@@ -11,6 +11,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Button } from "@sfood/ui";
+import { SlashCommandExtension } from "./SlashCommandExtension";
 
 // TipTap v3 split BubbleMenu/FloatingMenu out of `@tiptap/react`'s main
 // entrypoint into a `@tiptap/react/menus` subpath (backed by the
@@ -165,6 +166,7 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
       TableRow,
       TableHeader,
       TableCell,
+      SlashCommandExtension,
     ],
     content,
     onUpdate: ({ editor: currentEditor }) => {
