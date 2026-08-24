@@ -34,7 +34,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
       */}
       <Card className="w-full max-w-sm" padding="lg">
         <div className="mb-6 text-center">
-          <Typography variant="h3">SFOOD IT Tech Blog</Typography>
+          {/*
+            root layout에 <h1>이 없고 이 화면에도 다른 헤딩이 없으므로, 문서 헤딩 계층의
+            시작점은 이 요소여야 한다. variant="h1"으로 시맨틱 레벨은 유지하고, 기존 카드
+            안에서의 시각적 크기는 className으로만 낮춘다.
+          */}
+          <Typography variant="h1" className="text-2xl font-semibold tracking-normal">
+            SFOOD IT Tech Blog
+          </Typography>
           <Typography variant="body-sm" className="mt-2">
             사내 MS 계정으로 로그인하면 문서를 작성·게시할 수 있습니다.
           </Typography>

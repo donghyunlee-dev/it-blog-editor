@@ -35,7 +35,7 @@ export default {
 import '@sfood/ui/global.css'
 ```
 
-**4. 사용 예시(로그인 화면)**
+**4. 사용 예시(email/password 로그인 화면 — Storybook 기준)**
 ```tsx
 import { LoginSimple } from '@sfood/ui'
 
@@ -49,7 +49,8 @@ export default function App() {
   )
 }
 ```
-이 프로젝트는 이메일/비밀번호 로그인이 아니라 AX Auth 리다이렉트 방식이므로, `LoginSimple`의 `onLogin`/`onSignup` 콜백은 쓰지 않고 슬롯(로고, 버튼 영역)만 커스터마이징해서 "MS 계정으로 로그인" 버튼을 넣는 형태로 맞춘다.
+이 프로젝트는 이메일/비밀번호 로그인이 아니라 AX Auth 리다이렉트 방식이라 위 예시를 그대로 쓸 수 없다.
+실제로는 `LoginSimple`을 쓰지 않는다 — 이유는 아래 "로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)" 참고.
 
 ## 이 프로젝트에서 쓸 컴포넌트 매핑
 
@@ -57,7 +58,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
-| 로그인 화면 | `LoginSimple` (Template) | 슬롯으로 AX Auth 버튼 커스터마이징 |
+| 로그인 화면 | `Card` + `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>` | `LoginSimple`은 email/password 폼 전용이라 쓰지 않음 — 아래 "로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
 | 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`ChipGroup`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·필터·빈 상태)만 컴포넌트를 쓴다. 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
 | 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`(`onRemove` 생략), 태그 필터는 `ChipGroup`(단일 선택 — 같은 칩을 다시 클릭하면 해제되도록 `onChange` 쪽에서 토글 처리) |
@@ -100,6 +101,32 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   필요해 `<Link>`로 만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가
   쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀
   "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다.
+
+## 로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)
+
+이 표와 위 "사용 예시"는 원래 `LoginSimple`에 로고 슬롯과 별도로 버튼 영역(footer) 슬롯이 있어서
+그 슬롯에 "MS 계정으로 로그인" 버튼을 넣을 수 있다고 가정하고 작성됐다. 실제 구현(Task 15,
+`src/app/login/page.tsx`) 중 `@sfood/ui`의 타입 정의(`node_modules/@sfood/ui/dist/index.d.ts`)와
+런타임 구현(`dist/index.js`)을 직접 확인해 보니 그런 슬롯은 존재하지 않았다. 같은 시도를 반복하지
+않도록 실제 API와 대체 구성을 남긴다.
+
+- **`LoginSimple`/`LoginSplit`은 email/password 폼 전용이고, 슬롯이 없다.** 실제 props는
+  `{ logo?, title?, onLogin: (email, password) => void | Promise<void>, onForgotPassword?, onSignup?,
+  loading?, error?: string, className? }`뿐이다. `children`도, `footer`도, 버튼 영역 슬롯도 받지
+  않는다. 내부적으로 이메일 `<input>`과 비밀번호 `<input>`을 직접 렌더링하고, 둘 다 채워야
+  활성화되는 "로그인" 버튼을 눌러야 `onLogin(email, password)`가 호출되는 구조다.
+- **이 앱은 로컬 비밀번호가 없다** — AX Auth(SSO) 리다이렉트 링크 하나로만 로그인한다. `LoginSimple`을
+  쓰려면 사용자가 쓰지도 않을 이메일/비밀번호를 가짜로 입력해야 버튼이 눌리게 되는데, 이는 슬롯
+  이름을 잘못 짚은 정도가 아니라 이 화면의 요구사항(한 번 클릭으로 외부 URL로 이동) 자체를
+  표현할 수 없는 구조적 불일치라 슬롯을 다시 찾는 방식으로는 해결이 안 된다.
+- **최종적으로 실제 쓴 구성**: `Card`(`padding="lg"`)를 카드 컨테이너로, `Typography`(`variant="h1"`,
+  시각적 크기만 `className`으로 축소 — 이 페이지에 다른 헤딩이 없어 문서 헤딩 계층을 h1부터
+  시작해야 함)로 제목/부제목을, `Alert`(`variant="danger"`)로 로그인 실패·AX Auth 미설정 안내를
+  표시한다. "MS 계정으로 로그인" 액션은 외부 URL로 실제 이동해야 해서 `Button`(`ButtonHTMLAttributes`
+  기반, `href` 없음)이 아니라 `<a href={loginUrl}>`을 쓰되, `Button variant="primary" size="md"`가
+  내부적으로 쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover`,
+  `rounded-btn` 등)를 그대로 입혀 "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다(사이드바의
+  "새 문서" 링크와 동일한 패턴 — `src/components/editor/EditorSidebar.tsx` 참고).
 
 ## Do / Don't (Component Guide 발췌)
 
