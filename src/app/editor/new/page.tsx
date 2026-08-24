@@ -14,7 +14,7 @@ export default async function NewDocumentPage() {
       <div className="toolbar">
         <div>
           <h1 className="page-title">새 문서 작성</h1>
-          <p className="page-subtitle">Markdown으로 문서를 작성하고 저장하세요.</p>
+          <p className="page-subtitle">문서를 작성하고 저장하세요.</p>
         </div>
         <Link href="/editor" className="button button-secondary">
           탐색기로
