@@ -14,11 +14,55 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
+const ALLOWED_LINK_SCHEMES = ["http:", "https:", "mailto:"];
+
+/**
+ * 링크 href가 안전한지 확인한다: `http:`/`https:`/`mailto:` 스킴이거나 `/`·`#`로 시작하는
+ * 상대 경로만 허용한다. `javascript:`/`data:`/`vbscript:` 등은 거부한다.
+ *
+ * 발행된 문서는 다른 직원(sfood 기술 블로그 독자)이 읽으므로, `<a href>`에 그대로 들어가는
+ * 저장형 XSS 벡터다 — Confluence의 렌더링 단계가 이를 걸러줄 것이라 가정하지 않고, 이 앱의
+ * 직렬화 단계에서 직접 검증한다.
+ */
+export function isSafeLinkHref(href: string): boolean {
+  const trimmed = href.trim();
+  if (trimmed.startsWith("/") || trimmed.startsWith("#")) {
+    return true;
+  }
+  try {
+    const url = new URL(trimmed);
+    return ALLOWED_LINK_SCHEMES.includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 붙여넣기로 들어온 외부 이미지 src가 안전한지 확인한다(`http:`/`https:`만 허용). 이미지
+ * src는 링크와 달리 상대 경로·mailto가 의미 없으므로 더 좁게 허용한다.
+ */
+function isSafeImageSrc(src: string): boolean {
+  try {
+    const url = new URL(src.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 const MARK_TAGS: Record<string, (attrs: Record<string, unknown> | undefined) => [string, string]> = {
   bold: () => ["<strong>", "</strong>"],
   italic: () => ["<em>", "</em>"],
   strike: () => ["<s>", "</s>"],
-  link: (attrs) => [`<a href="${escapeHtml(String(attrs?.href ?? ""))}">`, "</a>"],
+  link: (attrs) => {
+    const href = String(attrs?.href ?? "");
+    if (!isSafeLinkHref(href)) {
+      return ["", ""];
+    }
+    return [`<a href="${escapeHtml(href)}">`, "</a>"];
+  },
+  code: () => ["<code>", "</code>"],
+  underline: () => ["<u>", "</u>"],
   textStyle: (attrs) =>
     attrs?.color
       ? [`<span style="color:${escapeHtml(String(attrs.color))}">`, "</span>"]
@@ -67,8 +111,25 @@ function serializeNode(node: JSONContent): string {
       return `<blockquote>${serializeChildren(node)}</blockquote>`;
     case "codeBlock":
       return `<pre><code>${serializeChildren(node)}</code></pre>`;
-    case "image":
-      return `<ac:image><ri:attachment ri:filename="${escapeHtml(String(node.attrs?.filename ?? ""))}" /></ac:image>`;
+    case "hardBreak":
+      return "<br/>";
+    case "horizontalRule":
+      return "<hr/>";
+    case "image": {
+      const filename = String(node.attrs?.filename ?? "").trim();
+      if (filename) {
+        return `<ac:image><ri:attachment ri:filename="${escapeHtml(filename)}" /></ac:image>`;
+      }
+      // HTML로 붙여넣은 이미지(파일이 아니라 `<img src>` 조각)는 AttachmentImage 노드에
+      // filename 없이 src만 채워진다. filename이 없다고 그대로 두면 직렬화 시
+      // `ri:filename=""`인 깨진 첨부 참조가 되므로, src가 유효한 외부 URL이면 대신
+      // 외부 이미지 참조(`ri:url`)로 내보낸다(Confluence storage format에서 유효한 형태).
+      const src = String(node.attrs?.src ?? "").trim();
+      if (src && isSafeImageSrc(src)) {
+        return `<ac:image><ri:url ri:value="${escapeHtml(src)}" /></ac:image>`;
+      }
+      return "";
+    }
     case "table":
       return `<table>${serializeChildren(node)}</table>`;
     case "tableRow":

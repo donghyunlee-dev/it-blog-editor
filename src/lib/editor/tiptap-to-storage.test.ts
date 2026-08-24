@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tiptapDocToStorageFormat } from "./tiptap-to-storage";
+import { isSafeLinkHref, tiptapDocToStorageFormat } from "./tiptap-to-storage";
 
 describe("tiptapDocToStorageFormat", () => {
   it("문단과 굵게/기울임/취소선을 변환한다", () => {
@@ -148,6 +148,61 @@ describe("표·패널 매크로", () => {
     );
   });
 
+  it("줄바꿈(hardBreak)을 <br/>로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "첫 줄" },
+            { type: "hardBreak" },
+            { type: "text", text: "둘째 줄" },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe("<p>첫 줄<br/>둘째 줄</p>");
+  });
+
+  it("구분선(horizontalRule)을 <hr/>로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "위" }] }, { type: "horizontalRule" }],
+    });
+
+    expect(html).toBe("<p>위</p><hr/>");
+  });
+
+  it("인라인 code 마크를 <code>로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "const a = 1;", marks: [{ type: "code" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe("<p><code>const a = 1;</code></p>");
+  });
+
+  it("밑줄(underline) 마크를 <u>로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "밑줄", marks: [{ type: "underline" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe("<p><u>밑줄</u></p>");
+  });
+
   it("패널 매크로의 panelType을 이스케이프 처리한다", () => {
     const html = tiptapDocToStorageFormat({
       type: "doc",
@@ -163,5 +218,91 @@ describe("표·패널 매크로", () => {
     expect(html).toBe(
       '<ac:structured-macro ac:name="info&quot;&gt;&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;&lt;div class=&quot;"><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
     );
+  });
+});
+
+describe("isSafeLinkHref", () => {
+  it("http/https/mailto 스킴을 허용한다", () => {
+    expect(isSafeLinkHref("http://example.com")).toBe(true);
+    expect(isSafeLinkHref("https://example.com/path?q=1")).toBe(true);
+    expect(isSafeLinkHref("mailto:user@example.com")).toBe(true);
+  });
+
+  it("/ 또는 #로 시작하는 상대 경로를 허용한다", () => {
+    expect(isSafeLinkHref("/docs/page")).toBe(true);
+    expect(isSafeLinkHref("#section-1")).toBe(true);
+  });
+
+  it("javascript:/data:/vbscript: 스킴을 거부한다", () => {
+    expect(isSafeLinkHref('javascript:alert(document.cookie)')).toBe(false);
+    expect(isSafeLinkHref("data:text/html,<script>alert(1)</script>")).toBe(false);
+    expect(isSafeLinkHref("vbscript:msgbox(1)")).toBe(false);
+  });
+});
+
+describe("링크 href 스킴 검증(직렬화 단계)", () => {
+  it("javascript: href를 가진 링크는 <a> 래핑 없이 텍스트만 남긴다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "클릭",
+              marks: [{ type: "link", attrs: { href: "javascript:alert(document.cookie)" } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe("<p>클릭</p>");
+  });
+
+  it("안전한 href는 그대로 <a>로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "링크", marks: [{ type: "link", attrs: { href: "/editor/doc-1" } }] },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe('<p><a href="/editor/doc-1">링크</a></p>');
+  });
+});
+
+describe("HTML로 붙여넣은 이미지(filename 없음)", () => {
+  it("filename이 없고 src가 안전한 외부 URL이면 ri:url 참조로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { src: "https://example.com/photo.png" } }],
+    });
+
+    expect(html).toBe('<ac:image><ri:url ri:value="https://example.com/photo.png" /></ac:image>');
+  });
+
+  it("filename도 src도 없으면 빈 문자열을 반환한다(깨진 참조를 만들지 않는다)", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: {} }],
+    });
+
+    expect(html).toBe("");
+  });
+
+  it("filename이 없고 src가 javascript: 스킴이면 빈 문자열을 반환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { src: "javascript:alert(1)" } }],
+    });
+
+    expect(html).toBe("");
   });
 });
