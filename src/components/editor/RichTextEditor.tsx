@@ -4,14 +4,37 @@ import type { ReactNode } from "react";
 import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
+import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import { Button } from "@sfood/ui";
+import { Button, useToast } from "@sfood/ui";
 import { SlashCommandExtension } from "./SlashCommandExtension";
+import { uploadImage } from "@/lib/editor/image-upload";
+
+// TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
+// `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
+// (`@tiptap/pm/view`가 `prosemirror-view`를 재수출). 시그니처는
+// `(view: EditorView, event: DragEvent, slice: Slice, moved: boolean) => boolean | void`
+// (paste는 `slice`까지 3개)로 브리프의 예시보다 파라미터가 많지만, 이 파일처럼
+// 뒤쪽 파라미터를 쓰지 않는 콜백은 TS 함수 타입 호환 규칙상 그대로 대입 가능하다.
+
+/** 드롭/붙여넣기로 받은 이미지를 업로드한 뒤, 해당 위치에 image 노드를 삽입한다. */
+function insertUploadedImage(
+  view: EditorView,
+  pos: number,
+  { url, filename }: { url: string; filename: string }
+) {
+  const { schema, doc } = view.state;
+  const imageType = schema.nodes.image;
+  if (!imageType) return;
+  const insertPos = Math.min(pos, doc.content.size);
+  const node = imageType.create({ src: url, filename });
+  view.dispatch(view.state.tr.insert(insertPos, node));
+}
 
 // TipTap v3 split BubbleMenu/FloatingMenu out of `@tiptap/react`'s main
 // entrypoint into a `@tiptap/react/menus` subpath (backed by the
@@ -179,9 +202,18 @@ function TableControls({ editor }: { editor: Editor | null }) {
 export interface RichTextEditorProps {
   content: JSONContent;
   onChange: (doc: JSONContent) => void;
+  /**
+   * 저장된 문서의 ID. 있을 때만 이미지 드래그앤드롭/붙여넣기 업로드가
+   * 활성화된다 — 새 문서(저장 전)는 첨부파일을 등록할 대상 페이지가 없으므로
+   * "문서를 먼저 저장해야 이미지 등록 가능"이라는 기존 제약과 동일하게
+   * 비활성 상태로 둔다.
+   */
+  pageId?: string;
 }
 
-export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
+  const { toast } = useToast();
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
@@ -202,6 +234,37 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
       onChange(currentEditor.getJSON());
     },
     immediatelyRender: false,
+    editorProps: {
+      handleDrop: (view, event) => {
+        const file = event.dataTransfer?.files?.[0];
+        if (!file || !pageId || !file.type.startsWith("image/")) return false;
+        event.preventDefault();
+
+        const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+        const pos = coords?.pos ?? view.state.selection.from;
+
+        uploadImage(pageId, file)
+          .then((uploaded) => insertUploadedImage(view, pos, uploaded))
+          .catch((error) => {
+            toast(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.", "danger");
+          });
+        return true;
+      },
+      handlePaste: (view, event) => {
+        const file = event.clipboardData?.files?.[0];
+        if (!file || !pageId || !file.type.startsWith("image/")) return false;
+        event.preventDefault();
+
+        const pos = view.state.selection.from;
+
+        uploadImage(pageId, file)
+          .then((uploaded) => insertUploadedImage(view, pos, uploaded))
+          .catch((error) => {
+            toast(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.", "danger");
+          });
+        return true;
+      },
+    },
   });
 
   return (
