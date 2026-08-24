@@ -33,7 +33,7 @@
 ## 기술 스택 제안
 - **프레임워크**: Next.js 16(App Router) + React 19 + TypeScript — 이미 채택되어 구현 중. 서버 컴포넌트(`src/app/editor/**/page.tsx`)로 데이터 조회, 클라이언트 컴포넌트(`src/components/editor/*.tsx`, `"use client"`)로 상호작용을 분리한다.
 - **에디터 엔진**: TipTap(ProseMirror 기반) — WYSIWYG 편집, 슬래시 삽입 메뉴(`@tiptap/suggestion`), 텍스트 선택 시 뜨는 버블 툴바(`BubbleMenu`), 표 병합 등을 공식 익스텐션으로 지원해 직접 구현할 부분이 적다. 문서 원본은 TipTap JSON(ProseMirror 트리)으로 저장하고, Confluence storage format으로의 변환은 자체 변환기(`tiptap-to-storage`)를 새로 작성한다.
-- **UI 컴포넌트/스타일**: 사내 디자인 시스템 `@sfood/ui` + Tailwind CSS(이번에 신규 도입). 화면을 직접 마크업하지 않고 `@sfood/ui`의 컴포넌트·템플릿을 우선 사용한다. 상세는 [design.md](./design.md) 참고.
+- **UI 컴포넌트/스타일**: 사내 디자인 시스템 `@sfood/ui` + Tailwind CSS(이번에 신규 도입). 화면을 직접 마크업하지 않고 `@sfood/ui`의 컴포넌트·템플릿을 우선 사용한다. 상세는 [design.md](./design.md) 참고. `@sfood/ui@0.1.2`는 React 19와 호환되지 않는 버그(번들에 인라인된 jsx-runtime이 React 19에서 이름이 바뀐 내부 API를 읽어 import 시점에 크래시)가 있어 `patch-package`로 임시 패치를 적용 중이다 — 패치 내용·제거 조건은 [`patches/README.md`](../../patches/README.md) 참고.
 - **인증**: next-auth(Auth.js) v5, Credentials 프로바이더로 AX Auth와 연동. 세션에는 이메일만 저장하고, 그 외 개인정보는 다루지 않는다.
 - **데이터 저장소**: 별도 DB 없음. Confluence Cloud REST API가 저장소 역할을 겸한다 — 서버 운영 부담과 데이터 이중화 문제를 줄이는 대신, Confluence API 제약(GDPR상 이메일 기반 계정 조회 불가, v1/v2 API 기능 차이 등)을 그대로 감당해야 한다는 트레이드오프가 있다.
 - **배포**: AWS. Next.js 앱을 컨테이너 또는 서버리스(Amplify/ECS/Lambda 등) 중 하나로 배포하는 것을 권장하며, 구체적인 서비스 선택은 팀의 AWS 운영 경험에 따라 정한다(이 문서에서는 특정 서비스로 고정하지 않는다 — 추후 배포 단계에서 결정).
