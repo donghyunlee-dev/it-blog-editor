@@ -1,4 +1,7 @@
 @import "tailwindcss";
+@config "../../tailwind.config.js";
+@source "../../node_modules/@sfood/ui/dist";
+@plugin "@tailwindcss/typography";
 
 :root {
   --color-background: #ffffff;
@@ -236,4 +239,54 @@ a {
   justify-content: space-between;
   margin-bottom: 24px;
   gap: 16px;
+}
+
+/*
+ * WYSIWYG 편집 화면 전용 스타일. `@sfood/ui`에는 대응 컴포넌트가 없는
+ * TipTap 커스텀 노드(Panel)와 ProseMirror가 직접 렌더링하는 표에 대한
+ * 시각적 스타일을 제공한다. 색상은 이 프로젝트의 CSS Variable 토큰
+ * (`@sfood/ui`의 tokens/semantic.css, `docs/product/design.md` 참고)만
+ * 사용하고 하드코딩한 hex 값은 쓰지 않는다.
+ */
+.panel {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface-subtle);
+}
+
+.panel-info {
+  border-color: var(--color-info);
+  background: color-mix(in srgb, var(--color-info) 12%, var(--color-surface));
+}
+
+.panel-warning {
+  border-color: var(--color-warning);
+  background: color-mix(in srgb, var(--color-warning) 15%, var(--color-surface));
+}
+
+.panel-note {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-subtle);
+}
+
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.ProseMirror table th {
+  background: var(--color-surface-subtle);
+  font-weight: 600;
 }

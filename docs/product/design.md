@@ -15,9 +15,11 @@ npm install @sfood/ui
 ```
 `@sfood/ui`는 public npm 레지스트리에 배포되어 있어 별도 저장소 접근 권한 없이 설치할 수 있다.
 
-**2. Tailwind 설정** — 이 프로젝트는 아직 Tailwind CSS를 쓰지 않으므로, `@sfood/ui` 도입 시 Tailwind 자체도 함께 새로 설치해야 한다.
+**2. Tailwind 설정** — 이 프로젝트는 아직 Tailwind CSS를 쓰지 않으므로, `@sfood/ui` 도입 시 Tailwind 자체도 함께 새로 설치해야 한다. 실제 설치된 버전은 Tailwind v4(`tailwindcss@^4.3.3`)이고, `@sfood/ui/tailwind.config.js`는 v3 형식의 preset이다.
+
 ```js
-// tailwind.config.js
+// tailwind.config.js — v3 형식 preset은 그대로 두되, v4가 이를 읽으려면
+// globals.css 쪽에서 반드시 `@config`로 명시적으로 불러와야 한다(아래 참고).
 import sfoodPreset from '@sfood/ui/tailwind.config.js'
 
 export default {
@@ -28,6 +30,26 @@ export default {
   ],
 }
 ```
+
+> **v4 주의사항 (Task 최종 리뷰 fix wave에서 확인된 사항, C1)**: Tailwind v4는 `tailwind.config.js`를
+> 더 이상 자동으로 찾아 읽지 않는다. `content`가 아니라 `@source`로 스캔 대상을 지정하고,
+> `node_modules`는 v4에서 기본적으로 스캔 대상에서 제외되므로(v3의 `content` 배열과 다르게)
+> `@sfood/ui`처럼 `node_modules`에 설치된 패키지의 클래스를 스캔하려면 별도로 `@source`를
+> 추가해야 한다. v3 형식 `presets` config를 계속 쓰려면 `@config`로 명시적으로 로드해야
+> 하며, 이 지시어들을 빠뜨리면 빌드는 에러 없이 성공하지만 `bg-brand`/`border-border`/
+> `rounded-btn`/`text-on-brand` 등 모든 토큰 유틸리티 클래스가 생성되지 않는다(컴파일된
+> CSS에 아예 존재하지 않음 — 런타임 에러도, 콘솔 경고도 없어 알아채기 어렵다). 이 프로젝트의
+> `src/app/globals.css`는 `@import "tailwindcss";` 바로 다음에 아래 세 줄을 추가해 이를
+> 해결한다:
+> ```css
+> @import "tailwindcss";
+> @config "../../tailwind.config.js";
+> @source "../../node_modules/@sfood/ui/dist";
+> @plugin "@tailwindcss/typography";
+> ```
+> (`@plugin "@tailwindcss/typography"`는 에디터 화면의 `prose` 클래스를 위한 것으로, C1과
+> 별개의 이유로 필요하지만 같은 자리에 함께 둔다.) 앞으로 이 프로젝트에 새 Tailwind 설정을
+> 추가하거나 마이그레이션할 때, 이 세 지시어를 다시 빠뜨리지 않도록 주의한다.
 
 **3. 글로벌 CSS**
 ```ts
