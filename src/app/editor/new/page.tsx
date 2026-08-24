@@ -1,13 +1,17 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { listTagSuggestions } from "@/lib/editor/tag-suggestions";
 import { DocumentEditor } from "@/components/editor/DocumentEditor";
 
 export default async function NewDocumentPage() {
   const session = await auth();
-  if (!session?.user) {
+  const email = session?.user?.email;
+  if (!email) {
     redirect("/login");
   }
+
+  const tagSuggestions = await listTagSuggestions(email);
 
   return (
     <main className="page">
@@ -21,7 +25,7 @@ export default async function NewDocumentPage() {
         </Link>
       </div>
       <div className="card">
-        <DocumentEditor mode="create" />
+        <DocumentEditor mode="create" tagSuggestions={tagSuggestions} />
       </div>
     </main>
   );

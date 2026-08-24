@@ -7,6 +7,7 @@ import {
   type DocumentDetail,
 } from "@/lib/editor/documents";
 import { getTags } from "@/lib/editor/tags";
+import { listTagSuggestions } from "@/lib/editor/tag-suggestions";
 import { NotFoundError, UnauthorizedError } from "@/lib/editor/errors";
 import { DocumentEditor } from "@/components/editor/DocumentEditor";
 
@@ -25,6 +26,13 @@ export default async function EditDocumentPage({
 
   const { pageId } = await params;
 
+  // 태그 자동완성 목록은 이 문서와 무관한(작성자 본인 소유의) 데이터이므로 문서 조회와 겹쳐
+  // 시작해 왕복 한 번을 절약한다. 아래 try/catch 밖에서 시작·await하는 것이 핵심이다 —
+  // 이 호출은 소유권 매핑(NotFoundError/UnauthorizedError → notFound())에 절대 끼어들면
+  // 안 된다. listTagSuggestions는 던지지 않도록 만들어져 있어, 중간에 notFound()가 던져져
+  // 이 promise를 await하지 못해도 unhandled rejection이 생기지 않는다.
+  const tagSuggestionsPromise = listTagSuggestions(email);
+
   let document: DocumentDetail;
   let tags: string[];
   try {
@@ -41,6 +49,8 @@ export default async function EditDocumentPage({
     }
     throw error;
   }
+
+  const tagSuggestions = await tagSuggestionsPromise;
 
   return (
     <main className="page">
@@ -60,6 +70,7 @@ export default async function EditDocumentPage({
           initialTitle={document.title}
           initialDoc={document.doc}
           initialTags={tags}
+          tagSuggestions={tagSuggestions}
           initialVersion={document.version}
         />
       </div>

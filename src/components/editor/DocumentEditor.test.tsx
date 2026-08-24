@@ -188,6 +188,40 @@ describe("DocumentEditor", () => {
     expect(payload).not.toHaveProperty("body");
   });
 
+  it("새 문서 생성 요청에도 markdown 문자열이 아닌 TipTap doc(JSONContent)을 담아 보낸다", async () => {
+    const fetchMock = stubFetch((url) =>
+      url.endsWith("/tags")
+        ? jsonResponse({ pageId: "new-1", tags: [] })
+        : jsonResponse({ pageId: "new-1", version: 1 }, 201)
+    );
+
+    renderEditor(<DocumentEditor mode="create" />);
+
+    await userEvent.type(screen.getByLabelText("제목"), "새 문서");
+    await userEvent.type(screen.getByLabelText("본문"), "본");
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    const createCall = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        url === "/api/editor/documents" && init?.method === "POST"
+    );
+    expect(createCall).toBeDefined();
+
+    const payload = JSON.parse(String(createCall?.[1]?.body));
+    expect(payload).toEqual({
+      title: "새 문서",
+      doc: {
+        type: "doc",
+        content: [
+          { type: "paragraph", content: [{ type: "text", text: "본" }] },
+        ],
+      },
+    });
+    expect(payload).not.toHaveProperty("body");
+    // 생성 요청에는 version을 보내지 않는다(서버가 새로 발급한다).
+    expect(payload).not.toHaveProperty("version");
+  });
+
   it("기존 문서를 저장하면 태그도 태그 전용 엔드포인트로 저장한다", async () => {
     const fetchMock = stubFetch((url) =>
       url.endsWith("/tags")
@@ -231,6 +265,72 @@ describe("DocumentEditor", () => {
         body: JSON.stringify({ tags: ["Backend"] }),
       })
     );
+  });
+
+  it("문서 저장은 성공했지만 태그 저장이 실패하면 경고 토스트로 구분해 알린다", async () => {
+    stubFetch((url) =>
+      url.endsWith("/tags")
+        ? jsonResponse(
+            { error: { code: "UPSTREAM_ERROR", message: "라벨 API 실패" } },
+            502
+          )
+        : jsonResponse({ pageId: "page-1", version: 2 })
+    );
+
+    renderEditor(<DocumentEditor {...EDIT_PROPS} initialTags={["React"]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(
+      await screen.findByText(
+        "문서는 저장했지만 태그 저장에 실패했습니다: 라벨 API 실패"
+      )
+    ).toBeInTheDocument();
+    // 본문은 실제로 저장됐으므로 "저장되었습니다."로 뭉개지 않는다.
+    expect(screen.queryByText("저장되었습니다.")).not.toBeInTheDocument();
+    // 그리고 저장 자체는 성공했으므로 사이드바 갱신은 그대로 수행한다.
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("태그 저장 요청이 네트워크 단계에서 실패해도 저장 실패로 뭉개지 않는다", async () => {
+    stubFetch((url) => {
+      if (url.endsWith("/tags")) {
+        return Promise.reject(new Error("네트워크 연결이 끊겼습니다."));
+      }
+      return jsonResponse({ pageId: "page-1", version: 2 });
+    });
+
+    renderEditor(<DocumentEditor {...EDIT_PROPS} initialTags={["React"]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(
+      await screen.findByText(
+        "문서는 저장했지만 태그 저장에 실패했습니다: 네트워크 연결이 끊겼습니다."
+      )
+    ).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("게시 설정 버튼은 게시 설정 화면으로 이동시킨다", async () => {
+    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "게시 설정" }));
+
+    expect(push).toHaveBeenCalledWith("/editor/page-1/publish");
+  });
+
+  it("태그 자동완성 후보를 TagInput에 전달한다", () => {
+    renderEditor(
+      <DocumentEditor {...EDIT_PROPS} tagSuggestions={["Backend", "React"]} />
+    );
+
+    const input = screen.getByPlaceholderText("태그 입력");
+    const datalist = document.getElementById(
+      input.getAttribute("list") ?? ""
+    );
+
+    expect(datalist?.querySelectorAll("option")).toHaveLength(2);
   });
 
   it("버전 충돌(409) 메시지를 인라인 텍스트가 아닌 토스트로 알린다", async () => {

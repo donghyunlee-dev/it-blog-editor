@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Modal, useToast } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
@@ -209,12 +208,16 @@ export function DocumentEditor({
               >
                 {status === "deleting" ? "삭제 중..." : "삭제"}
               </Button>
-              <Link
-                href={`/editor/${pageId}/publish`}
-                className="button button-secondary"
+              {/* Button은 ButtonHTMLAttributes만 받고 asChild/링크 렌더링을 지원하지
+                  않으므로, 이동 액션은 router.push로 처리한다. */}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => router.push(`/editor/${pageId}/publish`)}
+                disabled={status !== "idle"}
               >
                 게시 설정
-              </Link>
+              </Button>
             </>
           )}
         </div>
