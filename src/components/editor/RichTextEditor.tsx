@@ -6,7 +6,6 @@ import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
@@ -14,6 +13,7 @@ import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table
 import { Button, useToast } from "@sfood/ui";
 import { SlashCommandExtension } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
+import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
 
 // TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
 // `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
@@ -117,6 +117,8 @@ function ToggleButton({
 }
 
 function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
+  const { toast } = useToast();
+
   if (!editor) return null;
 
   return (
@@ -160,7 +162,12 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
           label="링크"
           onClick={() => {
             const href = window.prompt("링크 URL");
-            if (href) editor.chain().focus().setLink({ href }).run();
+            if (!href) return;
+            if (!isSafeLinkHref(href)) {
+              toast("허용되지 않는 링크 형식입니다. http(s):// 또는 mailto: 링크만 사용할 수 있습니다.", "danger");
+              return;
+            }
+            editor.chain().focus().setLink({ href }).run();
           }}
         >
           링크
@@ -216,8 +223,10 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Link.configure({ openOnClick: false }),
+      StarterKit.configure({
+        heading: { levels: [1, 2, 3] },
+        link: { openOnClick: false },
+      }),
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
