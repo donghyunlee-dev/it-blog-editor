@@ -147,6 +147,35 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
   );
 }
 
+function TableControls({ editor }: { editor: Editor | null }) {
+  if (!editor || !editor.isActive("table")) return null;
+
+  return (
+    <div className="flex gap-1 border border-border bg-surface p-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().mergeCells()}
+        onClick={() => editor.chain().focus().mergeCells().run()}
+        aria-label="셀 병합"
+      >
+        셀 병합
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().splitCell()}
+        onClick={() => editor.chain().focus().splitCell().run()}
+        aria-label="셀 분할"
+      >
+        셀 분할
+      </Button>
+    </div>
+  );
+}
+
 export interface RichTextEditorProps {
   content: JSONContent;
   onChange: (doc: JSONContent) => void;
@@ -177,7 +206,8 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
 
   return (
     <>
-      <EditorBubbleMenu editor={editor} />
+      {editor && <EditorBubbleMenu editor={editor} />}
+      {editor && <TableControls editor={editor} />}
       <EditorContent editor={editor} className="prose max-w-none" />
     </>
   );
