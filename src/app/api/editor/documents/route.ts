@@ -4,6 +4,7 @@ import { toErrorResponse } from "@/lib/api-response";
 import { NotFoundError } from "@/lib/editor/errors";
 import { findPersonalFolder } from "@/lib/editor/folder";
 import { createDocument, listDocuments } from "@/lib/editor/documents";
+import type { JSONContent } from "@/lib/editor/tiptap-to-storage";
 
 export async function GET() {
   try {
@@ -34,13 +35,13 @@ export async function POST(request: Request) {
 
     const payload = (await request.json()) as {
       title?: string;
-      body?: string;
+      doc?: unknown;
     };
 
     const result = await createDocument({
       folderId: folder.folderId,
       title: payload.title ?? "",
-      markdown: payload.body ?? "",
+      doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       actualAuthorEmail: email,
     });
 

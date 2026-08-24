@@ -3,7 +3,20 @@ import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as roots from "./roots";
 import { UnauthorizedError } from "./errors";
-import { createDocument, listDocuments, requireDocumentOwner } from "./documents";
+import {
+  createDocument,
+  getDocumentDetail,
+  listDocuments,
+  requireDocumentOwner,
+  updateDocument,
+} from "./documents";
+
+const SAMPLE_DOC = {
+  type: "doc",
+  content: [
+    { type: "paragraph", content: [{ type: "text", text: "본문" }] },
+  ],
+};
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -126,7 +139,7 @@ describe("createDocument", () => {
       parentId: "folder-1",
       version: { number: 1, createdAt: "" },
     });
-    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
       id: "prop-1",
       key: "authorMeta",
       value: {},
@@ -137,11 +150,87 @@ describe("createDocument", () => {
     const result = await createDocument({
       folderId: "folder-1",
       title: "제목",
-      markdown: "본문",
+      doc: SAMPLE_DOC,
       actualAuthorEmail: "user@s-food.com",
     });
 
+    expect(client.createPage).toHaveBeenCalledWith({
+      spaceId: "space-1",
+      parentId: "folder-1",
+      title: "제목",
+      bodyValue: "<p>본문</p>",
+    });
+    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "sourceDocument", {
+      doc: SAMPLE_DOC,
+    });
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
     expect(result).toEqual({ pageId: "doc-1", version: 1 });
+  });
+});
+
+describe("getDocumentDetail", () => {
+  it("sourceDocument property에서 편집 원본을 읽어온다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: { doc: SAMPLE_DOC },
+      version: { number: 1 },
+    });
+
+    const detail = await getDocumentDetail("doc-1");
+
+    expect(detail).toEqual({
+      pageId: "doc-1",
+      title: "제목",
+      doc: SAMPLE_DOC,
+      version: 2,
+    });
+  });
+});
+
+describe("updateDocument", () => {
+  it("버전이 일치하면 doc을 갱신한다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(client, "updatePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "새 제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: {},
+      version: { number: 1 },
+    });
+
+    const result = await updateDocument({
+      pageId: "doc-1",
+      title: "새 제목",
+      doc: SAMPLE_DOC,
+      expectedVersion: 1,
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "sourceDocument", {
+      doc: SAMPLE_DOC,
+    });
+    expect(result).toEqual({ pageId: "doc-1", version: 2 });
   });
 });

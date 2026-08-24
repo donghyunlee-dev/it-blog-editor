@@ -7,6 +7,7 @@ import {
   updateDocument,
 } from "@/lib/editor/documents";
 import { ValidationError } from "@/lib/editor/errors";
+import type { JSONContent } from "@/lib/editor/tiptap-to-storage";
 
 interface RouteContext {
   params: Promise<{ pageId: string }>;
@@ -20,7 +21,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
 
     const payload = (await request.json()) as {
       title?: string;
-      body?: string;
+      doc?: unknown;
       version?: number;
     };
 
@@ -31,7 +32,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     const result = await updateDocument({
       pageId,
       title: payload.title ?? "",
-      markdown: payload.body ?? "",
+      doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       expectedVersion: payload.version,
     });
 
