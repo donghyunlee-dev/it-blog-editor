@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { EditorSidebar } from "./EditorSidebar";
+import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 const DOCS: DocumentSummary[] = [
@@ -76,5 +76,43 @@ describe("EditorSidebar", () => {
       "href",
       "/editor/new"
     );
+  });
+
+  it("activePageId와 일치하는 문서 링크에만 aria-current='page'를 붙인다", () => {
+    render(<EditorSidebar documents={DOCS} activePageId="1" />);
+
+    const activeLink = screen.getByRole("link", { name: /문서A/ });
+    const inactiveLink = screen.getByRole("link", { name: /문서B/ });
+
+    expect(activeLink).toHaveAttribute("aria-current", "page");
+    expect(inactiveLink).not.toHaveAttribute("aria-current");
+  });
+});
+
+describe("extractPageIdFromPathname", () => {
+  it("/editor/{pageId} 경로에서 pageId를 추출한다", () => {
+    expect(extractPageIdFromPathname("/editor/abc123")).toBe("abc123");
+  });
+
+  it("/editor/{pageId}/publish 경로도 같은 문서의 pageId로 취급한다", () => {
+    expect(extractPageIdFromPathname("/editor/abc123/publish")).toBe(
+      "abc123"
+    );
+  });
+
+  it("/editor/new는 문서가 아니므로 pageId로 취급하지 않는다", () => {
+    expect(extractPageIdFromPathname("/editor/new")).toBeUndefined();
+  });
+
+  it("/editor/new/publish도 pageId로 취급하지 않는다", () => {
+    expect(extractPageIdFromPathname("/editor/new/publish")).toBeUndefined();
+  });
+
+  it("/editor 목록 화면 자체는 pageId가 없다", () => {
+    expect(extractPageIdFromPathname("/editor")).toBeUndefined();
+  });
+
+  it("null 경로는 pageId가 없다", () => {
+    expect(extractPageIdFromPathname(null)).toBeUndefined();
   });
 });

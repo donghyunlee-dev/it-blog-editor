@@ -58,10 +58,10 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
 | 로그인 화면 | `LoginSimple` (Template) | 슬롯으로 AX Auth 버튼 커스터마이징 |
-| 좌측 사이드바(앱 셸) | `Sidebar` | 문서 목록·태그 필터·"새 문서" 버튼을 담는 컨테이너 |
-| 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트 |
-| 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`, 필터 바의 다중 선택은 `ChipGroup` |
-| 문서 목록 항목 | `List` | 기존 `<ul className="doc-list">`를 대체 |
+| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`ChipGroup`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·필터·빈 상태)만 컴포넌트를 쓴다. 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
+| 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
+| 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`(`onRemove` 생략), 태그 필터는 `ChipGroup`(단일 선택 — 같은 칩을 다시 클릭하면 해제되도록 `onChange` 쪽에서 토글 처리) |
+| 문서 목록 항목 | 직접 마크업(`<ul>`/`<li>`/`Link`) + `StatusBadge` + `Tag` | 기존 `<ul className="doc-list">`를 대체. `List`가 아니라 직접 만든 이유는 아래 "확인된 사항" 참고 |
 | 문서함 빈 상태 | `EmptyState` | 기존 `.empty-state` 카드를 대체 |
 | 버튼 전체 | `Button` (`variant="primary"/"secondary"/"danger"`) | 한 화면에 `primary`는 1개만 쓰는 원칙(Do/Don't 참고) |
 | 폼 필드(게시 설정 등) | `FormField`, `Input`, `Textarea`, `Switch` | 라벨·에러를 `FormField`로 감싸는 패턴 |
@@ -69,6 +69,37 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 저장 성공/실패 알림 | `Toast`(`useToast()`) | 기존 인라인 `<p className="error-text">`를 대체 |
 | 게시 설정의 뷰어별 카드 | `Card` | 뷰어(Tech Blog 등)마다 하나씩 |
 | 버블 툴바 / 슬래시 메뉴 위치 지정 | `Popover` | 텍스트 선택 위치·커서 위치에 뜨는 오버레이의 기반으로 사용 |
+
+## 사이드바 앱 셸 — `Sidebar`/`List`를 쓰지 않은 이유 (Task 14 검증)
+
+Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바 컨테이너로, `List`를 문서 목록 항목으로
+쓸 계획이었다. 실제 구현(Task 14, `src/components/editor/EditorSidebar.tsx`) 중 `@sfood/ui`의 타입
+정의(`node_modules/@sfood/ui/dist/index.d.ts`)와 런타임 구현을 직접 확인해 보니 둘 다 이 용도에 맞지
+않는 것으로 확인되어, 다음 사람이 같은 시도를 반복하지 않도록 이유를 남긴다.
+
+- **`Sidebar`는 `children`을 받지 않는다.** 시그니처가
+  `Sidebar({ items, className }: { items: SidebarItem[]; className?: string })`이고,
+  `SidebarItem = { label: string; icon?: ReactNode; href?: string; active?: boolean }`이다. 각 항목을
+  `<a href>{icon}{label}</a>`로만 렌더링하는 평평한(flat) 네비게이션 링크 목록이라, 문서 하나에
+  상태 뱃지 + 태그 여러 개 + 태그 필터 칩까지 넣어야 하는 이 화면에는 슬롯 자체가 없다. 그래서 사이드바
+  바깥 컨테이너(`<aside>`)는 직접 마크업으로 짜고, `Sidebar`가 내부적으로 쓰는 것과 같은 토큰 클래스
+  (`bg-surface`, `border-border`, `rounded-btn` 등)만 재사용해 시각적 일관성을 맞췄다.
+- **`List`는 행마다 링크(href)를 지원하지 않는다.** 시그니처가
+  `List({ items, onItemClick, className }: { items: ListItem[]; onItemClick?: (item: ListItem) => void; ... })`이고,
+  각 `ListItem`(`{ id, primary, secondary?, leading?, trailing? }`)을 `<li onClick={...}>`로만
+  렌더링한다. 실제 페이지 이동을 붙이려면 `onItemClick` 안에서 `next/navigation`의 `useRouter()`를 써야
+  하는데, `useRouter()`는 `AppRouterContext` 프로바이더 없이 호출하면 즉시 예외를 던져 이 프로젝트의
+  Vitest/RTL 테스트(라우터 프로바이더로 감싸지 않음)에서 렌더링 자체가 깨진다. 반면 실제 링크
+  이동에는 `next/link`의 `<Link>`를 쓰면 라우터 컨텍스트가 없어도 안전하게 렌더링되고
+  (`next/link` 소스에 `AppRouterContext` 의존이 없음), Next.js 공식 Vitest 가이드
+  (`node_modules/next/dist/docs/01-app/02-guides/testing/vitest.md`)도 이 방식을 예시로 든다. 그래서
+  문서 목록 행도 `List` 대신 `<ul>`/`<li>`/`<Link>`로 직접 만들고, `List`가 쓰는 것과 같은 시각적
+  규칙(행 패딩, 말줄임, `text-foreground`)만 맞췄다.
+- **최종적으로 실제 쓴 `@sfood/ui` 컴포넌트**: 문서 상태 뱃지는 `StatusBadge`, 문서별 읽기 전용 태그
+  표시는 `Tag`, 태그 필터는 `ChipGroup`, 문서가 없을 때는 `EmptyState`. "새 문서" 버튼은 실제 이동이
+  필요해 `<Link>`로 만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가
+  쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀
+  "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다.
 
 ## Do / Don't (Component Guide 발췌)
 
@@ -142,5 +173,13 @@ toast('오류가 발생했습니다.', 'danger')
 기존 `globals.css`의 `--color-brand: #e4002b;` 등 커스텀 토큰 값은 `@sfood/ui` 도입 시 그대로 유지할지, 디자인 시스템의 기본 브랜드 색으로 맞출지는 실제 도입 작업(Task)에서 디자인 담당자와 다시 확인한다 — 이 문서에서는 "토큰 체계를 `@sfood/ui` 방식으로 통일한다"까지만 정하고, 정확한 색상 값은 확인되지 않은 사항으로 남긴다.
 
 ## 확인되지 않은 사항
-- `ChipGroup`이 "태그를 자유롭게 입력해서 추가"하는 입력 모드를 지원하는지, 아니면 이미 정해진 목록에서 선택하는 용도로만 만들어졌는지는 Storybook의 `ChipGroup` 컴포넌트 스토리를 직접 확인해야 한다. 지원하지 않으면 `Input` + `ChipGroup`(표시용)을 조합한 커스텀 태그 입력을 만든다.
 - 기존 브랜드 색상(`#e4002b`)을 `@sfood/ui` 토큰에 그대로 반영할지 여부.
+
+## 확인된 사항
+- ~~`ChipGroup`이 "태그를 자유롭게 입력해서 추가"하는 입력 모드를 지원하는지~~ → **지원하지 않는다.**
+  `ChipGroup({ items, value, onChange })`는 미리 정해진 `items` 목록 중 하나를 고르는 단일 선택
+  세그먼트 컨트롤(`role="tablist"`/`role="tab"`)이고, 자유 입력 슬롯이 없다. 태그를 새로 "입력"하는
+  화면(문서 작성/수정의 태그 입력, Task 13)은 `Tag` + 일반 `<input>`을 조합한 커스텀 컴포넌트
+  (`src/components/editor/TagInput.tsx`)로 구현했고, 태그로 "필터링"하는 화면(이 문서의 사이드바 앱
+  셸, Task 14)은 그 정해진-목록 선택 특성이 정확히 맞아 `ChipGroup`을 그대로 썼다(선택된 칩을 다시
+  클릭하면 필터가 풀리는 토글 동작은 `value`/`onChange`를 감싸는 쪽에서 구현).

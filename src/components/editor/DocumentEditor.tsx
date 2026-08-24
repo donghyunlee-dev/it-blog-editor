@@ -45,6 +45,9 @@ export function DocumentEditor({
         if (!response.ok) {
           throw new Error(data.error?.message ?? "저장에 실패했습니다.");
         }
+        // layout.tsx(사이드바)는 클라이언트 네비게이션에서 다시 실행되지 않으므로,
+        // 새 문서가 목록에 즉시 나타나도록 명시적으로 새로고침한다.
+        router.refresh();
         router.push(`/editor/${data.pageId}`);
         return;
       }
@@ -59,6 +62,8 @@ export function DocumentEditor({
         throw new Error(data.error?.message ?? "저장에 실패했습니다.");
       }
       setVersion(data.version);
+      // 제목이 바뀌었을 수 있으므로 사이드바 목록도 새로고침한다(페이지 이동은 없음).
+      router.refresh();
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다."
@@ -87,6 +92,8 @@ export function DocumentEditor({
         const data = await response.json();
         throw new Error(data.error?.message ?? "삭제에 실패했습니다.");
       }
+      // 삭제된 문서가 사이드바 목록에서 즉시 사라지도록 새로고침한다.
+      router.refresh();
       router.push("/editor");
     } catch (err) {
       setError(

@@ -34,7 +34,12 @@ export default async function EditorLayout({
   return (
     <div className="flex h-screen">
       <EditorSidebar documents={documents} />
-      <main className="flex-1 overflow-y-auto">{children}</main>
+      {/*
+        각 하위 페이지(new/[pageId]/[pageId]/publish)가 이미 자기 <main className="page">를
+        렌더링하므로, 여기서 또 <main>을 쓰면 페이지마다 role="main" 랜드마크가 두 개가 되어
+        스크린리더 탐색을 깨뜨린다. 레이아웃 쪽은 순수 레이아웃 컨테이너로만 둔다.
+      */}
+      <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }
