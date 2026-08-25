@@ -18,7 +18,6 @@ import {
 } from "./errors";
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
-import { getContentRoots } from "./roots";
 import { getPublishState } from "./publish";
 import { getTags } from "./tags";
 
@@ -81,51 +80,31 @@ async function readAuthorEmail(pageId: string): Promise<string | null> {
 }
 
 /**
- * 작성자가 볼 수 있는 문서 목록을 조회한다.
- * 게시하면 문서가 개인 폴더에서 "게시됨" 루트로 물리적으로 이동하므로, 개인 폴더 하위 초안과
- * "게시됨" 루트 하위의 본인 작성 문서(authorMeta 기준)를 합쳐서 반환한다.
+ * 계정 폴더(초안/게시)에 속한 문서 목록을 조회한다. 게시하면 문서가 계정 폴더 하위 "초안"에서
+ * 같은 계정 폴더 하위 "게시"로 이동할 뿐 계정 밖으로 나가지 않으므로, 두 서브폴더의 자식을
+ * 그대로 합치면 곧 그 계정 소유 문서 전체가 된다 — 더 이상 공유 게시됨 루트를 스캔해
+ * authorMeta로 소유권을 필터링할 필요가 없다.
  *
  * `/editor/[pageId]`가 로드될 때 `/editor` 레이아웃(사이드바용)과 `listTagSuggestions`가
- * 각각 독립적으로 이 함수를 (folderId, authorEmail이 같은 값으로) 호출한다. React의
- * `cache()`로 감싸 같은 요청(같은 서버 렌더 트리) 안에서는 동일 인자 호출이 중복 실행되지
- * 않고 메모이즈되도록 한다 — Next.js App Router의 요청 스코프 dedup 패턴
- * (https://react.dev/reference/react/cache)을 그대로 따른다.
+ * 각각 독립적으로 이 함수를 (같은 폴더 쌍으로) 호출한다. React의 `cache()`로 감싸 같은
+ * 요청(같은 서버 렌더 트리) 안에서는 동일 인자 호출이 중복 실행되지 않고 메모이즈되도록 한다
+ * — Next.js App Router의 요청 스코프 dedup 패턴
+ * (https://react.dev/reference/react/cache)을 그대로 따른다. `cache()`는 원시값 인자는
+ * 값으로, 객체 인자는 참조로 메모이즈하므로, 두 폴더 ID를 객체 하나로 묶지 않고 별개의
+ * 문자열 인자 두 개로 받는다 — 두 호출부가 각자 새 객체 리터럴을 만들면 참조가 달라져
+ * dedup이 조용히 깨지기 때문이다.
  */
 export const listDocuments = cache(async function listDocuments(
-  folderId: string,
-  authorEmail: string
+  draftFolderId: string,
+  publishedFolderId: string
 ): Promise<DocumentSummary[]> {
-  const { publishedRootId } = await getContentRoots();
-
   const [draftPages, publishedPages] = await Promise.all([
-    listChildPages(folderId),
-    listChildPages(publishedRootId),
+    listChildPages(draftFolderId),
+    listChildPages(publishedFolderId),
   ]);
 
-  // 게시된 각 페이지의 authorMeta를 병렬로 조회한 뒤 본인 소유 페이지만 남긴다. 이전에는
-  // `for` 루프 안에서 하나씩 `await`해 게시된 페이지 수만큼 순차 왕복이 생겼다.
-  const ownedPublishedPages = (
-    await Promise.all(
-      publishedPages.map(async (page) => ({
-        page,
-        isOwned: (await readAuthorEmail(page.id)) === authorEmail,
-      }))
-    )
-  )
-    .filter((entry) => entry.isOwned)
-    .map((entry) => entry.page);
-
-  const seen = new Set<string>();
-  const mergedPages = [...draftPages, ...ownedPublishedPages].filter((page) => {
-    if (seen.has(page.id)) {
-      return false;
-    }
-    seen.add(page.id);
-    return true;
-  });
-
   return Promise.all(
-    mergedPages.map(async (page) => {
+    [...draftPages, ...publishedPages].map(async (page) => {
       const [publishState, tagList] = await Promise.all([
         getPublishState(page.id),
         getTags(page.id),
