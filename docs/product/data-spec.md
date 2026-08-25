@@ -15,8 +15,6 @@
 
 ## 테이블 명세
 
-> **2026-08-24 설계 개정으로 아래 표는 마이그레이션 대상이다.** 현재 구현된 코드(`src/lib/editor/roots.ts`의 `getContentRoots()`)는 이전 설계(Space 홈페이지 아래 "초안"/"게시됨" 전역 루트 페이지 2개, 운영자가 최초 1회 수동 생성 + Restriction 수동 설정, 제목 완전 일치로 조회)를 그대로 구현한 상태다. 아래 AccountFolder/DraftFolder/PublishedFolder 표가 최종 채택된 설계이며, `roots.ts`는 제거하고 `folder.ts`가 계정 폴더 생성 시 서브폴더까지 함께 만들도록 재구현해야 한다.
-
 ### 테이블 — AccountFolder (Confluence Page)
 | 속성 | 타입 | 제약조건 | 설명 |
 |---|---|---|---|
