@@ -39,13 +39,13 @@
 - 상태: 완료(기존 구현)
 
 ### 기능 — 내 문서함 조회
-- 설명: 로그인한 사용자의 개인 폴더 하위 문서 목록을 보여준다. 개인 폴더가 없으면 자동 생성한다.
+- 설명: 로그인한 사용자의 계정 폴더 하위 "초안"+"게시" 문서를 함께 보여주고 상태 뱃지로 구분한다. 계정 폴더(및 초안/게시 서브페이지)가 없으면 자동 생성한다. 게시해도 목록에서 사라지지 않는다.
 - 입력: 세션 이메일
-- 출력·동작: 문서 목록(제목, 최종 수정일)
+- 출력·동작: 문서 목록(제목, 최종 수정일, 게시 여부)
 - 예외 상황: Confluence 연동 실패 시 502 + Slack 알림
-- 데이터 저장 여부: 예 — data-spec.md의 "개인 폴더"/"문서" 참고
+- 데이터 저장 여부: 예 — data-spec.md의 "계정 폴더"/"문서" 참고
 - API 필요 여부: 예 — `GET /api/editor/folder`, `GET /api/editor/documents`
-- 상태: 완료(기존 구현)
+- 상태: 대기 (기존에는 초안만 보이던 구현이었으나, 이번 설계로 초안+게시 통합 조회로 변경 — 구현 전)
 
 ### 기능 — 문서 작성·수정·삭제
 - 설명: TipTap 기반 WYSIWYG 에디터로 문서를 작성/수정하고, 필요 시 삭제(Confluence 휴지통 이동)한다. 삭제는 `window.confirm()`이 아니라 `Modal` 확인창으로 처리한다.
@@ -68,7 +68,7 @@
 ### 기능 — 초안-게시 생명주기 (숨김 ↔ 공개)
 - 설명: 문서는 항상 "초안" 또는 "게시됨" 상태다. 초안은 작성자 본인 외 누구에게도 보이지 않고, 게시하면 Space 구성원 전체에 공개된다.
 - 입력: 게시 여부(on/off)
-- 출력·동작: 문서 페이지의 parent를 "초안 루트/개인폴더" ↔ "게시됨 루트" 사이로 이동하고, Confluence 페이지 제한(Restriction)을 그에 맞춰 적용/해제한다. 제한 대상은 서비스 계정 자신(직원 개인 계정 매핑 없음).
+- 출력·동작: 문서 페이지의 parent를 같은 계정 폴더 내 "초안" ↔ "게시" 서브페이지 사이로 이동하고, Confluence 페이지 제한(Restriction)을 그에 맞춰 적용/해제한다. 제한 대상은 서비스 계정 자신(직원 개인 계정 매핑 없음).
 - 예외 상황: 페이지 이동/제한 API 실패 시 502 + Slack 알림. 스파이크로 사전 검증 필요(parentId 변경 지원 여부, restriction API 버전, 자기 자신 제한이 자기 API 호출을 막는지)
 - 데이터 저장 여부: 예 — data-spec.md의 "문서(페이지 위치·제한 상태)" 참고
 - API 필요 여부: 예 — 기존 `PATCH /api/editor/documents/{pageId}/publish`를 확장
@@ -137,7 +137,7 @@
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
 - [x] (완료) AX Auth 로그인 연동 — 산출물: src/lib/auth.ts, src/lib/ax-auth/client.ts, src/app/login/page.tsx
-- [x] (완료) 개인 폴더 조회/생성 — 산출물: src/lib/editor/folder.ts, src/app/api/editor/folder/route.ts
+- [x] (완료) 개인 폴더 조회/생성 — 산출물: src/lib/editor/folder.ts, src/app/api/editor/folder/route.ts (Phase 1에서 계정/초안/게시 3단 구조로 재구현 예정)
 - [x] (완료) 문서 작성·수정·삭제 — 산출물: src/lib/editor/documents.ts, src/app/api/editor/documents/**
 - [x] (완료) 이미지 첨부 — 산출물: src/lib/editor/images.ts, src/app/api/editor/documents/[pageId]/images/route.ts
 - [x] (완료) 기본 게시 설정(게시 여부/slug/메타 설명/노출 뷰어) — 산출물: src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx
@@ -146,11 +146,20 @@
 - [x] (완료) 문서 정의 단계(요구사항/아키텍처/PRD) — 산출물: docs/product/requirements.md, docs/product/architecture.md, docs/product/prd.md, docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md
 
 ### Phase 1 — Confluence 콘텐츠 구조 개편
+<<<<<<< Updated upstream
 - [x] (완료) 스파이크 — parentId 변경(페이지 이동), Restriction API 버전, 자기 제한이 자기 API 호출을 막는지 검증 — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
 - [x] (완료) 초안(Drafts Root)/게시됨(Published Root) 루트 페이지 생성 및 초기 Restriction 설정 — 산출물: src/lib/editor/roots.ts, src/lib/editor/access.ts
 - [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts
 - [x] (완료) `publish.ts` 개편 — 게시/게시취소 시 페이지 이동 + 제한 토글, `publishMetadata.viewers` 구조로 변경 — 산출물: src/lib/editor/publish.ts, src/app/api/editor/documents/[pageId]/publish/route.ts
 - [x] (완료) 태그(라벨) 추가/조회 연동 — 산출물: src/lib/editor/tags.ts, src/app/api/editor/documents/[pageId]/tags/route.ts
+=======
+- [ ] (대기) 스파이크 — parentId 변경(페이지 이동), Restriction API 버전, 자기 제한이 자기 API 호출을 막는지, 제한 없는 계정 폴더 하위의 제한 없는 "게시" 서브페이지가 실제로 열람되는지 검증 — 산출물: (없음)
+- [ ] (대기) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: (없음)
+- [ ] (대기) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 산출물: (없음)
+- [ ] (대기) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: (없음)
+- [ ] (대기) `publish.ts` 개편 — 게시/게시취소 시 같은 계정 폴더 내 초안↔게시 서브페이지 이동 + 제한 토글, `publishMetadata.viewers` 구조로 변경 — 산출물: (없음)
+- [ ] (대기) 태그(라벨) 추가/조회 연동 — 산출물: (없음)
+>>>>>>> Stashed changes
 - [x] (완료) 댓글 저장 구조(`commenterMeta`) 문서화 반영 — 산출물: docs/product/data-spec.md
 
 ### Phase 2 — 화면 UI/UX 개편 (WYSIWYG · 앱 셸 · 디자인 시스템)

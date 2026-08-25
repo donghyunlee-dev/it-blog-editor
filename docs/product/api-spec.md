@@ -73,9 +73,17 @@
 
 **Response Body (성공)**
 ```json
-{ "exists": true, "folderId": "12345", "spaceKey": "SFOODIT" }
+{
+  "exists": true,
+  "accountFolderId": "12345",
+  "draftFolderId": "12346",
+  "publishedFolderId": "12347",
+  "spaceKey": "SFOODIT"
+}
 ```
 (폴더가 없으면 `{ "exists": false }`)
+
+> ⚠️ **2026-08-24 설계 개정으로 응답 형태 변경** — 기존 단일 `folderId` 대신 계정 폴더(`accountFolderId`)와 그 하위 "초안"/"게시" 서브페이지 ID(`draftFolderId`/`publishedFolderId`)를 함께 반환한다. 상세는 [confluence-content-structure-design.md](../superpowers/specs/2026-08-21-confluence-content-structure-design.md) 참고.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -90,8 +98,14 @@
 
 **Response Body (성공, 201)**
 ```json
-{ "folderId": "12345", "spaceKey": "SFOODIT" }
+{
+  "accountFolderId": "12345",
+  "draftFolderId": "12346",
+  "publishedFolderId": "12347",
+  "spaceKey": "SFOODIT"
+}
 ```
+계정 폴더와 "초안"(제한)/"게시"(제한 없음) 서브페이지 세 개를 한 번에 만든다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -120,7 +134,7 @@
 }
 ```
 
-> ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 각 문서의 `publishMetadata` property와 라벨을 함께 조회해야 한다(문서 수가 개인 단위라 N+1 호출을 허용).
+> ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 "초안"/"게시" 서브페이지 두 곳의 자식을 모두 조회해 합치고, 각 문서의 `publishMetadata` property와 라벨을 함께 조회해야 한다(문서 수가 개인 단위라 N+1 호출을 허용). 2026-08-24 설계 개정 이전에는 "초안" 폴더만 조회해 게시된 문서가 목록에서 사라졌으나, 계정 폴더 구조 변경으로 초안+게시를 함께 보여줄 수 있게 됐다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |

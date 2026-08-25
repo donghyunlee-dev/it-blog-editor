@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **2026-08-24 설계 개정**: 원래 이 플랜은 "Space 홈페이지 → 초안 루트/게시됨 루트 → 계정 폴더" 구조를 전제로 작성됐다. "계정 폴더가 먼저 오고 그 안에서 초안/게시를 나눈다"는 구조로 뒤집으면서 Task 7·8·9·11과 이 절의 관련 항목을 갱신했다. 나머지 Task(1~6, 10, 12~14)는 구조 변경과 무관해 그대로 유효하다. 상세 배경은 [confluence-content-structure-design.md](../specs/2026-08-21-confluence-content-structure-design.md)의 "개정 이력" 참고.
+
 **Goal:** 초안 문서는 작성자 본인 외 다른 직원에게 보이지 않고, 게시하면 Space 전체에 공개되도록 Confluence 콘텐츠 구조를 개편하고, 태그·뷰어별 게시 메타데이터 구조를 도입한다.
 
-**Architecture:** Space 홈페이지 하위에 "초안"/"게시됨" 두 루트 페이지를 두고, 게시 여부에 따라 문서 페이지를 두 루트 사이로 이동(parentId 변경)한다. 숨김은 상속에 의존하지 않고 페이지 생성 시점에 서비스 계정 자신을 대상으로 한 Confluence Restriction을 명시적으로 건다. 기존 계층 구조(`confluence/client.ts` → `editor/*.ts` → `app/api/editor/**` → `app/editor/**`/`components/editor/*`)를 그대로 따른다.
+**Architecture:** Space 홈페이지 바로 하위에 계정(이메일) 폴더를 두고, 그 하위에 "초안"/"게시" 두 서브페이지를 둔다. 게시 여부에 따라 문서 페이지를 같은 계정 폴더 내 두 서브페이지 사이로 이동(parentId 변경)한다. 숨김은 상속에 의존하지 않고 페이지 생성 시점에 서비스 계정 자신을 대상으로 한 Confluence Restriction을 "초안" 서브페이지와 그 문서에만 명시적으로 건다(계정 폴더 자신과 "게시" 서브페이지·문서는 제한하지 않는다). 기존 계층 구조(`confluence/client.ts` → `editor/*.ts` → `app/api/editor/**` → `app/editor/**`/`components/editor/*`)를 그대로 따른다.
 
 **Tech Stack:** Next.js 16(App Router), TypeScript, next-auth v5, Confluence Cloud REST API(v1/v2), Vitest(신규 도입, 이 저장소에 테스트 러너가 없었음).
 
@@ -15,8 +17,10 @@
 - 모든 Confluence 쓰기는 항상 공용 서비스 계정(`CONFLUENCE_EMAIL`/`CONFLUENCE_API_TOKEN`)으로만 이루어진다. 직원 개인 Confluence 계정을 조회하거나 매핑하는 코드를 추가하지 않는다.
 - 초안 숨김의 제한 대상은 서비스 계정 자신(`getCurrentConfluenceUser()`의 accountId)이다.
 - 페이지 생성 시점에 명시적으로 Restriction을 걸어야 한다 — 부모 페이지의 Restriction이 하위 페이지에 상속된다고 가정하지 않는다.
-- 게시됨 루트 하위는 평평한 목록이다 — 작성자별 하위 폴더를 만들지 않는다.
+- 제한 대상은 계정 폴더 하위의 "초안" 서브페이지와 그 문서뿐이다. 계정 폴더 자신과 "게시" 서브페이지·문서에는 Restriction을 걸지 않는다(계정 폴더명=이메일이 Space 구성원에게 노출되는 것은 검토 후 수용된 트레이드오프다).
+- "게시" 서브페이지 하위는 그 계정 안에서만 평평한 목록이다(추가 하위 폴더 없음) — Space 전체 관점의 분류는 태그로 한다. 게시 문서가 작성자별 폴더로 나뉘어 Confluence UI 트리 탐색만으로 전체 게시 문서를 한 곳에서 보기 어려워지는 것도 검토 후 수용된 트레이드오프다.
 - 새 문서의 초기 내용은 빈 백지(제목+본문)를 유지한다 — 템플릿을 추가하지 않는다.
+- "내 문서함"은 초안+게시 문서를 함께 보여주고 상태로 구분한다(게시해도 목록에서 사라지지 않는다).
 - 댓글(footer comment) 관련 API·화면은 이 플랜의 범위 밖이다. `commenterMeta` 스키마는 문서화만 하면 되고(이미 `docs/product/data-spec.md`에 반영됨), 코드를 작성하지 않는다.
 - 기존 실사용 데이터가 없으므로 마이그레이션 스크립트를 작성하지 않는다.
 - 태그 입력 UI, 게시 설정 화면의 뷰어별 UI 확장 등 "편집 경험" 성격의 UI 개선은 2차 서브 프로젝트(개인 에디터 기능 강화) 범위이며, 이 플랜에서는 기존 화면이 계속 동작하도록 최소한으로만 맞춘다.
@@ -25,14 +29,14 @@
 
 ## Task 1: 스파이크 — Confluence API 가정 검증
 
-이 작업은 코드를 작성하지 않는다. 실제 Confluence 인스턴스(테스트 가능한 Space)에 대해 스펙 문서의 "검증이 필요한 가정" 3가지를 직접 확인하고 결과를 기록한다. 이후 모든 코드 작업(Task 4, 5)이 이 결과에 의존한다.
+이 작업은 코드를 작성하지 않는다. 실제 Confluence 인스턴스(테스트 가능한 Space)에 대해 스펙 문서의 "검증이 필요한 가정" 4가지를 직접 확인하고 결과를 기록한다. 이후 모든 코드 작업(Task 4, 5, 7, 8)이 이 결과에 의존한다.
 
 **Files:**
 - Modify: `docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md` (검증 결과 기록)
 
 **Interfaces:**
 - Consumes: 없음 (수동 API 호출)
-- Produces: 스펙 문서에 기록된 3가지 검증 결과(✅/❌ + 실제 응답 형식) — Task 4·5가 이 결과를 참고해 구현을 조정한다.
+- Produces: 스펙 문서에 기록된 4가지 검증 결과(✅/❌ + 실제 응답 형식) — Task 4·5·8이 이 결과를 참고해 구현을 조정한다.
 
 - [ ] **Step 1: 테스트용 문서 페이지 하나 준비**
 
@@ -75,7 +79,11 @@ curl -s -u "$CONFLUENCE_EMAIL:$CONFLUENCE_API_TOKEN" \
 
 Step 3의 제한을 건 상태에서, 같은 서비스 계정으로 `GET $CONFLUENCE_BASE_URL/api/v2/pages/<테스트pageId>?body-format=storage`를 호출해 200이 오는지 확인한다.
 
-- [ ] **Step 5: 결과를 스펙 문서에 기록하고 커밋**
+- [ ] **Step 5: 제한 없는 페이지 밑에서, 그 자식 페이지만 제한을 걸어도 "다른" 자식(형제 서브페이지)이 정상 노출되는지 확인**
+
+테스트용 페이지 하나(`<부모pageId>`, 제한 없음)를 만들고 그 아래 자식 페이지 두 개(`<자식A>`, `<자식B>`)를 만든다. `<자식A>`에만 Step 3과 같은 방식으로 서비스 계정 전용 제한을 건다. 이후 익명 요청이 아니라도, 제한이 걸리지 않은 `<자식B>`가 `GET $CONFLUENCE_BASE_URL/api/v2/pages/<자식B>?body-format=storage`로 정상 조회되는지, 그리고 Confluence UI에서 `<부모pageId>`(제한 없음) → `<자식B>`로 트리 탐색이 실제로 되는지 확인한다. 이는 "계정 폴더(제한 없음) 하위의 게시 서브페이지(제한 없음)가, 같은 계정 폴더 하위의 초안 서브페이지(제한 있음)와 무관하게 정상 노출되는지"에 대응하는 검증이다.
+
+- [ ] **Step 6: 결과를 스펙 문서에 기록하고 커밋**
 
 `docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md`의 "검증이 필요한 가정" 절 각 항목 옆에 결과를 추가한다. 예:
 
@@ -84,7 +92,7 @@ Step 3의 제한을 건 상태에서, 같은 서비스 계정으로 `GET $CONFLU
    → ✅ 확인됨(2026-XX-XX). `PUT /api/v2/pages/{id}`에 `parentId` 필드를 포함하면 실제로 이동한다.
 ```
 
-세 항목 중 하나라도 예상과 다르게 나오면(예: v2가 이동을 지원하지 않아 v1 API가 필요하거나, restriction 엔드포인트 경로/바디 형식이 다르거나), 그 내용도 그대로 기록한다. Task 4·5는 이 기록을 기준으로 조정한다.
+네 항목 중 하나라도 예상과 다르게 나오면(예: v2가 이동을 지원하지 않아 v1 API가 필요하거나, restriction 엔드포인트 경로/바디 형식이 다르거나, 형제 서브페이지 노출이 기대와 다르거나), 그 내용도 그대로 기록한다. Task 4·5·8은 이 기록을 기준으로 조정한다.
 
 테스트용으로 만든 페이지는 삭제한다.
 
@@ -723,111 +731,19 @@ git commit -m "feat: check slug uniqueness per viewer"
 
 ---
 
-## Task 7: `editor/roots.ts` + `editor/access.ts` 신규 작성
+## Task 7: `editor/access.ts` 신규 작성
+
+> **2026-08-24 설계 개정**: 원래 이 Task는 `roots.ts`(Space 전역 "초안"/"게시됨" 루트 조회)와 `access.ts`를 함께 만들었다. 구조가 "계정 폴더 하위에 초안/게시 서브폴더" 방식으로 바뀌면서 전역 루트 개념 자체가 없어져 `roots.ts`는 만들지 않는다. 계정별 초안/게시 폴더 조회·생성은 Task 8(`folder.ts`)이 전담한다. `access.ts`(제한 적용/해제)는 구조 변경과 무관하게 그대로 필요하다.
 
 **Files:**
-- Create: `src/lib/editor/roots.ts`
 - Create: `src/lib/editor/access.ts`
-- Test: `src/lib/editor/roots.test.ts`
 - Test: `src/lib/editor/access.test.ts`
 
 **Interfaces:**
-- Consumes: `getConfiguredSpace`, `findChildPageByTitle`, `getCurrentConfluenceUser`, `restrictPageToAccount`, `clearPageRestrictions` (모두 `@/lib/confluence/client`, Task 3·4 산출물)
-- Produces: `export interface ContentRoots { draftsRootId: string; publishedRootId: string }`, `export async function getContentRoots(): Promise<ContentRoots>` (roots.ts) / `export async function hidePageFromOthers(pageId: string): Promise<void>`, `export async function revealPageToSpace(pageId: string): Promise<void>` (access.ts) — Task 8·9·10·11이 이 네 함수를 사용한다.
+- Consumes: `getCurrentConfluenceUser`, `restrictPageToAccount`, `clearPageRestrictions` (모두 `@/lib/confluence/client`, Task 3·4 산출물)
+- Produces: `export async function hidePageFromOthers(pageId: string): Promise<void>`, `export async function revealPageToSpace(pageId: string): Promise<void>` — Task 8·9·10·11이 이 두 함수를 사용한다.
 
-- [ ] **Step 1: `roots.ts` 실패하는 테스트 작성**
-
-```ts
-// src/lib/editor/roots.test.ts
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import * as client from "@/lib/confluence/client";
-import { getContentRoots } from "./roots";
-
-beforeEach(() => {
-  vi.restoreAllMocks();
-});
-
-describe("getContentRoots", () => {
-  it("Space 홈페이지 하위의 초안/게시됨 루트 페이지 ID를 반환한다", async () => {
-    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
-      id: "1",
-      key: "SFOODIT",
-      homepageId: "home-1",
-    });
-    vi.spyOn(client, "findChildPageByTitle").mockImplementation(async (_parentId, title) => {
-      if (title === "초안") {
-        return { id: "drafts-1", status: "current", title: "초안", spaceId: "1", parentId: "home-1", version: { number: 1, createdAt: "" } };
-      }
-      if (title === "게시됨") {
-        return { id: "published-1", status: "current", title: "게시됨", spaceId: "1", parentId: "home-1", version: { number: 1, createdAt: "" } };
-      }
-      return null;
-    });
-
-    const roots = await getContentRoots();
-
-    expect(roots).toEqual({ draftsRootId: "drafts-1", publishedRootId: "published-1" });
-  });
-
-  it("루트 페이지가 없으면 에러를 던진다", async () => {
-    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
-      id: "1",
-      key: "SFOODIT",
-      homepageId: "home-1",
-    });
-    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
-
-    await expect(getContentRoots()).rejects.toThrow();
-  });
-});
-```
-
-- [ ] **Step 2: 테스트 실행 → 실패 확인**
-
-Run: `npm test -- roots.test.ts`
-Expected: FAIL (`./roots` 모듈 없음)
-
-- [ ] **Step 3: `roots.ts` 구현**
-
-```ts
-// src/lib/editor/roots.ts
-import { findChildPageByTitle, getConfiguredSpace } from "@/lib/confluence/client";
-
-const DRAFTS_ROOT_TITLE = "초안";
-const PUBLISHED_ROOT_TITLE = "게시됨";
-
-export interface ContentRoots {
-  draftsRootId: string;
-  publishedRootId: string;
-}
-
-export async function getContentRoots(): Promise<ContentRoots> {
-  const space = await getConfiguredSpace();
-  if (!space.homepageId) {
-    throw new Error("Confluence Space에 홈페이지가 설정되어 있지 않습니다.");
-  }
-
-  const [draftsRoot, publishedRoot] = await Promise.all([
-    findChildPageByTitle(space.homepageId, DRAFTS_ROOT_TITLE),
-    findChildPageByTitle(space.homepageId, PUBLISHED_ROOT_TITLE),
-  ]);
-
-  if (!draftsRoot || !publishedRoot) {
-    throw new Error(
-      `Confluence Space에 "${DRAFTS_ROOT_TITLE}"/"${PUBLISHED_ROOT_TITLE}" 루트 페이지가 준비되어 있지 않습니다. 운영자가 두 페이지를 먼저 만들고 "${DRAFTS_ROOT_TITLE}"에 권한 제한을 설정해야 합니다.`
-    );
-  }
-
-  return { draftsRootId: draftsRoot.id, publishedRootId: publishedRoot.id };
-}
-```
-
-- [ ] **Step 4: `roots.ts` 테스트 통과 확인**
-
-Run: `npm test -- roots.test.ts`
-Expected: PASS
-
-- [ ] **Step 5: `access.ts` 실패하는 테스트 작성**
+- [ ] **Step 1: `access.ts` 실패하는 테스트 작성**
 
 ```ts
 // src/lib/editor/access.test.ts
@@ -861,12 +777,12 @@ describe("revealPageToSpace", () => {
 });
 ```
 
-- [ ] **Step 6: 테스트 실행 → 실패 확인**
+- [ ] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm test -- access.test.ts`
 Expected: FAIL (`./access` 모듈 없음)
 
-- [ ] **Step 7: `access.ts` 구현**
+- [ ] **Step 3: `access.ts` 구현**
 
 ```ts
 // src/lib/editor/access.ts
@@ -898,29 +814,34 @@ export async function revealPageToSpace(pageId: string): Promise<void> {
 }
 ```
 
-- [ ] **Step 8: 테스트 실행 → 통과 확인**
+- [ ] **Step 4: 테스트 실행 → 통과 확인**
 
 Run: `npm test -- access.test.ts`
 Expected: PASS
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/lib/editor/roots.ts src/lib/editor/roots.test.ts src/lib/editor/access.ts src/lib/editor/access.test.ts
-git commit -m "feat: add content roots lookup and draft-hiding helpers"
+git add src/lib/editor/access.ts src/lib/editor/access.test.ts
+git commit -m "feat: add draft-hiding/reveal helpers"
 ```
 
 ---
 
-## Task 8: `editor/folder.ts` 개편 — 초안 루트 하위에 생성 + 숨김 적용
+## Task 8: `editor/folder.ts` 개편 — 계정 폴더 + 초안/게시 서브폴더 자동 생성, 호출부 갱신
+
+> **2026-08-24 설계 개정**: 기존에는 "초안 루트 하위에 이메일 폴더 하나"였다. 이제는 "Space 홈페이지 하위에 이메일(계정) 폴더 하나, 그 아래 '초안'(제한)/'게시'(제한 없음) 서브페이지 두 개"로 바뀐다. `PersonalFolder`가 반환하는 필드가 `folderId` 하나에서 세 개(`accountFolderId`/`draftFolderId`/`publishedFolderId`)로 늘어나므로, 이 값을 그대로 쓰던 호출부(`app/api/editor/folder/route.ts`, `app/api/editor/documents/route.ts`, `app/editor/page.tsx`)도 이 Task에서 함께 고친다.
 
 **Files:**
 - Modify: `src/lib/editor/folder.ts` (전체 재작성)
+- Modify: `src/app/api/editor/folder/route.ts`
+- Modify: `src/app/api/editor/documents/route.ts`
+- Modify: `src/app/editor/page.tsx`
 - Test: `src/lib/editor/folder.test.ts`
 
 **Interfaces:**
-- Consumes: `getContentRoots`(Task 7), `hidePageFromOthers`(Task 7), `createPage`/`findChildPageByTitle`/`getConfiguredSpace`(`@/lib/confluence/client`)
-- Produces: `export interface PersonalFolder { folderId: string; spaceKey: string }`, `export async function findPersonalFolder(email: string): Promise<PersonalFolder | null>`, `export async function createPersonalFolder(email: string): Promise<PersonalFolder>` (기존과 동일한 시그니처 유지) — Task 9, Task 11, 기존 `app/api/editor/folder/route.ts`·`app/editor/page.tsx`가 그대로 사용한다.
+- Consumes: `hidePageFromOthers`(Task 7), `createPage`/`findChildPageByTitle`/`getConfiguredSpace`(`@/lib/confluence/client`)
+- Produces: `export interface PersonalFolder { accountFolderId: string; draftFolderId: string; publishedFolderId: string; spaceKey: string }`, `export async function findPersonalFolder(email: string): Promise<PersonalFolder | null>`, `export async function createPersonalFolder(email: string): Promise<PersonalFolder>` — Task 9, Task 11이 `draftFolderId`/`publishedFolderId`를 사용한다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -928,17 +849,12 @@ git commit -m "feat: add content roots lookup and draft-hiding helpers"
 // src/lib/editor/folder.test.ts
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
-import * as roots from "./roots";
 import * as access from "./access";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { ConflictError } from "./errors";
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  vi.spyOn(roots, "getContentRoots").mockResolvedValue({
-    draftsRootId: "drafts-1",
-    publishedRootId: "published-1",
-  });
   vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
     id: "space-1",
     key: "SFOODIT",
@@ -947,41 +863,64 @@ beforeEach(() => {
 });
 
 describe("findPersonalFolder", () => {
-  it("초안 루트 하위에서 이메일 제목의 폴더를 찾는다", async () => {
-    const findSpy = vi.spyOn(client, "findChildPageByTitle").mockResolvedValue({
-      id: "folder-1",
-      status: "current",
-      title: "user@s-food.com",
-      spaceId: "space-1",
-      parentId: "drafts-1",
-      version: { number: 1, createdAt: "" },
-    });
+  it("Space 홈페이지 하위 계정 폴더와 그 안의 초안/게시 서브폴더를 찾는다", async () => {
+    const findSpy = vi.spyOn(client, "findChildPageByTitle").mockImplementation(
+      async (parentId, title) => {
+        if (parentId === "home-1" && title === "user@s-food.com") {
+          return { id: "account-1", status: "current", title: "user@s-food.com", spaceId: "space-1", parentId: "home-1", version: { number: 1, createdAt: "" } };
+        }
+        if (parentId === "account-1" && title === "초안") {
+          return { id: "draft-1", status: "current", title: "초안", spaceId: "space-1", parentId: "account-1", version: { number: 1, createdAt: "" } };
+        }
+        if (parentId === "account-1" && title === "게시") {
+          return { id: "published-1", status: "current", title: "게시", spaceId: "space-1", parentId: "account-1", version: { number: 1, createdAt: "" } };
+        }
+        return null;
+      }
+    );
 
     const folder = await findPersonalFolder("user@s-food.com");
 
-    expect(findSpy).toHaveBeenCalledWith("drafts-1", "user@s-food.com");
-    expect(folder).toEqual({ folderId: "folder-1", spaceKey: "SFOODIT" });
+    expect(findSpy).toHaveBeenCalledWith("home-1", "user@s-food.com");
+    expect(folder).toEqual({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
+      spaceKey: "SFOODIT",
+    });
   });
 
-  it("폴더가 없으면 null을 반환한다", async () => {
+  it("계정 폴더가 없으면 null을 반환한다", async () => {
     vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
 
     const folder = await findPersonalFolder("user@s-food.com");
 
     expect(folder).toBeNull();
   });
+
+  it("계정 폴더는 있는데 초안/게시 서브폴더가 없으면 에러를 던진다(데이터 손상)", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockImplementation(async (parentId, title) => {
+      if (parentId === "home-1" && title === "user@s-food.com") {
+        return { id: "account-1", status: "current", title: "user@s-food.com", spaceId: "space-1", parentId: "home-1", version: { number: 1, createdAt: "" } };
+      }
+      return null;
+    });
+
+    await expect(findPersonalFolder("user@s-food.com")).rejects.toThrow();
+  });
 });
 
 describe("createPersonalFolder", () => {
-  it("초안 루트 하위에 폴더를 만들고 서비스 계정 전용으로 숨긴다", async () => {
+  it("계정 폴더(제한 없음)와 초안(제한)/게시(제한 없음) 서브폴더를 만든다", async () => {
     vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
-    const createSpy = vi.spyOn(client, "createPage").mockResolvedValue({
-      id: "folder-1",
-      status: "current",
-      title: "user@s-food.com",
-      spaceId: "space-1",
-      parentId: "drafts-1",
-      version: { number: 1, createdAt: "" },
+    const createSpy = vi.spyOn(client, "createPage").mockImplementation(async (input) => {
+      if (input.title === "user@s-food.com") {
+        return { id: "account-1", status: "current", title: "user@s-food.com", spaceId: "space-1", parentId: "home-1", version: { number: 1, createdAt: "" } };
+      }
+      if (input.title === "초안") {
+        return { id: "draft-1", status: "current", title: "초안", spaceId: "space-1", parentId: "account-1", version: { number: 1, createdAt: "" } };
+      }
+      return { id: "published-1", status: "current", title: "게시", spaceId: "space-1", parentId: "account-1", version: { number: 1, createdAt: "" } };
     });
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
@@ -989,21 +928,34 @@ describe("createPersonalFolder", () => {
 
     expect(createSpy).toHaveBeenCalledWith({
       spaceId: "space-1",
-      parentId: "drafts-1",
+      parentId: "home-1",
       title: "user@s-food.com",
-      bodyValue: "<p>user@s-food.com님의 개인 폴더입니다.</p>",
+      bodyValue: "<p>user@s-food.com님의 문서함입니다.</p>",
     });
-    expect(hideSpy).toHaveBeenCalledWith("folder-1");
-    expect(folder).toEqual({ folderId: "folder-1", spaceKey: "SFOODIT" });
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ parentId: "account-1", title: "초안" })
+    );
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ parentId: "account-1", title: "게시" })
+    );
+    expect(hideSpy).toHaveBeenCalledWith("draft-1");
+    expect(hideSpy).not.toHaveBeenCalledWith("published-1");
+    expect(hideSpy).not.toHaveBeenCalledWith("account-1");
+    expect(folder).toEqual({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
+      spaceKey: "SFOODIT",
+    });
   });
 
-  it("이미 폴더가 있으면 ConflictError를 던진다", async () => {
+  it("이미 계정 폴더가 있으면 ConflictError를 던진다", async () => {
     vi.spyOn(client, "findChildPageByTitle").mockResolvedValue({
-      id: "folder-1",
+      id: "account-1",
       status: "current",
       title: "user@s-food.com",
       spaceId: "space-1",
-      parentId: "drafts-1",
+      parentId: "home-1",
       version: { number: 1, createdAt: "" },
     });
 
@@ -1015,7 +967,7 @@ describe("createPersonalFolder", () => {
 - [ ] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm test -- folder.test.ts`
-Expected: FAIL (기존 `folder.ts`는 `draftsRootId`가 아닌 `space.homepageId`를 부모로 사용)
+Expected: FAIL (기존 `folder.ts`는 계정 폴더 하나만 만들고 서브폴더가 없음)
 
 - [ ] **Step 3: `folder.ts` 전체 교체**
 
@@ -1023,49 +975,94 @@ Expected: FAIL (기존 `folder.ts`는 `draftsRootId`가 아닌 `space.homepageId
 // src/lib/editor/folder.ts
 import { createPage, findChildPageByTitle, getConfiguredSpace } from "@/lib/confluence/client";
 import { hidePageFromOthers } from "./access";
-import { getContentRoots } from "./roots";
 import { ConflictError } from "./errors";
 
+const DRAFT_SUBFOLDER_TITLE = "초안";
+const PUBLISHED_SUBFOLDER_TITLE = "게시";
+
 export interface PersonalFolder {
-  folderId: string;
+  accountFolderId: string;
+  draftFolderId: string;
+  publishedFolderId: string;
   spaceKey: string;
 }
 
-/** 로그인 사용자의 이메일을 제목으로 하는 개인 폴더(초안 루트 하위 페이지)를 조회한다. */
-export async function findPersonalFolder(email: string): Promise<PersonalFolder | null> {
-  const [{ draftsRootId }, space] = await Promise.all([
-    getContentRoots(),
-    getConfiguredSpace(),
-  ]);
-  const page = await findChildPageByTitle(draftsRootId, email);
-  if (!page) {
-    return null;
+async function getSpaceHomepageId(): Promise<{ id: string; key: string; homepageId: string }> {
+  const space = await getConfiguredSpace();
+  if (!space.homepageId) {
+    throw new Error("Confluence Space에 홈페이지가 설정되어 있지 않습니다.");
   }
-  return { folderId: page.id, spaceKey: space.key };
+  return { id: space.id, key: space.key, homepageId: space.homepageId };
 }
 
-/** 개인 폴더가 없으면 초안 루트 하위에 새로 만들고, 다른 직원에게 보이지 않도록 제한한다. */
-export async function createPersonalFolder(email: string): Promise<PersonalFolder> {
-  const [{ draftsRootId }, space] = await Promise.all([
-    getContentRoots(),
-    getConfiguredSpace(),
-  ]);
+/** 로그인 사용자의 이메일을 제목으로 하는 계정 폴더와 그 하위 초안/게시 서브폴더를 조회한다. */
+export async function findPersonalFolder(email: string): Promise<PersonalFolder | null> {
+  const space = await getSpaceHomepageId();
+  const accountFolder = await findChildPageByTitle(space.homepageId, email);
+  if (!accountFolder) {
+    return null;
+  }
 
-  const existing = await findChildPageByTitle(draftsRootId, email);
+  const [draftFolder, publishedFolder] = await Promise.all([
+    findChildPageByTitle(accountFolder.id, DRAFT_SUBFOLDER_TITLE),
+    findChildPageByTitle(accountFolder.id, PUBLISHED_SUBFOLDER_TITLE),
+  ]);
+  if (!draftFolder || !publishedFolder) {
+    throw new Error(
+      `계정 폴더(${email}) 하위에 "${DRAFT_SUBFOLDER_TITLE}"/"${PUBLISHED_SUBFOLDER_TITLE}" 서브폴더가 없습니다. 데이터가 손상된 상태입니다.`
+    );
+  }
+
+  return {
+    accountFolderId: accountFolder.id,
+    draftFolderId: draftFolder.id,
+    publishedFolderId: publishedFolder.id,
+    spaceKey: space.key,
+  };
+}
+
+/**
+ * 계정 폴더가 없으면 Space 홈페이지 하위에 새로 만들고, 그 아래 "초안"(서비스 계정 전용 제한)과
+ * "게시"(제한 없음) 서브폴더를 함께 만든다. 계정 폴더 자신은 제한하지 않는다(이메일 노출은 수용된 트레이드오프).
+ */
+export async function createPersonalFolder(email: string): Promise<PersonalFolder> {
+  const space = await getSpaceHomepageId();
+
+  const existing = await findChildPageByTitle(space.homepageId, email);
   if (existing) {
     throw new ConflictError("개인 폴더가 이미 존재합니다.");
   }
 
-  const page = await createPage({
+  const accountFolder = await createPage({
     spaceId: space.id,
-    parentId: draftsRootId,
+    parentId: space.homepageId,
     title: email,
-    bodyValue: `<p>${email}님의 개인 폴더입니다.</p>`,
+    bodyValue: `<p>${email}님의 문서함입니다.</p>`,
   });
 
-  await hidePageFromOthers(page.id);
+  const [draftFolder, publishedFolder] = await Promise.all([
+    createPage({
+      spaceId: space.id,
+      parentId: accountFolder.id,
+      title: DRAFT_SUBFOLDER_TITLE,
+      bodyValue: "<p>작성 중인 초안입니다. 작성자 본인 외에는 보이지 않습니다.</p>",
+    }),
+    createPage({
+      spaceId: space.id,
+      parentId: accountFolder.id,
+      title: PUBLISHED_SUBFOLDER_TITLE,
+      bodyValue: "<p>게시된 문서입니다.</p>",
+    }),
+  ]);
 
-  return { folderId: page.id, spaceKey: space.key };
+  await hidePageFromOthers(draftFolder.id);
+
+  return {
+    accountFolderId: accountFolder.id,
+    draftFolderId: draftFolder.id,
+    publishedFolderId: publishedFolder.id,
+    spaceKey: space.key,
+  };
 }
 ```
 
@@ -1074,24 +1071,68 @@ export async function createPersonalFolder(email: string): Promise<PersonalFolde
 Run: `npm test -- folder.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: 호출부 갱신 — `app/api/editor/folder/route.ts`**
+
+`folder.folderId`를 참조하던 응답을 세 필드로 바꾼다:
+
+```ts
+// GET — folder가 없을 때는 그대로 { exists: false }
+return NextResponse.json({
+  exists: true,
+  accountFolderId: folder.accountFolderId,
+  draftFolderId: folder.draftFolderId,
+  publishedFolderId: folder.publishedFolderId,
+  spaceKey: folder.spaceKey,
+});
+
+// POST
+return NextResponse.json(
+  {
+    accountFolderId: folder.accountFolderId,
+    draftFolderId: folder.draftFolderId,
+    publishedFolderId: folder.publishedFolderId,
+    spaceKey: folder.spaceKey,
+  },
+  { status: 201 }
+);
+```
+
+- [ ] **Step 6: 호출부 갱신 — `app/api/editor/documents/route.ts`, `app/editor/page.tsx`**
+
+두 파일 모두 `listDocuments(folder.folderId)` / `createDocument({ folderId: folder.folderId, ... })` 형태로 `folder.folderId`를 참조하고 있었다. 이 Task에서는 우선 `createDocument`가 새 문서를 항상 초안으로 만들도록 `folder.draftFolderId`를 전달하는 것까지만 고친다(`GET`의 `listDocuments` 호출은 Task 9에서 초안+게시 통합 조회로 다시 바뀐다):
+
+```ts
+// app/api/editor/documents/route.ts POST
+const result = await createDocument({
+  folderId: folder.draftFolderId,
+  title: payload.title ?? "",
+  markdown: payload.body ?? "",
+  actualAuthorEmail: email,
+});
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/editor/folder.ts src/lib/editor/folder.test.ts
-git commit -m "feat: create personal folders under the drafts root, hidden by default"
+git add src/lib/editor/folder.ts src/lib/editor/folder.test.ts src/app/api/editor/folder/route.ts src/app/api/editor/documents/route.ts
+git commit -m "feat: create account folder with draft/published subfolders"
 ```
 
 ---
 
-## Task 9: `editor/documents.ts` 개편 — 문서 생성 시 숨김 적용
+## Task 9: `editor/documents.ts` 개편 — 문서 생성 시 숨김 적용 + 내 문서함 초안/게시 통합 조회
+
+> **2026-08-24 설계 개정**: `listDocuments`가 초안 폴더 하나만 보던 것에서, 계정의 초안/게시 서브폴더 두 곳을 모두 조회해 합치고 각 문서에 게시 여부를 표시하도록 확장됐다(게시해도 "내 문서함"에서 사라지지 않게 하기 위함). `createDocument`에 숨김을 적용하는 부분은 기존과 동일하다.
 
 **Files:**
-- Modify: `src/lib/editor/documents.ts:82-105` (`createDocument`)
+- Modify: `src/lib/editor/documents.ts` (`createDocument`, `listDocuments`, `DocumentSummary`)
+- Modify: `src/app/api/editor/documents/route.ts` (`GET`)
+- Modify: `src/app/editor/page.tsx`
 - Test: `src/lib/editor/documents.test.ts`
 
 **Interfaces:**
 - Consumes: `hidePageFromOthers`(Task 7)
-- Produces: `createDocument`는 기존과 동일한 시그니처(`CreateDocumentInput` → `{ pageId, version }`)를 유지하되, 생성한 문서 페이지에 항상 `hidePageFromOthers`를 호출한다.
+- Produces: `createDocument`는 기존과 동일한 시그니처(`CreateDocumentInput` → `{ pageId, version }`)를 유지하되, 생성한 문서 페이지에 항상 `hidePageFromOthers`를 호출한다. `listDocuments(folders: { draftFolderId: string; publishedFolderId: string }): Promise<DocumentSummary[]>`로 시그니처가 바뀌고, `DocumentSummary`에 `isPublished: boolean` 필드가 추가된다.
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -1100,7 +1141,7 @@ git commit -m "feat: create personal folders under the drafts root, hidden by de
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
-import { createDocument } from "./documents";
+import { createDocument, listDocuments } from "./documents";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -1118,7 +1159,7 @@ describe("createDocument", () => {
       status: "current",
       title: "제목",
       spaceId: "space-1",
-      parentId: "folder-1",
+      parentId: "draft-1",
       version: { number: 1, createdAt: "" },
     });
     vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
@@ -1130,7 +1171,7 @@ describe("createDocument", () => {
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     const result = await createDocument({
-      folderId: "folder-1",
+      folderId: "draft-1",
       title: "제목",
       markdown: "본문",
       actualAuthorEmail: "user@s-food.com",
@@ -1140,12 +1181,30 @@ describe("createDocument", () => {
     expect(result).toEqual({ pageId: "doc-1", version: 1 });
   });
 });
+
+describe("listDocuments", () => {
+  it("초안/게시 폴더의 문서를 합쳐서 반환하고 게시 여부를 표시한다", async () => {
+    vi.spyOn(client, "listChildPages").mockImplementation(async (folderId) => {
+      if (folderId === "draft-1") {
+        return [{ id: "doc-1", status: "current", title: "초안 문서", spaceId: "space-1", parentId: "draft-1", version: { number: 1, createdAt: "2026-08-24T00:00:00.000Z" } }];
+      }
+      return [{ id: "doc-2", status: "current", title: "게시된 문서", spaceId: "space-1", parentId: "published-1", version: { number: 2, createdAt: "2026-08-23T00:00:00.000Z" } }];
+    });
+
+    const documents = await listDocuments({ draftFolderId: "draft-1", publishedFolderId: "published-1" });
+
+    expect(documents).toEqual([
+      { pageId: "doc-1", title: "초안 문서", updatedAt: "2026-08-24T00:00:00.000Z", isPublished: false },
+      { pageId: "doc-2", title: "게시된 문서", updatedAt: "2026-08-23T00:00:00.000Z", isPublished: true },
+    ]);
+  });
+});
 ```
 
 - [ ] **Step 2: 테스트 실행 → 실패 확인**
 
 Run: `npm test -- documents.test.ts`
-Expected: FAIL (`hidePageFromOthers`가 호출되지 않음)
+Expected: FAIL (`hidePageFromOthers`가 호출되지 않음, `listDocuments`는 아직 단일 `folderId`만 받음)
 
 - [ ] **Step 3: 구현 — `createDocument` 수정**
 
@@ -1171,16 +1230,74 @@ import { hidePageFromOthers } from "./access";
 
 로 교체한다(기존 두 항목에 `hidePageFromOthers(page.id)`를 추가).
 
-- [ ] **Step 4: 테스트 실행 → 통과 확인**
+- [ ] **Step 4: 구현 — `listDocuments` 수정**
+
+```ts
+export interface DocumentSummary {
+  pageId: string;
+  title: string;
+  updatedAt: string;
+  isPublished: boolean;
+}
+
+/** 계정의 초안/게시 폴더 문서를 모두 조회해 합친다. */
+export async function listDocuments(folders: {
+  draftFolderId: string;
+  publishedFolderId: string;
+}): Promise<DocumentSummary[]> {
+  const [drafts, published] = await Promise.all([
+    listChildPages(folders.draftFolderId),
+    listChildPages(folders.publishedFolderId),
+  ]);
+
+  const toSummary = (page: ConfluencePage, isPublished: boolean): DocumentSummary => ({
+    pageId: page.id,
+    title: page.title,
+    updatedAt: page.version.createdAt,
+    isPublished,
+  });
+
+  return [
+    ...drafts.map((page) => toSummary(page, false)),
+    ...published.map((page) => toSummary(page, true)),
+  ];
+}
+```
+
+(`ConfluencePage` 타입을 import 목록에 추가한다.)
+
+- [ ] **Step 5: 호출부 갱신 — `app/api/editor/documents/route.ts`, `app/editor/page.tsx`**
+
+```ts
+// app/api/editor/documents/route.ts GET
+const documents = await listDocuments({
+  draftFolderId: folder.draftFolderId,
+  publishedFolderId: folder.publishedFolderId,
+});
+```
+
+```tsx
+// app/editor/page.tsx
+const documents = folder
+  ? await listDocuments({
+      draftFolderId: folder.draftFolderId,
+      publishedFolderId: folder.publishedFolderId,
+    })
+  : [];
+```
+
+화면에서는 `document.isPublished`로 상태 뱃지(초안/게시됨)를 표시한다(구체적인 뱃지 UI는 2차 디자인 시스템 적용 Task에서 다듬는다 — 여기서는 최소한의 텍스트 표시만 추가해도 된다).
+
+- [ ] **Step 6: 테스트 실행 → 통과 확인**
 
 Run: `npm test -- documents.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/lib/editor/documents.ts src/lib/editor/documents.test.ts
-git commit -m "feat: hide newly created documents from other employees"
+git add src/lib/editor/documents.ts src/lib/editor/documents.test.ts src/app/api/editor/documents/route.ts src/app/editor/page.tsx
+git commit -m "feat: hide new documents from other employees and merge draft/published lists"
 ```
 
 ---
@@ -1384,31 +1501,41 @@ git commit -m "feat: switch publish metadata to per-viewer structure"
 
 ## Task 11: `editor/publish.ts` 개편 (2/2) — 게시/게시취소 생명주기 (이동 + 제한 토글)
 
+> **2026-08-24 설계 개정**: 전역 "게시됨 루트"가 없어지고 게시 대상이 "작성자 본인의 계정 폴더 하위 게시 서브폴더"로 바뀌었다. 그 결과 게시(초안→게시)·게시취소(게시→초안) 두 분기 모두 동일하게 "작성자 이메일 조회 → 그 계정의 초안/게시 폴더 조회(없으면 생성)"를 거친 뒤 서로 다른 폴더로 이동한다 — 기존에는 게시 분기만 전역 루트를 참조하고 게시취소 분기만 작성자 조회가 필요했는데, 이제 두 분기가 대칭이 된다.
+
 **Files:**
 - Modify: `src/lib/editor/publish.ts` (Task 10에서 만든 `setPublishState`를 확장)
 - Test: `src/lib/editor/publish.test.ts`
 
 **Interfaces:**
-- Consumes: `movePage`(Task 3), `hidePageFromOthers`/`revealPageToSpace`(Task 7), `getContentRoots`(Task 7), `findPersonalFolder`/`createPersonalFolder`(Task 8), `getPageProperty`(`@/lib/confluence/client`)
+- Consumes: `movePage`(Task 3), `hidePageFromOthers`/`revealPageToSpace`(Task 7), `findPersonalFolder`/`createPersonalFolder`(Task 8), `getPageProperty`(`@/lib/confluence/client`)
 - Produces: `setPublishState`는 게시 상태가 실제로 바뀔 때(미게시→게시, 게시→미게시)만 문서 페이지를 이동시키고 제한을 토글한다. 반환 타입은 Task 10과 동일.
 
 - [ ] **Step 1: 실패하는 테스트 작성 (기존 `publish.test.ts`에 추가)**
 
 ```ts
-import * as roots from "./roots";
 import * as access from "./access";
 import * as folder from "./folder";
 
-// ...(beforeEach에 아래 한 줄 추가로 매 테스트마다 초기화)
-// vi.spyOn(roots, "getContentRoots").mockResolvedValue({ draftsRootId: "drafts-1", publishedRootId: "published-1" });
-
 describe("setPublishState — 생명주기", () => {
-  it("처음 게시할 때 게시됨 루트로 이동하고 제한을 해제한다", async () => {
-    vi.spyOn(roots, "getContentRoots").mockResolvedValue({
-      draftsRootId: "drafts-1",
-      publishedRootId: "published-1",
+  it("처음 게시할 때 작성자 계정의 게시 폴더로 이동하고 제한을 해제한다", async () => {
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "authorMeta") {
+        return {
+          id: "prop-2",
+          key,
+          value: { actualAuthorEmail: "user@s-food.com" },
+          version: { number: 1 },
+        };
+      }
+      return null;
     });
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
+      spaceKey: "SFOODIT",
+    });
     const moveSpy = vi.spyOn(client, "movePage").mockResolvedValue({
       id: "doc-1",
       status: "current",
@@ -1429,11 +1556,7 @@ describe("setPublishState — 생명주기", () => {
     expect(revealSpy).toHaveBeenCalledWith("doc-1");
   });
 
-  it("게시 취소 시 작성자의 개인 폴더로 되돌리고 다시 숨긴다", async () => {
-    vi.spyOn(roots, "getContentRoots").mockResolvedValue({
-      draftsRootId: "drafts-1",
-      publishedRootId: "published-1",
-    });
+  it("게시 취소 시 작성자의 초안 폴더로 되돌리고 다시 숨긴다", async () => {
     vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
       if (key === "publishMetadata") {
         return {
@@ -1454,7 +1577,9 @@ describe("setPublishState — 생명주기", () => {
       return null;
     });
     vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
       spaceKey: "SFOODIT",
     });
     const moveSpy = vi.spyOn(client, "movePage").mockResolvedValue({
@@ -1462,14 +1587,14 @@ describe("setPublishState — 생명주기", () => {
       status: "current",
       title: "제목",
       spaceId: "space-1",
-      parentId: "folder-1",
+      parentId: "draft-1",
       version: { number: 3, createdAt: "" },
     });
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     await setPublishState({ pageId: "doc-1", isPublished: false });
 
-    expect(moveSpy).toHaveBeenCalledWith("doc-1", "folder-1");
+    expect(moveSpy).toHaveBeenCalledWith("doc-1", "draft-1");
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
   });
 });
@@ -1494,7 +1619,6 @@ import {
   upsertPageProperty,
 } from "@/lib/confluence/client";
 import { hidePageFromOthers, revealPageToSpace } from "./access";
-import { getContentRoots } from "./roots";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { ConflictError, NotFoundError, ValidationError } from "./errors";
 
@@ -1502,6 +1626,23 @@ const AUTHOR_PROPERTY_KEY = "authorMeta";
 ```
 
 (`AUTHOR_PROPERTY_KEY`는 `PUBLISH_PROPERTY_KEY` 선언 옆에 둔다.)
+
+작성자의 초안/게시 폴더를 조회하는 헬퍼를 하나 추가한다(게시·게시취소 두 분기가 공유):
+
+```ts
+async function getAuthorFolderOrThrow(pageId: string) {
+  const authorProperty = await getPageProperty<{ actualAuthorEmail: string }>(
+    pageId,
+    AUTHOR_PROPERTY_KEY
+  );
+  const authorEmail = authorProperty?.value.actualAuthorEmail;
+  if (!authorEmail) {
+    throw new Error("작성자 정보를 찾을 수 없어 문서를 이동할 수 없습니다.");
+  }
+
+  return (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
+}
+```
 
 `setPublishState`의 게시 분기(Task 10에서 작성한 `if (input.isPublished) { ... return ...; }` 블록)를 아래로 교체한다:
 
@@ -1521,8 +1662,8 @@ const AUTHOR_PROPERTY_KEY = "authorMeta";
     await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
 
     if (!previousState.isPublished) {
-      const { publishedRootId } = await getContentRoots();
-      await movePage(input.pageId, publishedRootId);
+      const authorFolder = await getAuthorFolderOrThrow(input.pageId);
+      await movePage(input.pageId, authorFolder.publishedFolderId);
       await revealPageToSpace(input.pageId);
     }
 
@@ -1537,18 +1678,8 @@ const AUTHOR_PROPERTY_KEY = "authorMeta";
   await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
 
   if (previousState.isPublished) {
-    const authorProperty = await getPageProperty<{ actualAuthorEmail: string }>(
-      input.pageId,
-      AUTHOR_PROPERTY_KEY
-    );
-    const authorEmail = authorProperty?.value.actualAuthorEmail;
-    if (!authorEmail) {
-      throw new Error("작성자 정보를 찾을 수 없어 초안 폴더로 되돌릴 수 없습니다.");
-    }
-
-    const targetFolder =
-      (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
-    await movePage(input.pageId, targetFolder.folderId);
+    const authorFolder = await getAuthorFolderOrThrow(input.pageId);
+    await movePage(input.pageId, authorFolder.draftFolderId);
     await hidePageFromOthers(input.pageId);
   }
 
@@ -1564,7 +1695,7 @@ Expected: PASS (Task 10 + Task 11 테스트 전체)
 
 ```bash
 git add src/lib/editor/publish.ts src/lib/editor/publish.test.ts
-git commit -m "feat: move documents between drafts and published roots on publish toggle"
+git commit -m "feat: move documents between account draft/published subfolders on publish toggle"
 ```
 
 ---
