@@ -133,15 +133,11 @@ Viewer(별도 프로젝트)가 자체 Confluence 자격증명으로 직접 댓�
 2. 페이지 Restriction API가 v2에 없을 가능성이 높다 — 첨부파일 업로드가 이미 v1으로 대체된 전례처럼, v1 `/rest/api/content/{id}/restriction/byOperation/{read|update}`를 사용할 가능성이 크다.
    → ✅ 확인됨(2026-08-21). v2에는 restriction 엔드포인트가 없다(v1만 확인, v2 부재 자체를 별도로 테스트하지는 않음). v1 벌크 엔드포인트 `PUT /rest/api/content/{id}/restriction`에 `[{"operation":"read","restrictions":{"user":[{"type":"known","accountId":"<accountId>"}]}}, {"operation":"update","restrictions":{"user":[...]}}]` 형식(배열, `byOperation` 경로 아님)으로 보내면 200과 함께 각 operation의 restriction이 실제로 반영된 결과가 돌아온다. 이어서 `GET /rest/api/content/{id}/restriction`으로 재조회해도 동일하게 반영되어 있음을 확인. accountId는 `GET /rest/api/user/current`의 `accountId` 필드로 얻는다.
 3. 서비스 계정 자신에게 거는 제한이 서비스 계정의 이후 API 호출 자체를 막지 않는지(제한 대상=자기 자신이므로 문제 없을 것으로 예상하지만 실제 확인 필요).
-<<<<<<< Updated upstream
    → ✅ 확인됨(2026-08-21). 위 2번에서 테스트 계정 자신을 read/update restriction 대상으로 지정한 뒤, 같은 계정 자격으로 `GET /api/v2/pages/{id}?body-format=storage`를 호출하면 200이 정상적으로 반환되고 본문도 그대로 조회된다. 자기 자신에게 건 제한이 자기 API 호출을 막지 않음을 확인.
-
-이 3가지는 Phase 1 구현 착수 전에 실제 Confluence 인스턴스로 먼저 확인했다(Task 1 스파이크, 테스트 페이지는 확인 후 즉시 trash+purge로 삭제).
-=======
 4. (2026-08-24 추가) 계정 폴더는 제한이 없고 그 하위 "초안" 서브페이지만 제한이 걸린 상태에서, "게시" 서브페이지·문서(제한 없음)를 Space 구성원이 실제로 열람할 수 있는지. 설계상 조상 페이지의 제한이 자손에 영향을 주지 않는다고 가정하지만(위 "숨김 메커니즘" 참고), 실제로는 "게시" 서브페이지도 같은 계정 폴더 하위이므로 확인이 필요하다.
+   → ⏳ 미확인. 1~3번은 이전 설계(전역 초안/게시됨 루트) 검증 시 함께 확인됐으나, 이 항목은 계정 폴더 내부 구조로 개정되면서 새로 추가된 질문이라 별도로 확인이 필요하다.
 
-이 4가지는 Phase 1 구현 착수 전에 실제 Confluence 인스턴스로 먼저 확인한다.
->>>>>>> Stashed changes
+이 4가지 중 1~3번은 Phase 1 최초 구현 착수 전에 실제 Confluence 인스턴스로 이미 확인했다(Task 1 스파이크, 테스트 페이지는 확인 후 즉시 trash+purge로 삭제). 4번은 계정 폴더 구조 개정으로 새로 추가되어 재작업 착수 전에 추가로 확인해야 한다.
 
 ## 범위 밖
 

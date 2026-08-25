@@ -15,18 +15,8 @@
 
 ## 테이블 명세
 
-<<<<<<< Updated upstream
-### 테이블 — DraftsRoot / PublishedRoot
-Confluence 페이지 그 자체이며, 별도 content property는 없다. 최초 1회 운영자가 수동으로 생성하고, `DraftsRoot`에는 서비스 계정 전용 Restriction을 수동으로 설정한다(README.md의 "최초 1회 운영 작업" 참고).
+> **2026-08-24 설계 개정으로 아래 표는 마이그레이션 대상이다.** 현재 구현된 코드(`src/lib/editor/roots.ts`의 `getContentRoots()`)는 이전 설계(Space 홈페이지 아래 "초안"/"게시됨" 전역 루트 페이지 2개, 운영자가 최초 1회 수동 생성 + Restriction 수동 설정, 제목 완전 일치로 조회)를 그대로 구현한 상태다. 아래 AccountFolder/DraftFolder/PublishedFolder 표가 최종 채택된 설계이며, `roots.ts`는 제거하고 `folder.ts`가 계정 폴더 생성 시 서브폴더까지 함께 만들도록 재구현해야 한다.
 
-두 루트 페이지의 pageId를 환경변수로 주입하지 않는다. `src/lib/editor/roots.ts`의 `getContentRoots()`가 `CONFLUENCE_SPACE_KEY`로 지정된 Space의 홈페이지 하위에서 **제목 완전 일치**로 두 페이지를 찾아낸다(제목이 곧 식별자이므로 페이지를 다시 만들거나 옮겨도 환경변수를 고칠 필요가 없다). 두 페이지 중 하나라도 없으면 `getContentRoots()`가 오류를 던지고, 개인 폴더 생성·문서 목록 조회 등 관련 기능이 동작하지 않는다.
-
-| 속성 | 타입 | 제약조건 | 설명 |
-|---|---|---|---|
-| pageId | string | Confluence가 발급, 불변 | 애플리케이션이 제목으로 조회해 런타임에 얻는다(환경변수 없음) |
-| title | string | 고정값("초안", "게시됨"), Space 홈페이지 하위에서 unique | 루트 페이지의 실질적 식별자. 운영자가 Confluence UI에서 직접 지정하며, 변경하면 조회가 실패한다 |
-| parentId | string | 항상 Space 홈페이지의 pageId | 홈페이지 직속 하위여야 조회된다 |
-=======
 ### 테이블 — AccountFolder (Confluence Page)
 | 속성 | 타입 | 제약조건 | 설명 |
 |---|---|---|---|
@@ -34,7 +24,6 @@ Confluence 페이지 그 자체이며, 별도 content property는 없다. 최초
 | title | string | = 작성자 이메일, Space 홈페이지 하위에서 unique | 계정 식별자 |
 | parentId | string | 항상 Space 홈페이지의 pageId | 최상위 고정 |
 | restriction | Confluence Restriction | 없음(생성하지 않음) | Space 기본 권한 그대로 — 이메일이 Space 구성원에게 노출됨(수용된 트레이드오프) |
->>>>>>> Stashed changes
 
 계정 폴더가 처음 만들어질 때 DraftFolder/PublishedFolder 두 개를 함께 생성한다. 관리자의 사전 수동 작업은 필요 없다.
 

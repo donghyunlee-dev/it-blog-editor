@@ -23,7 +23,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
 
   return (
-<<<<<<< Updated upstream
     <main className="flex min-h-screen items-center justify-center bg-background p-4">
       {/*
         @sfood/ui의 LoginSimple/LoginSplit은 email/password 입력 폼과 onLogin(email, password)
@@ -47,14 +46,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             사내 MS 계정으로 로그인하면 문서를 작성·게시할 수 있습니다.
           </Typography>
         </div>
-=======
-    <main className="page">
-      <div className="card" style={{ maxWidth: 420, margin: "64px auto" }}>
-        <h1 className="page-title">SFOOD IT Editor</h1>
-        <p className="page-subtitle">
-          사내 MS 계정으로 로그인하면 문서를 작성·게시할 수 있습니다.
-        </p>
->>>>>>> Stashed changes
 
         {error && (
           <Alert variant="danger" className="mb-4">
