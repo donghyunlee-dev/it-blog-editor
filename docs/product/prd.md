@@ -146,7 +146,7 @@
 - [x] (완료) 문서 정의 단계(요구사항/아키텍처/PRD) — 산출물: docs/product/requirements.md, docs/product/architecture.md, docs/product/prd.md, docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md
 
 ### Phase 1 — Confluence 콘텐츠 구조 개편
-- [x] (완료) 스파이크 — 1~3: parentId 변경, Restriction API 버전, 자기 제한이 자기 API 호출 차단 여부 (2026-08-21 검증 완료) / 4: 제한 없는 계정 폴더 하위 제한 없는 "게시" 서브페이지 열람 여부 (미검증) — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
+- [x] (완료) 스파이크 — 1~3: parentId 변경, Restriction API 버전, 자기 제한이 자기 API 호출 차단 여부 (2026-08-21 검증 완료) / 4: 제한 없는 계정 폴더 하위 제한 없는 "게시" 서브페이지가 형제 "초안"의 제한과 무관하게 독립적으로 유지되는지 (2026-08-25 검증 완료) — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
 - [x] (완료) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts
 - [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts (구조 변경과 무관해 그대로 유효)
 - [x] (완료) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: src/lib/editor/documents.ts, src/lib/editor/documents.test.ts
