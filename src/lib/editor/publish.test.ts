@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
-import * as roots from "./roots";
 import * as access from "./access";
 import * as folder from "./folder";
 import { getPublishState, setPublishState } from "./publish";
@@ -18,16 +17,44 @@ function stubCurrentPage(parentId: string | null) {
   });
 }
 
+/** 두 분기 모두 작성자의 계정 폴더를 조회하므로, authorMeta 프로퍼티를 함께 스텁해준다. */
+function stubAuthorProperty(
+  publishMetadataValue: unknown,
+  authorEmail = "user@s-food.com"
+) {
+  return vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+    if (key === "publishMetadata") {
+      return publishMetadataValue
+        ? { id: "prop-1", key, value: publishMetadataValue, version: { number: 1 } }
+        : null;
+    }
+    if (key === "authorMeta") {
+      return {
+        id: "prop-2",
+        key,
+        value: { actualAuthorEmail: authorEmail },
+        version: { number: 1 },
+      };
+    }
+    return null;
+  });
+}
+
+function stubAccountFolder() {
+  return vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
+    accountFolderId: "account-1",
+    draftFolderId: "draft-1",
+    publishedFolderId: "published-1",
+    spaceKey: "SFOODIT",
+  });
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
     id: "space-1",
     key: "SFOODIT",
     homepageId: "home-1",
-  });
-  vi.spyOn(roots, "getContentRoots").mockResolvedValue({
-    draftsRootId: "drafts-1",
-    publishedRootId: "published-1",
   });
 });
 
@@ -43,8 +70,9 @@ describe("getPublishState", () => {
 
 describe("setPublishState", () => {
   it("게시 시 slug/metaDescription이 없으면 ValidationError를 던진다", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
-    stubCurrentPage("folder-1");
+    stubAuthorProperty(null);
+    stubCurrentPage("draft-1");
+    stubAccountFolder();
 
     await expect(
       setPublishState({ pageId: "doc-1", isPublished: true, viewers: {} })
@@ -52,8 +80,9 @@ describe("setPublishState", () => {
   });
 
   it("같은 뷰어에서 slug가 이미 쓰이고 있으면 ConflictError를 던진다", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
-    stubCurrentPage("folder-1");
+    stubAuthorProperty(null);
+    stubCurrentPage("draft-1");
+    stubAccountFolder();
     vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue({
       id: "other-doc",
       status: "current",
@@ -74,9 +103,10 @@ describe("setPublishState", () => {
 });
 
 describe("setPublishState — 생명주기", () => {
-  it("처음 게시할 때 게시됨 루트로 이동하고 제한을 해제한 뒤 메타데이터를 쓴다", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
-    stubCurrentPage("folder-1");
+  it("처음 게시할 때 게시됨 폴더로 이동하고 제한을 해제한 뒤 메타데이터를 쓴다", async () => {
+    stubAuthorProperty(null);
+    stubCurrentPage("draft-1");
+    stubAccountFolder();
     vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
     const calls: string[] = [];
     const upsertSpy = vi
@@ -121,30 +151,12 @@ describe("setPublishState — 생명주기", () => {
   });
 
   it("게시 취소 시 먼저 제한을 걸고 나서 개인 폴더로 옮긴 뒤 메타데이터를 쓴다", async () => {
-    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
-      if (key === "publishMetadata") {
-        return {
-          id: "prop-1",
-          key,
-          value: { isPublished: true, viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } } },
-          version: { number: 1 },
-        };
-      }
-      if (key === "authorMeta") {
-        return {
-          id: "prop-2",
-          key,
-          value: { actualAuthorEmail: "user@s-food.com" },
-          version: { number: 1 },
-        };
-      }
-      return null;
+    stubAuthorProperty({
+      isPublished: true,
+      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
     });
     stubCurrentPage("published-1");
-    vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
-      spaceKey: "SFOODIT",
-    });
+    stubAccountFolder();
     const calls: string[] = [];
     vi.spyOn(client, "upsertPageProperty").mockImplementation(async () => {
       calls.push("upsert");
@@ -162,7 +174,7 @@ describe("setPublishState — 생명주기", () => {
         status: "current",
         title: "제목",
         spaceId: "space-1",
-        parentId: "folder-1",
+        parentId: "draft-1",
         version: { number: 3, createdAt: "" },
       };
     });
@@ -174,7 +186,7 @@ describe("setPublishState — 생명주기", () => {
 
     await setPublishState({ pageId: "doc-1", isPublished: false });
 
-    expect(moveSpy).toHaveBeenCalledWith("doc-1", "folder-1");
+    expect(moveSpy).toHaveBeenCalledWith("doc-1", "draft-1");
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
     // Confluence 제한은 상속되지 않으므로(설계 문서 "숨김 메커니즘 — 상속에 의존하지 않는
     // 명시적 제한"), 이동보다 제한을 먼저 걸어야 한다. 이동 후 제한 실패 시 문서가 제한 없이
@@ -183,31 +195,10 @@ describe("setPublishState — 생명주기", () => {
   });
 
   it("저장된 플래그가 아니라 실제 페이지 위치로 게시 여부를 판단한다", async () => {
-    // 메타데이터는 "미게시"라고 주장하지만 페이지는 이미 게시됨 루트에 있는 상태
-    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
-      if (key === "publishMetadata") {
-        return {
-          id: "prop-1",
-          key,
-          value: { isPublished: false, viewers: {} },
-          version: { number: 1 },
-        };
-      }
-      if (key === "authorMeta") {
-        return {
-          id: "prop-2",
-          key,
-          value: { actualAuthorEmail: "user@s-food.com" },
-          version: { number: 1 },
-        };
-      }
-      return null;
-    });
+    // 메타데이터는 "미게시"라고 주장하지만 페이지는 이미 게시됨 폴더에 있는 상태
+    stubAuthorProperty({ isPublished: false, viewers: {} });
     stubCurrentPage("published-1");
-    vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
-      spaceKey: "SFOODIT",
-    });
+    stubAccountFolder();
     vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
       id: "prop-1",
       key: "publishMetadata",
@@ -219,20 +210,21 @@ describe("setPublishState — 생명주기", () => {
       status: "current",
       title: "제목",
       spaceId: "space-1",
-      parentId: "folder-1",
+      parentId: "draft-1",
       version: { number: 3, createdAt: "" },
     });
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     await setPublishState({ pageId: "doc-1", isPublished: false });
 
-    expect(moveSpy).toHaveBeenCalledWith("doc-1", "folder-1");
+    expect(moveSpy).toHaveBeenCalledWith("doc-1", "draft-1");
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
   });
 
   it("게시 중 이동이 실패하면 메타데이터를 기록하지 않는다(재시도 안전)", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
-    stubCurrentPage("folder-1");
+    stubAuthorProperty(null);
+    stubCurrentPage("draft-1");
+    stubAccountFolder();
     vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
     const upsertSpy = vi.spyOn(client, "upsertPageProperty");
     vi.spyOn(client, "movePage").mockRejectedValue(new Error("Confluence 이동 실패"));
@@ -249,30 +241,9 @@ describe("setPublishState — 생명주기", () => {
   });
 
   it("게시 취소 중 이동이 실패하면 메타데이터를 기록하지 않는다(재시도 안전)", async () => {
-    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
-      if (key === "publishMetadata") {
-        return {
-          id: "prop-1",
-          key,
-          value: { isPublished: true, viewers: {} },
-          version: { number: 1 },
-        };
-      }
-      if (key === "authorMeta") {
-        return {
-          id: "prop-2",
-          key,
-          value: { actualAuthorEmail: "user@s-food.com" },
-          version: { number: 1 },
-        };
-      }
-      return null;
-    });
+    stubAuthorProperty({ isPublished: true, viewers: {} });
     stubCurrentPage("published-1");
-    vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
-      spaceKey: "SFOODIT",
-    });
+    stubAccountFolder();
     const upsertSpy = vi.spyOn(client, "upsertPageProperty");
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
     vi.spyOn(client, "movePage").mockRejectedValue(new Error("Confluence 이동 실패"));
