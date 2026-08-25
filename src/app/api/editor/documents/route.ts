@@ -15,7 +15,10 @@ export async function GET() {
       return NextResponse.json({ documents: [] });
     }
 
-    const documents = await listDocuments(folder.folderId, email);
+    const documents = await listDocuments(
+      folder.draftFolderId,
+      folder.publishedFolderId
+    );
     return NextResponse.json({ documents });
   } catch (error) {
     return toErrorResponse(error);
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     };
 
     const result = await createDocument({
-      folderId: folder.folderId,
+      folderId: folder.draftFolderId,
       title: payload.title ?? "",
       doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       actualAuthorEmail: email,

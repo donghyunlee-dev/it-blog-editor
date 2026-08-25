@@ -24,7 +24,10 @@ export async function listTagSuggestions(email: string): Promise<string[]> {
       return [];
     }
 
-    const documents = await listDocuments(folder.folderId, email);
+    const documents = await listDocuments(
+      folder.draftFolderId,
+      folder.publishedFolderId
+    );
     return [...new Set(documents.flatMap((document) => document.tags))].sort(
       (a, b) => a.localeCompare(b)
     );

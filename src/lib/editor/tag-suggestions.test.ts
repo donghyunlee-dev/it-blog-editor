@@ -20,19 +20,24 @@ beforeEach(() => {
 describe("listTagSuggestions", () => {
   it("문서들의 태그를 중복 없이 모아 정렬해서 돌려준다", async () => {
     vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
       spaceKey: "SPACE",
     });
-    vi.spyOn(documents, "listDocuments").mockResolvedValue([
-      documentSummary("doc-1", ["React", "Backend"]),
-      documentSummary("doc-2", ["Backend", "Infra"]),
-    ]);
+    const listSpy = vi
+      .spyOn(documents, "listDocuments")
+      .mockResolvedValue([
+        documentSummary("doc-1", ["React", "Backend"]),
+        documentSummary("doc-2", ["Backend", "Infra"]),
+      ]);
 
     expect(await listTagSuggestions("pioneer@s-food.com")).toEqual([
       "Backend",
       "Infra",
       "React",
     ]);
+    expect(listSpy).toHaveBeenCalledWith("draft-1", "published-1");
   });
 
   it("개인 폴더가 없으면 빈 목록을 돌려준다", async () => {
@@ -60,7 +65,9 @@ describe("listTagSuggestions", () => {
 
   it("문서 목록 조회가 실패해도 던지지 않는다", async () => {
     vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
-      folderId: "folder-1",
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
       spaceKey: "SPACE",
     });
     vi.spyOn(documents, "listDocuments").mockRejectedValue(
