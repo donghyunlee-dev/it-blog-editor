@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     };
 
     const result = await createDocument({
-      folderId: folder.draftFolderId,
+      draftFolderId: folder.draftFolderId,
       title: payload.title ?? "",
       doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       actualAuthorEmail: email,

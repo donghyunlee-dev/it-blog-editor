@@ -83,7 +83,7 @@
 ```
 (폴더가 없으면 `{ "exists": false }`)
 
-> ⚠️ **2026-08-24 설계 개정으로 응답 형태 변경** — 기존 단일 `folderId` 대신 계정 폴더(`accountFolderId`)와 그 하위 "초안"/"게시" 서브페이지 ID(`draftFolderId`/`publishedFolderId`)를 함께 반환한다. 상세는 [confluence-content-structure-design.md](../superpowers/specs/2026-08-21-confluence-content-structure-design.md) 참고.
+응답은 계정 폴더(`accountFolderId`)와 그 하위 "초안"/"게시" 서브페이지 ID(`draftFolderId`/`publishedFolderId`)를 함께 반환한다. 상세는 [confluence-content-structure-design.md](../superpowers/specs/2026-08-21-confluence-content-structure-design.md) 참고.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -134,7 +134,7 @@
 }
 ```
 
-> ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 "초안"/"게시" 서브페이지 두 곳의 자식을 모두 조회해 합치고, 각 문서의 `publishMetadata` property와 라벨을 함께 조회해야 한다(문서 수가 개인 단위라 N+1 호출을 허용). 2026-08-24 설계 개정 이전에는 "초안" 폴더만 조회해 게시된 문서가 목록에서 사라졌으나, 계정 폴더 구조 변경으로 초안+게시를 함께 보여줄 수 있게 됐다.
+> ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 "초안"/"게시" 서브페이지 두 곳의 자식을 모두 조회해 합치며, `isPublished`는 별도 property 조회 없이 각 문서가 어느 서브페이지(초안/게시)에서 나왔는지로 바로 판단한다(물리적 위치가 유일한 근거). 라벨(태그)만 문서별로 추가 조회한다(문서 수가 개인 단위라 N+1 호출을 허용).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -244,7 +244,7 @@
 | 409 | CONFLICT | 같은 뷰어 내에서 slug 중복 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-게시/게시취소 시 문서 페이지의 부모 폴더가 자동으로 변경되고(초안 ↔ 게시됨), Confluence 페이지 제한(Restriction) 적용/해제가 함께 일어난다.
+게시/게시취소 시 문서 페이지의 부모 폴더가 자동으로 변경되고(초안 ↔ 게시), Confluence 페이지 제한(Restriction) 적용/해제가 함께 일어난다.
 
 ### PUT /api/editor/documents/{pageId}/tags — 문서 태그(라벨) 설정
 **Header**: Cookie(세션) 필수

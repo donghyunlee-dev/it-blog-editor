@@ -38,7 +38,7 @@
 |---|---|---|---|
 | pageId | string | Confluence 발급 | 문서 고유 ID |
 | title | string | 필수 | 문서 제목 |
-| body(storage format) | string(XHTML) | markdownToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
+| body(storage format) | string(XHTML) | tiptapDocToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
 | parentId | string | 같은 계정의 DraftFolder 또는 PublishedFolder 중 하나 | 게시 여부에 따라 이동(계정 폴더는 고정, 두 서브페이지 사이만 이동) |
 | restriction | Confluence Restriction | 초안=서비스 계정 제한, 게시=제한 없음 | 초안-게시 생명주기의 핵심 |
 | property: `sourceDocument` | `{ doc: JSONContent }` | 필수 | 편집 원본(TipTap/ProseMirror JSON 트리). 2차 UI/UX 설계(WYSIWYG 전환)에서 `sourceMarkdown`을 대체함 — Markdown이 아니라 에디터 고유 문서 트리를 그대로 저장 |

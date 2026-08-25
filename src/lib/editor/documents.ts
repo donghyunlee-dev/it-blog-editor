@@ -18,7 +18,6 @@ import {
 } from "./errors";
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
-import { getPublishState } from "./publish";
 import { getTags } from "./tags";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
@@ -103,17 +102,19 @@ export const listDocuments = cache(async function listDocuments(
     listChildPages(publishedFolderId),
   ]);
 
+  const entries = [
+    ...draftPages.map((page) => ({ page, isPublished: false })),
+    ...publishedPages.map((page) => ({ page, isPublished: true })),
+  ];
+
   return Promise.all(
-    [...draftPages, ...publishedPages].map(async (page) => {
-      const [publishState, tagList] = await Promise.all([
-        getPublishState(page.id),
-        getTags(page.id),
-      ]);
+    entries.map(async ({ page, isPublished }) => {
+      const tagList = await getTags(page.id);
       return {
         pageId: page.id,
         title: page.title,
         updatedAt: page.version.createdAt,
-        isPublished: publishState.isPublished,
+        isPublished,
         tags: tagList,
       };
     })
@@ -157,13 +158,18 @@ export async function getDocumentDetail(
 }
 
 export interface CreateDocumentInput {
-  folderId: string;
+  draftFolderId: string;
   title: string;
   doc: JSONContent;
   actualAuthorEmail: string;
 }
 
-/** 개인 폴더 하위에 신규 문서(Confluence 페이지)를 생성한다. */
+/**
+ * 개인 폴더의 "초안" 서브폴더 하위에 신규 문서(Confluence 페이지)를 생성한다. 새로 만든 문서는
+ * 항상 `hidePageFromOthers`로 작성자 본인 전용으로 제한하므로, 호출자는 반드시
+ * `draftFolderId`(초안 서브폴더)를 넘겨야 한다 — "게시" 서브폴더로 만들면 제한이 걸린 게시
+ * 문서가 생기는 모순된 상태가 된다.
+ */
 export async function createDocument(input: CreateDocumentInput) {
   if (!input.title.trim() || isEmptyDoc(input.doc)) {
     throw new ValidationError("제목 또는 본문이 누락되었습니다.");
@@ -172,7 +178,7 @@ export async function createDocument(input: CreateDocumentInput) {
   const space = await getConfiguredSpace();
   const page = await createPage({
     spaceId: space.id,
-    parentId: input.folderId,
+    parentId: input.draftFolderId,
     title: input.title,
     bodyValue: tiptapDocToStorageFormat(input.doc),
   });

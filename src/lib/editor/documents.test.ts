@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
-import * as publish from "./publish";
 import * as tags from "./tags";
 import { UnauthorizedError, ValidationError } from "./errors";
 import {
@@ -64,10 +63,6 @@ describe("listDocuments", () => {
       }
       return [];
     });
-    vi.spyOn(publish, "getPublishState").mockResolvedValue({
-      isPublished: false,
-      viewers: {},
-    });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
 
     const documents = await listDocuments("draft-1", "published-1");
@@ -83,7 +78,7 @@ describe("listDocuments", () => {
     ]);
   });
 
-  it("게시 폴더에 있는 문서도 초안 문서와 함께 반환한다", async () => {
+  it("게시 폴더에 있는 문서도 초안 문서와 함께 반환하며, 어느 서브폴더에서 나왔는지로 게시 여부를 판단한다", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
       if (parentId === "draft-1") {
         return [page("doc-1", "초안 문서", "draft-1")];
@@ -93,27 +88,35 @@ describe("listDocuments", () => {
       }
       return [];
     });
-    vi.spyOn(publish, "getPublishState").mockResolvedValue({
-      isPublished: false,
-      viewers: {},
-    });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
 
     const documents = await listDocuments("draft-1", "published-1");
 
-    expect(documents.map((doc) => doc.pageId)).toEqual(["doc-1", "doc-2"]);
+    expect(documents).toEqual([
+      {
+        pageId: "doc-1",
+        title: "초안 문서",
+        updatedAt: "2026-08-21T00:00:00.000Z",
+        isPublished: false,
+        tags: [],
+      },
+      {
+        pageId: "doc-2",
+        title: "게시된 문서",
+        updatedAt: "2026-08-21T00:00:00.000Z",
+        isPublished: true,
+        tags: [],
+      },
+    ]);
   });
 
-  it("각 문서의 게시 상태와 태그를 함께 반환한다(중복 조회 없음)", async () => {
+  it("각 문서의 태그를 함께 반환한다(중복 조회 없음)", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
-      if (parentId === "draft-1") {
-        return [page("doc-1", "문서1", "draft-1")];
+      if (parentId === "published-1") {
+        return [page("doc-1", "문서1", "published-1")];
       }
       return [];
     });
-    const publishSpy = vi
-      .spyOn(publish, "getPublishState")
-      .mockResolvedValue({ isPublished: true, viewers: {} });
     const tagsSpy = vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
 
     const documents = await listDocuments("draft-1", "published-1");
@@ -127,8 +130,6 @@ describe("listDocuments", () => {
         tags: ["React"],
       },
     ]);
-    expect(publishSpy).toHaveBeenCalledTimes(1);
-    expect(publishSpy).toHaveBeenCalledWith("doc-1");
     expect(tagsSpy).toHaveBeenCalledTimes(1);
     expect(tagsSpy).toHaveBeenCalledWith("doc-1");
   });
@@ -163,7 +164,6 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
 
     try {
       const freshClient = await import("@/lib/confluence/client");
-      const freshPublish = await import("./publish");
       const freshTags = await import("./tags");
       const { listDocuments: freshListDocuments } = await import("./documents");
 
@@ -175,10 +175,6 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
           }
           return [];
         });
-      vi.spyOn(freshPublish, "getPublishState").mockResolvedValue({
-        isPublished: false,
-        viewers: {},
-      });
       vi.spyOn(freshTags, "getTags").mockResolvedValue([]);
 
       // `/editor` 레이아웃과 `listTagSuggestions`는 각자 독립적으로 같은 두 문자열 값으로
@@ -259,7 +255,7 @@ describe("createDocument", () => {
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     const result = await createDocument({
-      folderId: "folder-1",
+      draftFolderId: "folder-1",
       title: "제목",
       doc: SAMPLE_DOC,
       actualAuthorEmail: "user@s-food.com",
@@ -281,7 +277,7 @@ describe("createDocument", () => {
   it("텍스트 없는 빈 문단만 있으면 ValidationError를 던진다", async () => {
     await expect(
       createDocument({
-        folderId: "folder-1",
+        draftFolderId: "folder-1",
         title: "제목",
         doc: EMPTY_PARAGRAPH_DOC,
         actualAuthorEmail: "user@s-food.com",
@@ -292,7 +288,7 @@ describe("createDocument", () => {
   it("공백 문자만 있으면 ValidationError를 던진다", async () => {
     await expect(
       createDocument({
-        folderId: "folder-1",
+        draftFolderId: "folder-1",
         title: "제목",
         doc: WHITESPACE_ONLY_DOC,
         actualAuthorEmail: "user@s-food.com",
@@ -323,7 +319,7 @@ describe("createDocument", () => {
     vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     const result = await createDocument({
-      folderId: "folder-1",
+      draftFolderId: "folder-1",
       title: "제목",
       doc: IMAGE_ONLY_DOC,
       actualAuthorEmail: "user@s-food.com",
