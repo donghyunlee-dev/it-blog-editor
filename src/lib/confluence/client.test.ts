@@ -253,25 +253,31 @@ describe("findPublishedPageBySlug", () => {
 
 describe("listChildPages", () => {
   it("_links.next 커서를 따라가며 모든 하위 페이지를 모아 반환한다", async () => {
-    const nextCursor = "/api/v2/pages/parent-1/children?limit=100&cursor=page2";
+    // v1 /rest/api/content/{id}/child/page 사용 이유: v2 /api/v2/pages/{id}/children는
+    // 실제 Confluence Cloud에서 id/status/title/spaceId/childPosition만 반환하고 version을
+    // 절대 포함하지 않는다(실제 인스턴스로 직접 확인, 2026-08-25). listDocuments가 매 문서마다
+    // page.version.createdAt을 읽으므로 v2로는 항상 TypeError가 난다 — 유닛 테스트는 항상
+    // version을 채운 mock을 쓰기 때문에 이 문제를 잡아내지 못했다.
+    const nextCursor =
+      "/rest/api/content/parent-1/child/page?next=true&expand=version,space&limit=100&start=2";
     const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url.endsWith(nextCursor)) {
         return new Response(
           JSON.stringify({
             results: [
-              { id: "c3", status: "current", title: "C", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
+              { id: "c3", status: "current", title: "C", space: { id: 1 }, version: { number: 1, when: "2026-08-25T00:00:00.000Z" } },
             ],
             _links: {},
           }),
           { status: 200 }
         );
       }
-      if (url.includes("/pages/parent-1/children")) {
+      if (url.includes("/rest/api/content/parent-1/child/page")) {
         return new Response(
           JSON.stringify({
             results: [
-              { id: "c1", status: "current", title: "A", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
-              { id: "c2", status: "current", title: "B", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "" } },
+              { id: "c1", status: "current", title: "A", space: { id: 1 }, version: { number: 1, when: "2026-08-24T00:00:00.000Z" } },
+              { id: "c2", status: "current", title: "B", space: { id: 1 }, version: { number: 1, when: "2026-08-24T00:00:00.000Z" } },
             ],
             _links: { next: nextCursor },
           }),
@@ -284,7 +290,11 @@ describe("listChildPages", () => {
 
     const pages = await listChildPages("parent-1");
 
-    expect(pages.map((page) => page.id)).toEqual(["c1", "c2", "c3"]);
+    expect(pages).toEqual([
+      { id: "c1", status: "current", title: "A", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "2026-08-24T00:00:00.000Z" } },
+      { id: "c2", status: "current", title: "B", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "2026-08-24T00:00:00.000Z" } },
+      { id: "c3", status: "current", title: "C", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "2026-08-25T00:00:00.000Z" } },
+    ]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

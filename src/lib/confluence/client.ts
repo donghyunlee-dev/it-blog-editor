@@ -121,23 +121,46 @@ export interface ConfluencePage {
  * 특정 페이지의 모든 하위 페이지를 페이지네이션을 따라가며 조회한다.
  * v2 API의 기본 페이지 크기(25)에 걸려 조용히 잘리면 개인 폴더나 문서가 목록에서 사라지므로
  * 반드시 _links.next 커서를 끝까지 따라간다.
+ *
+ * v1 `/rest/api/content/{id}/child/page`를 쓰는 이유: v2 `/api/v2/pages/{id}/children`는
+ * 실제 Confluence Cloud에서 `id`/`status`/`title`/`spaceId`/`childPosition`만 반환하고
+ * `version`을 절대 포함하지 않는다(2026-08-25, 실제 인스턴스로 직접 확인). `listDocuments`가
+ * 문서마다 `page.version.createdAt`을 읽으므로 v2로는 실제 문서가 하나만 있어도 항상
+ * TypeError가 난다 — 첨부파일·제한·라벨과 같은 전례처럼 v1로 대체한다.
  */
 export async function listChildPages(
   parentId: string
 ): Promise<ConfluencePage[]> {
+  interface ChildPageV1 {
+    id: string;
+    status: string;
+    title: string;
+    space: { id: number };
+    version: { number: number; when: string };
+  }
+
   const pages: ConfluencePage[] = [];
   let cursor: string | null = null;
 
   do {
     const query: string = cursor
       ? cursor
-      : `/api/v2/pages/${parentId}/children?limit=100`;
+      : `/rest/api/content/${parentId}/child/page?limit=100&expand=version,space`;
     const page = await confluenceRequest<{
-      results: ConfluencePage[];
+      results: ChildPageV1[];
       _links: { next?: string };
     }>(query);
 
-    pages.push(...page.results);
+    pages.push(
+      ...page.results.map((result) => ({
+        id: result.id,
+        status: result.status,
+        title: result.title,
+        spaceId: String(result.space.id),
+        parentId,
+        version: { number: result.version.number, createdAt: result.version.when },
+      }))
+    );
     cursor = page._links?.next ?? null;
   } while (cursor);
 
