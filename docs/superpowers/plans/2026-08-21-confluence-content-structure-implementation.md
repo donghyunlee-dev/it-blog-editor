@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **2026-08-25 후속 갱신**: 이 플랜을 쓸 당시엔 코드가 아직 구현되지 않은 상태를 가정했다. 실제로는 다른 작업 흐름이 이 플랜의 이전 설계(초안/게시됨 전역 루트) 버전을 기준으로 Task 1~14 대부분을 이미 구현해 main에 merge했다. 그 실제 구현을 계정 폴더 구조로 옮기는 마이그레이션 플랜은 [2026-08-25-account-folder-migration-implementation.md](2026-08-25-account-folder-migration-implementation.md)에 새로 작성했다 — Task 7(roots.ts/access.ts)·8(folder.ts)·9(documents.ts)·11(publish.ts)에 대응하는 실제 코드 마이그레이션은 그 문서를 따른다. 이 문서는 최초 설계 의도를 보여주는 기록으로 남겨둔다.
+
 > **2026-08-24 설계 개정**: 원래 이 플랜은 "Space 홈페이지 → 초안 루트/게시됨 루트 → 계정 폴더" 구조를 전제로 작성됐다. "계정 폴더가 먼저 오고 그 안에서 초안/게시를 나눈다"는 구조로 뒤집으면서 Task 7·8·9·11과 이 절의 관련 항목을 갱신했다. 나머지 Task(1~6, 10, 12~14)는 구조 변경과 무관해 그대로 유효하다. 상세 배경은 [confluence-content-structure-design.md](../specs/2026-08-21-confluence-content-structure-design.md)의 "개정 이력" 참고.
 
 **Goal:** 초안 문서는 작성자 본인 외 다른 직원에게 보이지 않고, 게시하면 Space 전체에 공개되도록 Confluence 콘텐츠 구조를 개편하고, 태그·뷰어별 게시 메타데이터 구조를 도입한다.
