@@ -164,24 +164,25 @@ Space 홈페이지
 
 **Interfaces:**
 - Consumes: `listChildPages`(`@/lib/confluence/client`, 그대로), `getPublishState`(`./publish`, 그대로), `getTags`(`./tags`, 그대로)
-- Produces: `listDocuments(folders: { draftFolderId: string; publishedFolderId: string }): Promise<DocumentSummary[]>` — **시그니처 변경**(기존 `listDocuments(folderId, authorEmail)`에서 `authorEmail` 파라미터와 `getContentRoots()`/공유 게시됨 루트 스캔 로직이 사라진다. 계정별 "게시" 서브폴더 자체가 이미 그 작성자 소유 문서만 담고 있으므로 `authorMeta` 소유권 필터링이 더 이상 필요 없다 — 성능상으로도 개선: 이전에는 Space 전체 게시 문서를 스캔해 매번 `authorMeta`를 조회했다). Task 5가 새 시그니처로 호출부를 갱신한다.
+- Produces: `listDocuments(draftFolderId: string, publishedFolderId: string): Promise<DocumentSummary[]>` — **시그니처 변경**(기존 `listDocuments(folderId, authorEmail)`에서 `authorEmail` 파라미터와 `getContentRoots()`/공유 게시됨 루트 스캔 로직이 사라진다. 계정별 "게시" 서브폴더 자체가 이미 그 작성자 소유 문서만 담고 있으므로 `authorMeta` 소유권 필터링이 더 이상 필요 없다 — 성능상으로도 개선: 이전에는 Space 전체 게시 문서를 스캔해 매번 `authorMeta`를 조회했다). Task 5가 새 시그니처로 호출부를 갱신한다.
+  **(2026-08-25 리뷰 반영)**: 두 값을 `{ draftFolderId, publishedFolderId }` 객체 하나로 묶지 않고 별개의 문자열 파라미터 두 개로 유지한다. `listDocuments`는 React `cache()`로 감싸여 있는데, `cache()`는 원시값 인자는 값으로, 객체 인자는 참조로 메모이즈한다. 이 함수를 서로 다른 코드 경로(`/editor` 레이아웃, `listTagSuggestions`)가 각자 독립적으로 호출하며 그때마다 새 객체 리터럴을 만들게 되므로, 객체 인자로 묶으면 실제 런타임에서는 캐시가 전혀 히트하지 않아(참조가 매번 다름) 이 래핑의 목적(요청 내 중복 조회 방지)이 조용히 무력화된다. 문자열 두 개를 그대로 넘기면 값 기반으로 정확히 동작한다.
 
 - [ ] **Step 1**: `documents.test.ts`의 `describe("listDocuments", ...)`와 `describe("listDocuments 요청 내 중복 조회 방지 (React cache)", ...)` 블록을 다음 기준으로 다시 쓴다:
   - `roots` 모킹 제거. `client.listChildPages`를 `draftFolderId`/`publishedFolderId`로 분기해 각각의 자식을 반환하도록 스텁.
-  - `listDocuments({ draftFolderId: "draft-1", publishedFolderId: "published-1" })` 형태로 호출.
+  - `listDocuments("draft-1", "published-1")` 형태로 호출.
   - "초안만 있으면 초안만", "게시된 문서도 함께 반환", "각 문서의 게시 상태·태그 포함" 세 케이스는 유지하되 `authorMeta` 소유권 필터링 관련 모킹(`readAuthorEmail`을 위한 `getPageProperty` 스텁)은 제거한다(더 이상 그 필터를 거치지 않으므로).
   - React cache dedup 테스트는 같은 `(draftFolderId, publishedFolderId)` 튜플로 두 번 호출해 `listChildPages`가 폴더당 한 번만 불렸는지 확인하도록 바꾼다.
 - [ ] **Step 2**: `npm test -- documents.test.ts` → 실패 확인.
 - [ ] **Step 3**: `documents.ts` 상단 `import { getContentRoots } from "./roots";` 제거, `listDocuments`를 아래로 교체한다.
 
   ```ts
-  export const listDocuments = cache(async function listDocuments(folders: {
-    draftFolderId: string;
-    publishedFolderId: string;
-  }): Promise<DocumentSummary[]> {
+  export const listDocuments = cache(async function listDocuments(
+    draftFolderId: string,
+    publishedFolderId: string
+  ): Promise<DocumentSummary[]> {
     const [draftPages, publishedPages] = await Promise.all([
-      listChildPages(folders.draftFolderId),
-      listChildPages(folders.publishedFolderId),
+      listChildPages(draftFolderId),
+      listChildPages(publishedFolderId),
     ]);
 
     return Promise.all(
@@ -269,9 +270,9 @@ Task 2~4로 `PersonalFolder`와 `listDocuments`의 시그니처가 바뀌었으�
 
 - [ ] **Step 1**: `src/app/api/editor/folder/route.ts`의 GET/POST 응답을 `folderId` 대신 `accountFolderId`/`draftFolderId`/`publishedFolderId`로 바꾼다(`docs/product/api-spec.md`에 이미 이 응답 형태가 기록돼 있으니 그대로 맞춘다).
 - [ ] **Step 2**: `src/app/api/editor/documents/route.ts`:
-  - `GET`: `listDocuments(folder.folderId, email)` → `listDocuments({ draftFolderId: folder.draftFolderId, publishedFolderId: folder.publishedFolderId })`.
+  - `GET`: `listDocuments(folder.folderId, email)` → `listDocuments(folder.draftFolderId, folder.publishedFolderId)`.
   - `POST`: `createDocument({ folderId: folder.folderId, ... })` → `createDocument({ folderId: folder.draftFolderId, ... })`(새 문서는 항상 초안으로 생성).
-- [ ] **Step 3**: `src/app/editor/layout.tsx`의 `listDocuments(folder.folderId, email)` 호출을 `listDocuments({ draftFolderId: folder.draftFolderId, publishedFolderId: folder.publishedFolderId })`로 바꾼다.
+- [ ] **Step 3**: `src/app/editor/layout.tsx`의 `listDocuments(folder.folderId, email)` 호출을 `listDocuments(folder.draftFolderId, folder.publishedFolderId)`로 바꾼다.
 - [ ] **Step 4**: `src/lib/editor/tag-suggestions.ts`의 `listDocuments(folder.folderId, email)` 호출도 동일하게 바꾼다. `tag-suggestions.test.ts`가 `findPersonalFolder`를 모킹하는 부분이 있다면 새 `PersonalFolder` 형태(`accountFolderId`/`draftFolderId`/`publishedFolderId`)로 갱신한다.
 - [ ] **Step 5**: `npm test`(전체)와 `npx tsc --noEmit`(또는 `npm run build`)을 돌려 타입 오류·테스트 실패가 없는지 확인한다.
 - [ ] **Step 6**: Commit (`feat: update folder/documents call sites for the account-folder structure`).

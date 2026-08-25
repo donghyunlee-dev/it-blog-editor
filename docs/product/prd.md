@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 16 / 23 항목 완료 (최근 갱신: 2026-08-21)
+> 전체 진행률: 16 / 24 항목 완료 (최근 갱신: 2026-08-25)
 
 ## 🎯 서비스 정의
 - 사내 직원이 WYSIWYG 에디터로 문서를 작성해 Confluence에 보관하고, 원할 때 Tech Blog 등 외부 뷰어에 게시할 수 있게 하는 사내 전용 문서 작성·게시 도구다.
@@ -45,7 +45,7 @@
 - 예외 상황: Confluence 연동 실패 시 502 + Slack 알림
 - 데이터 저장 여부: 예 — data-spec.md의 "계정 폴더"/"문서" 참고
 - API 필요 여부: 예 — `GET /api/editor/folder`, `GET /api/editor/documents`
-- 상태: 대기 (기존에는 초안만 보이던 구현이었으나, 이번 설계로 초안+게시 통합 조회로 변경 — 구현 전)
+- 상태: 완료 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts, src/lib/editor/documents.ts, src/lib/editor/documents.test.ts, src/app/api/editor/folder/route.ts, src/app/api/editor/documents/route.ts, src/app/editor/layout.tsx, src/lib/editor/tag-suggestions.ts
 
 ### 기능 — 문서 작성·수정·삭제
 - 설명: TipTap 기반 WYSIWYG 에디터로 문서를 작성/수정하고, 필요 시 삭제(Confluence 휴지통 이동)한다. 삭제는 `window.confirm()`이 아니라 `Modal` 확인창으로 처리한다.
@@ -137,7 +137,7 @@
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
 - [x] (완료) AX Auth 로그인 연동 — 산출물: src/lib/auth.ts, src/lib/ax-auth/client.ts, src/app/login/page.tsx
-- [x] (완료) 개인 폴더 조회/생성 — 산출물: src/lib/editor/folder.ts, src/app/api/editor/folder/route.ts (Phase 1에서 계정/초안/게시 3단 구조로 재구현 예정)
+- [x] (완료) 개인 폴더 조회/생성 — 산출물: src/lib/editor/folder.ts, src/app/api/editor/folder/route.ts
 - [x] (완료) 문서 작성·수정·삭제 — 산출물: src/lib/editor/documents.ts, src/app/api/editor/documents/**
 - [x] (완료) 이미지 첨부 — 산출물: src/lib/editor/images.ts, src/app/api/editor/documents/[pageId]/images/route.ts
 - [x] (완료) 기본 게시 설정(게시 여부/slug/메타 설명/노출 뷰어) — 산출물: src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx
@@ -146,11 +146,11 @@
 - [x] (완료) 문서 정의 단계(요구사항/아키텍처/PRD) — 산출물: docs/product/requirements.md, docs/product/architecture.md, docs/product/prd.md, docs/superpowers/specs/2026-08-21-confluence-content-structure-design.md
 
 ### Phase 1 — Confluence 콘텐츠 구조 개편
-- [x] (완료) 스파이크 — parentId 변경(페이지 이동), Restriction API 버전, 자기 제한이 자기 API 호출을 막는지 검증 — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts. (2026-08-24 추가 검증 항목 — 제한 없는 계정 폴더 하위의 제한 없는 "게시" 서브페이지가 실제로 열람되는지 — 는 아직 미확인, 재작업 시 함께 확인)
-- [ ] (재작업 필요) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 현재 산출물(`src/lib/editor/roots.ts`, `src/lib/editor/folder.ts`)은 이전 설계(전역 초안/게시됨 루트)로 구현되어 있어 새 설계에 맞게 다시 작업해야 한다
+- [x] (완료) 스파이크 — 1~3: parentId 변경, Restriction API 버전, 자기 제한이 자기 API 호출 차단 여부 (2026-08-21 검증 완료) / 4: 제한 없는 계정 폴더 하위 제한 없는 "게시" 서브페이지 열람 여부 (미검증) — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
+- [x] (완료) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts
 - [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts (구조 변경과 무관해 그대로 유효)
-- [ ] (재작업 필요) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: (없음)
-- [ ] (재작업 필요) `publish.ts` 개편 — 게시/게시취소 시 같은 계정 폴더 내 초안↔게시 서브페이지 이동 + 제한 토글로 변경 — 현재 산출물(`src/lib/editor/publish.ts`)은 전역 게시됨 루트로 이동하도록 구현되어 있어 재작업 필요. `publishMetadata.viewers` 구조 자체는 구조 변경과 무관해 그대로 유효
+- [x] (완료) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: src/lib/editor/documents.ts, src/lib/editor/documents.test.ts
+- [x] (완료) `publish.ts` 개편 — 게시/게시취소 시 같은 계정 폴더 내 초안↔게시 서브페이지 이동 + 제한 토글로 변경 — 산출물: src/lib/editor/publish.ts, src/lib/editor/publish.test.ts
 - [x] (완료) 태그(라벨) 추가/조회 연동 — 산출물: src/lib/editor/tags.ts, src/app/api/editor/documents/[pageId]/tags/route.ts (구조 변경과 무관해 그대로 유효)
 - [x] (완료) 댓글 저장 구조(`commenterMeta`) 문서화 반영 — 산출물: docs/product/data-spec.md
 

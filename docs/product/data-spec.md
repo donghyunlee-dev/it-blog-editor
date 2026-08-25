@@ -15,8 +15,6 @@
 
 ## 테이블 명세
 
-> **2026-08-24 설계 개정으로 아래 표는 마이그레이션 대상이다.** 현재 구현된 코드(`src/lib/editor/roots.ts`의 `getContentRoots()`)는 이전 설계(Space 홈페이지 아래 "초안"/"게시됨" 전역 루트 페이지 2개, 운영자가 최초 1회 수동 생성 + Restriction 수동 설정, 제목 완전 일치로 조회)를 그대로 구현한 상태다. 아래 AccountFolder/DraftFolder/PublishedFolder 표가 최종 채택된 설계이며, `roots.ts`는 제거하고 `folder.ts`가 계정 폴더 생성 시 서브폴더까지 함께 만들도록 재구현해야 한다.
-
 ### 테이블 — AccountFolder (Confluence Page)
 | 속성 | 타입 | 제약조건 | 설명 |
 |---|---|---|---|
@@ -40,7 +38,7 @@
 |---|---|---|---|
 | pageId | string | Confluence 발급 | 문서 고유 ID |
 | title | string | 필수 | 문서 제목 |
-| body(storage format) | string(XHTML) | markdownToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
+| body(storage format) | string(XHTML) | tiptapDocToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
 | parentId | string | 같은 계정의 DraftFolder 또는 PublishedFolder 중 하나 | 게시 여부에 따라 이동(계정 폴더는 고정, 두 서브페이지 사이만 이동) |
 | restriction | Confluence Restriction | 초안=서비스 계정 제한, 게시=제한 없음 | 초안-게시 생명주기의 핵심 |
 | property: `sourceDocument` | `{ doc: JSONContent }` | 필수 | 편집 원본(TipTap/ProseMirror JSON 트리). 2차 UI/UX 설계(WYSIWYG 전환)에서 `sourceMarkdown`을 대체함 — Markdown이 아니라 에디터 고유 문서 트리를 그대로 저장 |

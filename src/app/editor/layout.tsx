@@ -29,7 +29,9 @@ export default async function EditorLayout({
     }
   }
 
-  const documents = folder ? await listDocuments(folder.folderId, email) : [];
+  const documents = folder
+    ? await listDocuments(folder.draftFolderId, folder.publishedFolderId)
+    : [];
 
   return (
     <div className="flex h-screen">
