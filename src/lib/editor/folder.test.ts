@@ -65,7 +65,7 @@ describe("findPersonalFolder", () => {
     expect(folder).toBeNull();
   });
 
-  it("계정 폴더는 있지만 서브폴더 중 하나라도 없으면 에러를 던진다", async () => {
+  it("계정 폴더는 있지만 '게시' 서브폴더가 없으면 만들어서 보완한다", async () => {
     vi.spyOn(client, "findChildPageByTitle").mockImplementation(
       async (parentId, title) => {
         if (parentId === "home-1" && title === EMAIL) {
@@ -74,12 +74,66 @@ describe("findPersonalFolder", () => {
         if (parentId === "account-1" && title === "초안") {
           return page("draft-1", "초안", "account-1");
         }
-        // "게시" 서브폴더가 없는 데이터 손상 상황
+        // "게시" 서브폴더가 아직 없는 부분 실패 상황(직전 createPersonalFolder가 중간에 실패)
         return null;
       }
     );
+    const createSpy = vi.spyOn(client, "createPage").mockResolvedValue(
+      page("published-1", "게시", "account-1")
+    );
+    const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
-    await expect(findPersonalFolder(EMAIL)).rejects.toThrow();
+    const folder = await findPersonalFolder(EMAIL);
+
+    expect(createSpy).toHaveBeenCalledWith({
+      spaceId: "space-1",
+      parentId: "account-1",
+      title: "게시",
+      bodyValue: expect.any(String),
+    });
+    expect(hideSpy).not.toHaveBeenCalled();
+    expect(folder).toEqual({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
+      spaceKey: "SFOODIT",
+    });
+  });
+
+  it("계정 폴더는 있지만 '초안' 서브폴더가 없으면 만들어서 보완하고 제한을 건다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockImplementation(
+      async (parentId, title) => {
+        if (parentId === "home-1" && title === EMAIL) {
+          return page("account-1", EMAIL, "home-1");
+        }
+        if (parentId === "account-1" && title === "게시") {
+          return page("published-1", "게시", "account-1");
+        }
+        // "초안" 서브폴더가 아직 없는 부분 실패 상황
+        return null;
+      }
+    );
+    const createSpy = vi.spyOn(client, "createPage").mockResolvedValue(
+      page("draft-1", "초안", "account-1")
+    );
+    const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+
+    const folder = await findPersonalFolder(EMAIL);
+
+    expect(createSpy).toHaveBeenCalledWith({
+      spaceId: "space-1",
+      parentId: "account-1",
+      title: "초안",
+      bodyValue: expect.any(String),
+    });
+    expect(hideSpy).toHaveBeenCalledTimes(1);
+    expect(hideSpy).toHaveBeenCalledWith("draft-1");
+    expect(folder).toEqual({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-1",
+      publishedFolderId: "published-1",
+      spaceKey: "SFOODIT",
+    });
   });
 });
 
