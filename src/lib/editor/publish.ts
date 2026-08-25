@@ -88,7 +88,7 @@ async function getAuthorFolderOrThrow(pageId: string) {
     pageId,
     AUTHOR_PROPERTY_KEY
   );
-  const authorEmail = authorProperty?.value.actualAuthorEmail;
+  const authorEmail = authorProperty?.value?.actualAuthorEmail;
   if (!authorEmail) {
     throw new Error("작성자 정보를 찾을 수 없어 문서를 이동할 수 없습니다.");
   }

@@ -150,6 +150,37 @@ describe("setPublishState — 생명주기", () => {
     expect(calls).toEqual(["move", "reveal", "upsert"]);
   });
 
+  it("이미 게시된 문서를 이동 없이 다시 저장하면 메타데이터만 갱신한다", async () => {
+    // 게시됨 폴더에 이미 있는 문서의 slug/metaDescription만 바꿔 다시 저장하는 경우:
+    // isPublished === true && isCurrentlyPublished === true 분기이므로
+    // movePage/revealPageToSpace를 다시 호출할 필요가 없다.
+    stubAuthorProperty(null);
+    stubCurrentPage("published-1");
+    stubAccountFolder();
+    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "publishMetadata",
+      value: {
+        isPublished: true,
+        viewers: { "tech-blog": { slug: "my-post-updated", metaDescription: "새 설명" } },
+      },
+      version: { number: 2 },
+    });
+    const moveSpy = vi.spyOn(client, "movePage");
+    const revealSpy = vi.spyOn(access, "revealPageToSpace");
+
+    await setPublishState({
+      pageId: "doc-1",
+      isPublished: true,
+      viewers: { "tech-blog": { slug: "my-post-updated", metaDescription: "새 설명" } },
+    });
+
+    expect(moveSpy).not.toHaveBeenCalled();
+    expect(revealSpy).not.toHaveBeenCalled();
+    expect(upsertSpy).toHaveBeenCalled();
+  });
+
   it("게시 취소 시 먼저 제한을 걸고 나서 개인 폴더로 옮긴 뒤 메타데이터를 쓴다", async () => {
     stubAuthorProperty({
       isPublished: true,
