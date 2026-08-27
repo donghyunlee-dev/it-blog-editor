@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import { DocumentEditor } from "./DocumentEditor";
@@ -80,6 +80,7 @@ const EDIT_PROPS = {
   initialTitle: "기존 제목",
   initialDoc: { type: "doc", content: [] },
   initialVersion: 1,
+  initialPublishState: { isPublished: false, viewers: {} },
 };
 
 beforeEach(() => {
@@ -312,25 +313,34 @@ describe("DocumentEditor", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("게시 설정 버튼은 게시 설정 화면으로 이동시킨다", async () => {
+  it("게시 설정 버튼은 페이지 이동 대신 오버레이(모달)를 연다", async () => {
     renderEditor(<DocumentEditor {...EDIT_PROPS} />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "게시 설정" }));
 
-    expect(push).toHaveBeenCalledWith("/editor/page-1/publish");
+    // 예전엔 /editor/{pageId}/publish로 페이지 이동했는데, 토글 몇 개짜리 설정
+    // 때문에 문서 화면을 완전히 벗어나는 게 문맥 이탈이 크다는 지적으로 오버레이로
+    // 바꿨다(2026-08-26, "게시 설정 오버레이로 바꿔줘").
+    expect(push).not.toHaveBeenCalledWith(
+      expect.stringContaining("/publish")
+    );
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("dialog")).getByRole("switch", { name: "게시함" })
+    ).toBeInTheDocument();
   });
 
-  it("태그 자동완성 후보를 TagInput에 전달한다", () => {
+  it("태그 자동완성 후보를 TagInput에 전달한다", async () => {
     renderEditor(
       <DocumentEditor {...EDIT_PROPS} tagSuggestions={["Backend", "React"]} />
     );
 
     const input = screen.getByPlaceholderText("태그 입력");
-    const datalist = document.getElementById(
-      input.getAttribute("list") ?? ""
-    );
+    await userEvent.type(input, "e");
 
-    expect(datalist?.querySelectorAll("option")).toHaveLength(2);
+    expect(screen.getAllByRole("option")).toHaveLength(2);
   });
 
   it("버전 충돌(409) 메시지를 인라인 텍스트가 아닌 토스트로 알린다", async () => {

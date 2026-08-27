@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -10,8 +10,9 @@ import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
-import { Button, useToast } from "@sfood/ui";
-import { SlashCommandExtension } from "./SlashCommandExtension";
+import Placeholder from "@tiptap/extension-placeholder";
+import { Button, Popover, useToast } from "@sfood/ui";
+import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
 
@@ -34,6 +35,39 @@ function insertUploadedImage(
   const insertPos = Math.min(pos, doc.content.size);
   const node = imageType.create({ src: url, filename });
   view.dispatch(view.state.tr.insert(insertPos, node));
+}
+
+/**
+ * 슬래시 메뉴의 "이미지" 항목. pageId(저장된 문서)가 있어야 첨부 대상 페이지가 있으므로,
+ * 드래그앤드롭/붙여넣기와 동일한 제약으로 pageId가 있을 때만 이 항목을 메뉴에 넣는다.
+ * 파일 선택 다이얼로그는 숨긴 `<input type="file">`을 즉시 클릭해 띄운다.
+ */
+function createImageSlashItem(
+  pageId: string,
+  onError: (message: string) => void
+): CommandItem {
+  return {
+    title: "이미지",
+    run: (editor, range) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/png,image/jpeg,image/gif,image/webp";
+      input.addEventListener("change", () => {
+        const file = input.files?.[0];
+        if (!file) return;
+
+        editor.chain().focus().deleteRange(range).run();
+        const pos = editor.state.selection.from;
+
+        uploadImage(pageId, file)
+          .then((uploaded) => insertUploadedImage(editor.view, pos, uploaded))
+          .catch((error) => {
+            onError(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
+          });
+      });
+      input.click();
+    },
+  };
 }
 
 // TipTap v3 split BubbleMenu/FloatingMenu out of `@tiptap/react`'s main
@@ -116,9 +150,120 @@ function ToggleButton({
   );
 }
 
-function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
-  const { toast } = useToast();
+/*
+ * 글자색/하이라이트는 원래 브라우저 기본 <input type="color">(OS 컬러 피커)를 그대로
+ * 노출했다 — 브라우저마다 UI가 다르고, 브랜드 톤과 무관한 임의 색을 고를 수 있어 문서
+ * 색감이 쉽게 무너지는 문제가 있었다(2026-08-26 UI 진단). Notion처럼 정해진 팔레트만
+ * 고르게 하되, 값은 하드코딩 hex 대신 이 프로젝트의 CSS 변수 토큰을 그대로 참조해
+ * 다크/라이트 테마가 바뀌어도 같은 팔레트가 자동으로 따라가게 한다.
+ */
+const TEXT_COLOR_SWATCHES: { name: string; value: string }[] = [
+  { name: "기본", value: "var(--color-foreground)" },
+  { name: "보조", value: "var(--color-secondary)" },
+  { name: "브랜드", value: "var(--color-brand)" },
+  { name: "위험", value: "var(--color-danger)" },
+  { name: "경고", value: "var(--color-warning)" },
+  { name: "성공", value: "var(--color-success)" },
+  { name: "정보", value: "var(--color-info)" },
+];
 
+// 하이라이트는 배경색이라 텍스트 색과 달리 옅은 틴트여야 어느 테마에서든 글자를
+// 가리지 않는다. color-mix로 각 상태색을 옅게 섞어 옅은 배경 톤을 만든다.
+const HIGHLIGHT_SWATCHES: { name: string; value: string }[] = [
+  { name: "브랜드", value: "color-mix(in srgb, var(--color-brand) 35%, transparent)" },
+  { name: "경고", value: "color-mix(in srgb, var(--color-warning) 45%, transparent)" },
+  { name: "성공", value: "color-mix(in srgb, var(--color-success) 40%, transparent)" },
+  { name: "정보", value: "color-mix(in srgb, var(--color-info) 40%, transparent)" },
+  { name: "위험", value: "color-mix(in srgb, var(--color-danger) 35%, transparent)" },
+];
+
+function SwatchGrid({
+  swatches,
+  onPick,
+  onClear,
+}: {
+  swatches: { name: string; value: string }[];
+  onPick: (value: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-4 gap-1.5">
+        {swatches.map((swatch) => (
+          <button
+            key={swatch.name}
+            type="button"
+            title={swatch.name}
+            aria-label={swatch.name}
+            className="h-7 w-7 rounded-full border border-border"
+            style={{ backgroundColor: swatch.value }}
+            onClick={() => onPick(swatch.value)}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        className="rounded-btn px-2 py-1 text-left text-xs text-muted hover:bg-surface-raised"
+        onClick={onClear}
+      >
+        색상 지우기
+      </button>
+    </div>
+  );
+}
+
+function LinkPopoverForm({ editor }: { editor: Editor }) {
+  const { toast } = useToast();
+  const [href, setHref] = useState(editor.getAttributes("link").href ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Popover는 열려 있을 때만 children을 마운트하므로, 마운트 시점에 포커스를 주면
+  // 열릴 때마다 자연스럽게 입력에 커서가 놓인다(기존 window.prompt()가 주던 것과
+  // 동일한 즉시 입력 가능 상태를 재현). Popover가 적용 후 자동으로 닫히지는 않지만
+  // (외부에서 제어할 수 있는 API가 없음), 배경 문서에는 즉시 반영되고 바깥을 클릭하거나
+  // Escape로 닫을 수 있다 — 색상/하이라이트 팔레트와 동일한 동작이다.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  function submit() {
+    if (!href.trim()) {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+    if (!isSafeLinkHref(href)) {
+      toast("허용되지 않는 링크 형식입니다. http(s):// 또는 mailto: 링크만 사용할 수 있습니다.", "danger");
+      return;
+    }
+    editor.chain().focus().setLink({ href }).run();
+  }
+
+  return (
+    <form
+      className="flex items-center gap-1.5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="url"
+        inputMode="url"
+        aria-label="링크 URL"
+        placeholder="https://..."
+        className="w-56 rounded-input border border-border bg-surface px-2 py-1 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
+        value={href}
+        onChange={(event) => setHref(event.target.value)}
+      />
+      <Button type="submit" variant="primary" size="sm">
+        적용
+      </Button>
+    </form>
+  );
+}
+
+function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
   if (!editor) return null;
 
   return (
@@ -145,33 +290,41 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
         >
           S
         </ToggleButton>
-        <input
-          type="color"
-          aria-label="글자 색상"
-          className="h-8 w-8 cursor-pointer rounded border border-border bg-surface p-0.5"
-          onChange={(event) => editor.chain().focus().setColor(event.target.value).run()}
-        />
-        <input
-          type="color"
-          aria-label="하이라이트"
-          className="h-8 w-8 cursor-pointer rounded border border-border bg-surface p-0.5"
-          onChange={(event) => editor.chain().focus().toggleHighlight({ color: event.target.value }).run()}
-        />
-        <ToggleButton
-          active={editor.isActive("link")}
-          label="링크"
-          onClick={() => {
-            const href = window.prompt("링크 URL");
-            if (!href) return;
-            if (!isSafeLinkHref(href)) {
-              toast("허용되지 않는 링크 형식입니다. http(s):// 또는 mailto: 링크만 사용할 수 있습니다.", "danger");
-              return;
-            }
-            editor.chain().focus().setLink({ href }).run();
-          }}
+        <Popover
+          trigger={
+            <ToggleButton active={!!editor.getAttributes("textStyle").color} label="글자 색상" onClick={() => {}}>
+              A
+            </ToggleButton>
+          }
         >
-          링크
-        </ToggleButton>
+          <SwatchGrid
+            swatches={TEXT_COLOR_SWATCHES}
+            onPick={(value) => editor.chain().focus().setColor(value).run()}
+            onClear={() => editor.chain().focus().unsetColor().run()}
+          />
+        </Popover>
+        <Popover
+          trigger={
+            <ToggleButton active={editor.isActive("highlight")} label="하이라이트" onClick={() => {}}>
+              형광펜
+            </ToggleButton>
+          }
+        >
+          <SwatchGrid
+            swatches={HIGHLIGHT_SWATCHES}
+            onPick={(value) => editor.chain().focus().toggleHighlight({ color: value }).run()}
+            onClear={() => editor.chain().focus().unsetHighlight().run()}
+          />
+        </Popover>
+        <Popover
+          trigger={
+            <ToggleButton active={editor.isActive("link")} label="링크" onClick={() => {}}>
+              링크
+            </ToggleButton>
+          }
+        >
+          <LinkPopoverForm editor={editor} />
+        </Popover>
       </div>
     </BubbleMenu>
   );
@@ -236,7 +389,24 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       TableRow,
       TableHeader,
       TableCell,
-      SlashCommandExtension,
+      // 박스(Card) 없이 페이지 전체가 캔버스로 보이는 구조로 바뀌면서(2026-08-25),
+      // 문서가 비어 있을 때 아무 테두리도 없어 "쓰는 자리 자체가 없다"고 느껴지는
+      // 문제가 생겼다(사용자 피드백 — 실제로는 24px짜리 빈 <p>가 있어 편집기 자체는
+      // 정상 동작하지만 시각적으로 보이지 않았다). 빈 문서에 안내 문구를 띄워 캔버스가
+      // 눈에 보이게 한다 — 실제 스타일은 globals.css의 `.ProseMirror p.is-editor-empty`.
+      Placeholder.configure({
+        placeholder: "내용을 입력하세요. '/'를 입력하면 서식을 빠르게 넣을 수 있어요.",
+      }),
+      pageId
+        ? SlashCommandExtension.configure({
+            suggestion: {
+              items: ({ query }: { query: string }) =>
+                createSlashItems(query, [
+                  createImageSlashItem(pageId, (message) => toast(message, "danger")),
+                ]),
+            },
+          })
+        : SlashCommandExtension,
     ],
     content,
     onUpdate: ({ editor: currentEditor }) => {
@@ -244,10 +414,21 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
     },
     immediatelyRender: false,
     editorProps: {
+      // 브라우저 기본 맞춤법 검사가 한글 문장 곳곳에 빨간 물결 밑줄을 그려 Notion/Confluence
+      // 캡쳐와 나란히 비교했을 때 유독 지저분해 보였다(2026-08-26, 사용자 피드백).
+      attributes: { spellcheck: "false" },
       handleDrop: (view, event) => {
         const file = event.dataTransfer?.files?.[0];
-        if (!file || !pageId || !file.type.startsWith("image/")) return false;
+        if (!file || !file.type.startsWith("image/")) return false;
         event.preventDefault();
+
+        // 문서를 저장하기 전(pageId 없음)에는 첨부 대상 페이지가 없어 업로드할 수 없다.
+        // 예전에는 아무 안내 없이 조용히 무시해서 "이미지가 안 된다"로만 보였다
+        // (2026-08-26 실사용 확인) — 이유를 토스트로 알린다.
+        if (!pageId) {
+          toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+          return true;
+        }
 
         const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
         const pos = coords?.pos ?? view.state.selection.from;
@@ -261,8 +442,13 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       },
       handlePaste: (view, event) => {
         const file = event.clipboardData?.files?.[0];
-        if (!file || !pageId || !file.type.startsWith("image/")) return false;
+        if (!file || !file.type.startsWith("image/")) return false;
         event.preventDefault();
+
+        if (!pageId) {
+          toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+          return true;
+        }
 
         const pos = view.state.selection.from;
 
@@ -280,6 +466,23 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
     <>
       {editor && <EditorBubbleMenu editor={editor} />}
       {editor && <TableControls editor={editor} />}
+      {/*
+        2026-08-25에는 prose-sm(본문 14px)으로 낮췄었다 — 그런데 그 저해상도 노트북
+        문제의 실제 원인은 헤더의 버튼/링크/태그류(px 낭비가 큰 UI 크롬)였지 본문
+        읽기 영역이 아니었다. 그 UI 크롬은 여전히 text-sm으로 압축된 채 유지하고,
+        본문만 사내 문서 뷰어(SF-Note) 캡쳐와 비교해 표준 prose 스케일(본문 16px,
+        H1 36px/H2 24px/H3 20px)로 되돌렸다(2026-08-26, 실측 비교 — SF-Note의 실제
+        본문 폭이 약 819px로 이 프로젝트의 max-w-[820px]와 사실상 동일했고, 다른 건
+        본문·헤딩 글자 크기뿐이었다).
+        본문 글자색은 `dark:prose-invert`가 아니라 globals.css에서 --tw-prose-* 변수를
+        이 프로젝트 토큰에 직접 매핑해 해결한다 — Tailwind의 dark: variant는
+        prefers-color-scheme 미디어 쿼리만 따르는데, 이 앱은 ThemeToggle이 다는
+        [data-theme] 속성으로 테마를 정하기 때문에 "OS는 다크, 앱은 라이트로 명시
+        선택"한 상태에서 dark:prose-invert가 여전히 발동해 흰 배경 위에 거의 안 보이는
+        밝은 글자가 남는 심각한 문제가 있었다(2026-08-26 실사용 확인, globals.css의
+        해당 주석 참고). --tw-prose-* 직접 매핑은 이 앱이 실제로 테마를 정하는 방식과
+        항상 일치하므로 이 문제 자체가 생기지 않는다.
+      */}
       <EditorContent editor={editor} className="prose max-w-none" />
     </>
   );

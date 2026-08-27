@@ -22,13 +22,15 @@ const DOCS: DocumentSummary[] = [
 ];
 
 describe("EditorSidebar", () => {
-  it("문서 목록과 상태 뱃지를 보여준다", () => {
+  it("문서 목록과 게시 상태 아이콘을 보여준다", () => {
     render(<EditorSidebar documents={DOCS} />);
 
     expect(screen.getByText("문서A")).toBeInTheDocument();
     expect(screen.getByText("문서B")).toBeInTheDocument();
-    expect(screen.getByText("게시됨")).toBeInTheDocument();
-    expect(screen.getByText("초안")).toBeInTheDocument();
+    // 게시 상태는 글자 대신 아이콘 + 색으로만 표시한다(2026-08-26, 사용자 요청) —
+    // 접근성을 위해 남겨둔 role="img"/aria-label로 확인한다.
+    expect(screen.getByRole("img", { name: "게시됨" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "초안" })).toBeInTheDocument();
   });
 
   it("문서에 붙은 태그를 함께 보여준다", () => {
@@ -86,6 +88,23 @@ describe("EditorSidebar", () => {
 
     expect(activeLink).toHaveAttribute("aria-current", "page");
     expect(inactiveLink).not.toHaveAttribute("aria-current");
+  });
+
+  it("onLogout이 없으면 로그아웃 영역을 렌더링하지 않는다", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(
+      screen.queryByRole("button", { name: "로그아웃" })
+    ).not.toBeInTheDocument();
+  });
+
+  it("onLogout이 있으면 사용자 이메일과 로그아웃 버튼을 보여준다", () => {
+    render(
+      <EditorSidebar documents={DOCS} userEmail="pioneer@s-food.com" onLogout={() => {}} />
+    );
+
+    expect(screen.getByText("pioneer@s-food.com")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
   });
 });
 

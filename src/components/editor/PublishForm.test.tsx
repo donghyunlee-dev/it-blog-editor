@@ -39,8 +39,8 @@ function stubFetch(response: Response | (() => Response)) {
 }
 
 /** PATCH 요청 본문을 파싱해 돌려준다(키 순서에 의존하지 않도록 문자열 비교를 피한다). */
-function patchBodyOf(fetchMock: ReturnType<typeof stubFetch>) {
-  const [, init] = fetchMock.mock.calls[0];
+function patchBodyOf(fetchMock: ReturnType<typeof stubFetch>, callIndex = 0) {
+  const [, init] = fetchMock.mock.calls[callIndex];
   return JSON.parse(init.body as string);
 }
 
@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe("PublishForm", () => {
-  it("뷰어 카드가 뷰어 이름과 저장된 slug/메타 설명을 담아 렌더된다", () => {
+  it("뷰어 섹션이 뷰어 이름과 저장된 slug/메타 설명을 담아 렌더된다", () => {
     renderForm(
       <PublishForm
         pageId="doc-1"
@@ -64,27 +64,23 @@ describe("PublishForm", () => {
     );
 
     expect(screen.getByText("Tech Blog")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tech Blog 공개 경로(slug)")).toHaveValue(
-      "saved-post"
-    );
-    expect(screen.getByLabelText("Tech Blog 메타 설명")).toHaveValue(
-      "저장된 설명"
-    );
-    // 최상위 게시 토글은 initial.isPublished를 반영한다.
+    expect(screen.getByLabelText("공개 경로(slug)")).toHaveValue("saved-post");
+    expect(screen.getByLabelText("메타 설명")).toHaveValue("저장된 설명");
+    // 최상위 게시 스위치는 initial.isPublished를 반영한다. Checkbox로 바꿨다가
+    // "설정 팝업에 체크박스는 안 맞다"는 피드백으로 다시 Switch로 되돌렸다
+    // (2026-08-26) — 대신 토글 즉시 저장되도록 만들어 Switch의 "바로 적용된다"는
+    // 신호와 실제 동작을 일치시켰다(아래 자동 저장 테스트 참고).
     expect(screen.getByRole("switch", { name: "게시함" })).toHaveAttribute(
       "aria-checked",
       "true"
     );
   });
 
-  it("두 토글 모두 저장 결과를 예고하는 안내 문구를 aria-describedby로 연결한다", () => {
+  it("두 스위치 모두 안내 문구를 aria-describedby로 연결한다", () => {
     renderForm(
       <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
     );
 
-    // 문구 자체는 카피라 바뀔 수 있으므로, 연결 여부만 확인한다.
-    // (노출을 모두 끄면 게시 저장이 거부되고, 게시함을 끈 채 저장하면 뷰어 설정이
-    //  저장되지 않는다는 점을 사용자가 미리 알 수 있어야 한다.)
     expect(
       screen.getByRole("switch", { name: "게시함" })
     ).toHaveAccessibleDescription();
@@ -93,19 +89,14 @@ describe("PublishForm", () => {
     ).toHaveAccessibleDescription();
   });
 
-  it("뷰어 카드마다 slug/메타 설명을 입력할 수 있고, 저장 시 viewers 구조로 전송한다", async () => {
-    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
+  it("게시함 스위치를 누르면 버튼을 누르지 않아도 곧바로 저장 요청을 보낸다", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: true }));
 
     renderForm(
       <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
     );
 
-    await userEvent.type(
-      screen.getByLabelText("Tech Blog 공개 경로(slug)"),
-      "my-post"
-    );
-    await userEvent.type(screen.getByLabelText("Tech Blog 메타 설명"), "설명");
-    await userEvent.click(screen.getByRole("button", { name: "게시 설정 저장" }));
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(
@@ -113,13 +104,18 @@ describe("PublishForm", () => {
     );
     expect(fetchMock.mock.calls[0][1].method).toBe("PATCH");
     expect(patchBodyOf(fetchMock)).toEqual({
-      isPublished: false,
-      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
+      isPublished: true,
+      // 두 뷰어 옵션 중 하나도 저장된 적 없는 새 문서는 모든 뷰어를 노출 대상으로
+      // 시작하는 기존 동작을 유지한다.
+      viewers: { "tech-blog": { slug: "", metaDescription: "" } },
     });
+    // 저장 성공 시 서버 컴포넌트(사이드바 등)를 갱신한다.
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("모든 변경 사항이 저장됨")).toBeInTheDocument();
   });
 
-  it("게시함을 껐다가 저장해도 노출 중인 뷰어 설정은 그대로 전송한다", async () => {
-    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
+  it("뷰어 노출 스위치를 끄면 곧바로 그 뷰어가 viewers에서 빠진 상태로 저장된다", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: true }));
 
     renderForm(
       <PublishForm
@@ -133,37 +129,7 @@ describe("PublishForm", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
-    await userEvent.click(screen.getByRole("button", { name: "게시 설정 저장" }));
-
-    // isPublished만 false로 바뀌고, viewers는 노출 중인 뷰어 기준으로 유지된다.
-    expect(patchBodyOf(fetchMock)).toEqual({
-      isPublished: false,
-      viewers: {
-        "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
-      },
-    });
-  });
-
-  it("뷰어 노출을 끄면 해당 뷰어가 viewers에서 빠진다", async () => {
-    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
-
-    renderForm(
-      <PublishForm
-        pageId="doc-1"
-        initial={{
-          isPublished: true,
-          viewers: {
-            "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
-          },
-        }}
-      />
-    );
-
-    await userEvent.click(
-      screen.getByRole("switch", { name: "Tech Blog 노출" })
-    );
-    await userEvent.click(screen.getByRole("button", { name: "게시 설정 저장" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Tech Blog 노출" }));
 
     expect(patchBodyOf(fetchMock)).toEqual({
       isPublished: true,
@@ -171,30 +137,25 @@ describe("PublishForm", () => {
     });
   });
 
-  it("저장에 성공하면 성공 토스트를 띄우고 router.refresh()로 서버 컴포넌트를 갱신한다", async () => {
-    stubFetch(jsonResponse({ isPublished: true, publishedAt: "2026-08-24" }));
+  it("slug/메타 설명은 입력을 벗어날 때(blur) 현재 전체 상태를 저장한다", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
 
     renderForm(
-      <PublishForm
-        pageId="doc-1"
-        initial={{
-          isPublished: true,
-          viewers: {
-            "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
-          },
-        }}
-      />
+      <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "게시 설정 저장" }));
+    await userEvent.type(screen.getByLabelText("공개 경로(slug)"), "my-post");
+    expect(fetchMock).not.toHaveBeenCalled();
+    await userEvent.tab(); // blur
 
-    expect(
-      await screen.findByText("게시 설정이 저장되었습니다.")
-    ).toBeInTheDocument();
-    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(patchBodyOf(fetchMock)).toEqual({
+      isPublished: false,
+      viewers: { "tech-blog": { slug: "my-post", metaDescription: "" } },
+    });
   });
 
-  it("저장에 실패하면 인라인 텍스트가 아니라 토스트로 서버 오류 메시지를 알린다", async () => {
+  it("저장에 실패하면 토스트로 서버 오류 메시지를 알리고 서버 컴포넌트는 갱신하지 않는다", async () => {
     stubFetch(
       jsonResponse(
         { error: { code: "CONFLICT", message: "이미 사용 중인 slug입니다." } },
@@ -214,17 +175,11 @@ describe("PublishForm", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "게시 설정 저장" }));
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
 
     expect(
       await screen.findByText("이미 사용 중인 slug입니다.")
     ).toBeInTheDocument();
-    // 실패했으므로 성공 토스트도, 서버 컴포넌트 갱신도 없어야 한다.
-    expect(
-      screen.queryByText("게시 설정이 저장되었습니다.")
-    ).not.toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
-    // 인라인 에러 문단(.error-text)은 더 이상 쓰지 않는다.
-    expect(document.querySelector(".error-text")).toBeNull();
   });
 });

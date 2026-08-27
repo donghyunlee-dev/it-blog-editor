@@ -353,6 +353,7 @@ describe("getDocumentDetail", () => {
       title: "제목",
       doc: SAMPLE_DOC,
       version: 2,
+      updatedAt: "",
     });
   });
 });

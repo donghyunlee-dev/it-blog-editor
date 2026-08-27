@@ -5,6 +5,134 @@
 - 지금까지 `src/app/globals.css`에 직접 만들어 쓰던 커스텀 클래스(`.page`, `.card`, `.button-primary` 등)는 `@sfood/ui` 컴포넌트와 토큰으로 단계적으로 대체한다.
 - 관련 문서: [requirements.md](./requirements.md), [architecture.md](./architecture.md), [prd.md](./prd.md), 화면 설계는 [docs/superpowers/specs/2026-08-21-editor-ui-ux-design.md](../superpowers/specs/2026-08-21-editor-ui-ux-design.md) 참고.
 
+## 정책 레퍼런스 — 폰트·사이즈·컬러톤·간격·영역별 기준
+
+이 절은 변경 이력이 아니라 **지금 이 순간 적용돼 있는 규칙**만 정리한다. 다른 세션에서 새
+화면/컴포넌트를 만들 때 이 절부터 확인한다 — 왜 이렇게 정했는지 배경이 궁금하면 문서 아래
+쪽의 해당 절(같은 키워드로 검색)을 참고한다. 이 절의 서술과 실제 코드가 다르면 코드가
+맞고, 이 문서를 갱신해야 한다(CLAUDE.md의 "실제 구현 우선" 원칙과 동일).
+
+### 1. 폰트
+
+- 본문 폰트는 **Pretendard Variable**이다. `pretendard` npm 패키지를 `next/font/local`로
+  self-host하고(`src/app/layout.tsx`의 `pretendard` 상수, CSS 변수 `--font-pretendard`),
+  `<html>`에 그 `variable` 클래스를 심어 전역에서 쓴다. 사내 실서비스
+  `ax-wiki.s-food.ai`와 동일한 폰트다.
+- `globals.css`의 `body` 규칙 하나가 스택 전체(`var(--font-pretendard), "Malgun Gothic",
+  "맑은고딕", -apple-system, system-ui, Roboto, "Helvetica Neue", sans-serif`)를 정의한다.
+  **새 컴포넌트에서 폰트를 따로 지정하지 않는다** — 항상 body에서 상속받는다.
+- 기본 굵기는 `font-weight: 500`(UI 크롬 전반). 예외는 리치 텍스트 본문(`.ProseMirror`)뿐이다
+  — 라이트 모드 400, 다크 모드 450(다크 배경에서 얇은 글자가 더 흐려 보이는 것을 보정).
+- 헤딩(`h1`~`h3`, `@layer base`)은 전역적으로 `font-weight: 700`, `letter-spacing: -0.18px`다.
+
+### 2. 사이즈 (글자 크기 스케일)
+
+텍스트 크기는 아래 표 밖의 임의 값(`text-lg`, `text-xl`, `text-3xl` 등)을 새로 쓰지 않는다.
+
+| 그룹 | 크기 | 대상 |
+|---|---|---|
+| UI 크롬 | `text-sm`(14px) | 헤더 버튼/링크, 태그, 안내·풋터 문구, 사이드바 목록 행, 폼 라벨 등 화면을 구성하는 모든 요소 |
+| 문서 제목 | `text-4xl`(36px) `font-bold` | `DocumentEditor`의 제목 입력(`TitleTextarea`) — 본문 리치 텍스트 H1과 크기를 맞춰, 사용자가 본문에 제목1을 넣어도 문서 제목보다 커지지 않게 한다 |
+| 리치 텍스트 본문 | 표준 `prose` 스케일 — 본문 16px, H1 36px/H2 24px/H3 20px | `RichTextEditor`의 `EditorContent`(`className="prose max-w-none"`) — `prose-sm`으로 낮추지 않는다 |
+| 소개/랜딩 화면 타이틀 | `text-2xl`(24px), `Typography variant="h2"` | 문서가 아닌 소개성 화면(`/editor` 첫 화면 등)의 큰 타이틀 |
+
+### 3. 컬러톤
+
+- 색상은 항상 `@sfood/ui` 토큰(CSS 변수)만 참조한다. hex/Tailwind 팔레트 클래스 하드코딩
+  (`text-gray-900`, `#e4002b` 등) 금지, `--color-*` 토큰 재정의 금지.
+- 브랜드 원색은 `--color-brand`(`#d65050`, 라이트/다크 공통). 더 어두운 텍스트가 필요하면
+  `--color-brand-hover`(`#b02929`), 아주 옅은 배경엔 `--color-brand-subtle`/`--color-brand-light`.
+- **브랜드색을 배경에 옅게 섞을 때**는 하드코딩 대신
+  `color-mix(in srgb, var(--color-brand) N%, var(--color-surface))` 패턴을 쓴다. 기존 예:
+  `.sidebar-row-active`(10%, 활성 행), `.spotlight-card`(6%, 소개 화면 대표 기능 카드),
+  `.spotlight-icon-chip`(15%, transparent와 믹스).
+- **작은 텍스트에 브랜드색을 직접 쓸 때는 라이트/다크 각각 대비를 실측한다.**
+  `--color-brand`를 그대로 쓰면 밝은 배경 위에서 대비가 미달(예: 3.8:1, 기준 4.5:1)일 수
+  있다 — 라이트에서는 `--color-brand-hover`, 다크에서는 `--brand-300`처럼 테마별로 다른
+  톤을 쓴다(`.spotlight-accent-text` 패턴 재사용).
+- 다크 모드 오버라이드는 항상 두 조건을 함께 짝짓는다:
+  `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { ... } }` (OS 다크+
+  앱이 명시적으로 라이트를 고르지 않은 경우) **와** `[data-theme="dark"] { ... }`(사용자가
+  ThemeToggle로 명시 선택). 하나만 쓰면 "OS는 다크, 앱은 라이트로 명시 선택" 같은 조합에서
+  깨진다.
+- 모든 텍스트/아이콘 색은 WCAG AA(일반 텍스트 4.5:1, 큰 텍스트·아이콘류 3:1)를 만족해야
+  한다. 새 색상 조합을 추가할 때 "괜찮아 보인다"로 판단하지 않고, 상대휘도 계산(브라우저
+  `getComputedStyle`로 실제 렌더링 색을 읽어 계산)으로 직접 검증한다.
+- `@sfood/ui` 컴포넌트 자체가 라이트 전용 하드코딩 팔레트를 쓰면(`Alert`, `Toast`) 컴포넌트
+  소스를 고칠 수 없으므로, 실제 렌더링되는 유틸리티 클래스를 대상으로 `!important` 오버라이드로
+  대응한다(`globals.css`의 `[role="alert"].bg-red-50` 계열, `.fixed.bottom-4.right-4.z-50 >
+  .text-white` 참고).
+
+### 4. 간격 (Spacing)
+
+- 편집 화면 페이지 여백: `px-6`(24px, 좌우) `py-10`(40px, 위아래).
+- **위계가 다른 영역 사이는 간격 크기를 다르게 준다** — 모든 블록을 같은 gap으로 나열하지
+  않는다. `DocumentEditor` 기준:
+  - 제목 → 태그: `mt-2`(8px) — 같은 "문서 메타" 묶음이라 좁게
+  - 태그 → 본문: `mt-6`(24px) — 여기부터 "쓰는 영역"이라는 전환이라 넓게
+  - 본문 → 풋터: `mt-4`(16px) + `border-t` — 그 중간
+- 리스트 행 사이는 구분선(`divide-y`) 대신 `gap-0.5`(2px) + hover 배경만으로 구분한다
+  (사이드바 문서 목록) — 항목이 많은 목록에서 구분선은 시각적 잡음이 된다.
+- 카드/모달 내부 패딩은 `Card`/`Modal`의 기본 `padding` prop(`sm`/`md`/`lg`)을 그대로 쓰고
+  임의로 재정의하지 않는다.
+
+### 5. 영역별 기준
+
+**헤더(공통)**
+- 사이드바 상단 브랜딩 행과 `DocumentEditor` 상단 헤더는 항상 `h-14`(56px) **고정** 높이를
+  쓴다 — 내용물 높이 계산에 맡기지 않는다(두 헤더가 나란히 있을 때 라인이 어긋나 보인 사례
+  있음).
+- `DocumentEditor` 헤더는 `sticky top-0`이라 스크롤 중에도 계속 보인다.
+- 헤더 1차 액션(저장)만 `variant="primary"`, 파괴적 액션(삭제)은 `variant="danger"`, 나머지
+  (게시 설정 등)는 `variant="secondary"` — 한 화면에 `primary`는 항상 1개(아래 Do/Don't
+  참고).
+- 아이콘만 있는 버튼은 반드시 `aria-label`+`title`을 함께 준다. 파괴적 액션 버튼은 인접
+  버튼과 `<span className="h-6 w-px bg-border" />` 구분선으로 물리적으로 떨어뜨려 오클릭을
+  막는다.
+
+**사이드바 (`EditorSidebar`/`EditorShell`)**
+- 폭: 기본 256px, 최소 220px(브랜딩 행이 잘리지 않는 실측 최소 폭 + 여유), 최대 440px.
+  `localStorage`에 폭/접힘 상태를 저장해 세션 간 유지한다.
+- 데스크톱 전용으로 드래그 리사이즈(클릭 히트 영역 10px, 시각적으로는 1px 선이 hover 시에만
+  브랜드색으로 드러남)와 햄버거 아이콘 접기/펼치기를 지원한다. 모바일은 별개 상태(오프캔버스
+  드로어)로만 여닫는다 — 둘을 섞지 않는다.
+- 브랜딩 행(로고+제품명)은 `/editor`(메인 화면)로 이동하는 링크다.
+- 문서 목록 행: `py-1.5 pl-2 pr-3`. 게시 상태는 텍스트가 아니라 아이콘(게시됨=속이 찬
+  체크 원, 초안=점선 원)+색으로만 표시하고, `role="img"`+`aria-label`로 의미를 남긴다.
+
+**문서 편집 캔버스 (`DocumentEditor` + `RichTextEditor`)**
+- `Card`로 감싸지 않는다 — 페이지 전체가 에디터 캔버스처럼 보이게 한다(로그인 화면도 같은
+  원칙, 아래 참고).
+- 본문 최대 폭은 `max-w-[820px]`(사내 문서 뷰어 SF-Note 실측 기준).
+- 제목/본문 모두 **포커스 시에만** 배경색이 옅게(`--color-surface-raised`) 깔리는 방식으로
+  "수정 가능 영역"을 알린다 — `padding` + 같은 크기의 음수 `margin`으로 평소 레이아웃은
+  그대로 유지한다(포커스 전 상태에서 테두리·그림자로 먼저 티내지 않는다).
+- 빈 문서에는 `@tiptap/extension-placeholder`로 안내 문구를 띄우고, 캔버스 최소 높이는
+  매직넘버 고정값이 아니라 `calc(100dvh - 220px)`(뷰포트에서 헤더/제목/태그/여백을 뺀
+  나머지)로 계산한다.
+
+**소개/랜딩 화면 (`/editor` 첫 화면)**
+- 문서가 없는 상태를 빈 화면으로 방치하지 않고, 이 서비스를 처음 보는 사람에게 제품을
+  소개하는 화면으로 취급한다.
+- 여러 기능을 나열할 때 전부 같은 무게로 두지 않는다 — 가장 차별화된 기능 하나를
+  `.spotlight-card`(브랜드색을 옅게 섞은 배경)로 먼저 보여주고, 나머지는 그보다 작은 보조
+  카드 그리드(`Card` 컴포넌트, `grid-cols-1 sm:grid-cols-2`)로 내려 시각적 위계를 만든다.
+
+**모달**
+- 확인이 필요한 삭제 등은 `Modal`(+ `footer`에 취소/확인 버튼)을 쓴다. `window.confirm()`
+  금지.
+- 내용이 토글/입력 필드 여러 개로 복잡하면 `size="lg"`, 문장 한두 줄이면 기본(`size="md"`).
+- 설정류 모달(게시 설정 등)은 별도 "저장" 버튼을 두지 않고 각 필드 변경 시 즉시 저장한 뒤
+  `role="status" aria-live="polite"`로 저장 상태를 알린다. `Switch`처럼 "즉시 반영"을
+  암시하는 컨트롤을 쓸 거면 실제로 즉시 저장되게 만든다 — "나중에 저장" 버튼과 짝짓지
+  않는다.
+
+**포커스 · 버튼 공통**
+- 클릭 가능한 모든 요소는 `cursor: pointer`와 `:focus-visible { outline: 2px solid
+  var(--color-brand); outline-offset: 2px; }`를 갖는다. `rounded-btn` 클래스(모든
+  `Button`과 버튼형 링크가 가짐)가 이를 전역으로 제공하므로, 새 버튼형 요소는 이 클래스를
+  그대로 재사용한다 — 직접 포커스 스타일을 새로 정의하지 않는다.
+
 ## 설치 및 설정
 
 Storybook의 "Getting Started" 문서 기준. 실제 설치는 구현 플랜(Task로 정리)에서 진행한다.
@@ -52,10 +180,25 @@ export default {
 > 추가하거나 마이그레이션할 때, 이 세 지시어를 다시 빠뜨리지 않도록 주의한다.
 
 **3. 글로벌 CSS**
-```ts
-// src/app/layout.tsx (기존 globals.css import 옆에 추가)
-import '@sfood/ui/global.css'
-```
+
+> **v4 주의사항 2 (2026-08-25 UI 진단에서 발견, C2)**: Storybook 안내대로
+> `@sfood/ui/global.css` 전체를 import하면 그 파일 내부의 `@tailwind base/components/utilities`가
+> 이 프로젝트의 Tailwind 컴파일(`globals.css`의 `@import "tailwindcss"`)과는 별개의 두 번째
+> 컴파일을 만들어 내고, 그 결과물이 `@layer` 밖(unlayered)에 쌓인다. CSS Cascade Layers
+> 규칙상 레이어 밖 규칙은 특정성과 무관하게 모든 레이어드 규칙(반응형 variant 포함)을
+> 이겨 버려서, `md:hidden` 같은 반응형 클래스가 데스크톱 폭에서도 안 먹히거나 브랜드 컬러
+> 재정의가 조용히 무력화되는 등 원인을 알기 어려운 결함으로 이어진다. 대신 토큰 CSS만
+> 직접 불러온다:
+> ```ts
+> // src/app/layout.tsx
+> import '@sfood/ui/tokens/base.css'
+> import '@sfood/ui/tokens/semantic.css'
+> import './globals.css'
+> ```
+> 나머지 Tailwind 유틸리티는 이 프로젝트의 단일 컴파일이 `@source`로 `@sfood/ui/dist`를
+> 스캔해 정상적으로(레이어 안에) 생성한다. `@sfood/ui/global.css`의 `body{ background-color,
+> color, font-family, font-smoothing }` 규칙은 이제 `globals.css`의 `body` 규칙에서 직접
+> 선언한다(폰트만 이 프로젝트 값으로 교체).
 
 **4. 사용 예시(email/password 로그인 화면 — Storybook 기준)**
 ```tsx
@@ -72,7 +215,8 @@ export default function App() {
 }
 ```
 이 프로젝트는 이메일/비밀번호 로그인이 아니라 AX Auth 리다이렉트 방식이라 위 예시를 그대로 쓸 수 없다.
-실제로는 `LoginSimple`을 쓰지 않는다 — 이유는 아래 "로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)" 참고.
+실제로는 `LoginSimple`/`LoginSplit` 어느 쪽도 쓰지 않는다 — 이유는 아래 "로그인 화면 —
+`LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고.
 
 ## 이 프로젝트에서 쓸 컴포넌트 매핑
 
@@ -80,7 +224,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
-| 로그인 화면 | `Card` + `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>` | `LoginSimple`은 email/password 폼 전용이라 쓰지 않음 — 아래 "로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
+| 로그인 화면 | 좌: 직접 마크업 브랜드 패널(`Typography` + 자체 제작 SVG `BrandPanelArt`) · 우: 카드 없이 `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>`만 배경 위에 배치 | `LoginSimple`/`LoginSplit` 둘 다 email/password 폼 전용이라 쓰지 않음(단, `LoginSplit`의 좌/우 레이아웃 구조는 재현) — 아래 "로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
 | 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`ChipGroup`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·필터·빈 상태)만 컴포넌트를 쓴다. 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
 | 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`(`onRemove` 생략), 태그 필터는 `ChipGroup`(단일 선택 — 같은 칩을 다시 클릭하면 해제되도록 `onChange` 쪽에서 토글 처리) |
@@ -124,7 +268,7 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀
   "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다.
 
-## 로그인 화면 — `LoginSimple`을 쓰지 않은 이유 (Task 15 검증)
+## 로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증, 2026-08-25 레이아웃 갱신)
 
 이 표와 위 "사용 예시"는 원래 `LoginSimple`에 로고 슬롯과 별도로 버튼 영역(footer) 슬롯이 있어서
 그 슬롯에 "MS 계정으로 로그인" 버튼을 넣을 수 있다고 가정하고 작성됐다. 실제 구현(Task 15,
@@ -141,14 +285,76 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   쓰려면 사용자가 쓰지도 않을 이메일/비밀번호를 가짜로 입력해야 버튼이 눌리게 되는데, 이는 슬롯
   이름을 잘못 짚은 정도가 아니라 이 화면의 요구사항(한 번 클릭으로 외부 URL로 이동) 자체를
   표현할 수 없는 구조적 불일치라 슬롯을 다시 찾는 방식으로는 해결이 안 된다.
-- **최종적으로 실제 쓴 구성**: `Card`(`padding="lg"`)를 카드 컨테이너로, `Typography`(`variant="h1"`,
-  시각적 크기만 `className`으로 축소 — 이 페이지에 다른 헤딩이 없어 문서 헤딩 계층을 h1부터
-  시작해야 함)로 제목/부제목을, `Alert`(`variant="danger"`)로 로그인 실패·AX Auth 미설정 안내를
-  표시한다. "MS 계정으로 로그인" 액션은 외부 URL로 실제 이동해야 해서 `Button`(`ButtonHTMLAttributes`
-  기반, `href` 없음)이 아니라 `<a href={loginUrl}>`을 쓰되, `Button variant="primary" size="md"`가
-  내부적으로 쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover`,
-  `rounded-btn` 등)를 그대로 입혀 "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다(사이드바의
-  "새 문서" 링크와 동일한 패턴 — `src/components/editor/EditorSidebar.tsx` 참고).
+- **`LoginSplit`("왼쪽 이미지, 오른쪽 로그인" 템플릿)도 같은 이유로 그대로는 못 쓴다.**
+  `LoginSplitProps`는 `LoginSimpleProps`를 그대로 확장한다(`brandTitle`/`brandDescription`/
+  `brandImage`/`brandClassName`만 추가). 즉 왼쪽 브랜드 패널은 새로 추가됐지만 오른쪽은 여전히
+  고정된 `LoginSimple`(email/password 폼)이라, 오른쪽 폼 문제는 `LoginSimple` 때와 동일하게
+  남아있다. 대신 `LoginSplit`의 실제 렌더링 구조(`dist/index.js`) — 왼쪽 `hidden md:flex
+  flex-col justify-center w-1/2 bg-brand text-white`(+ `brandImage`가 있으면
+  `bg-cover bg-center`로 배경 이미지 적용) 패널과 오른쪽 `flex-1 flex items-center
+  justify-center` 폼 영역 — 을 그대로 재현하고, 오른쪽 자리에 AX Auth 카드를 넣었다. 지금은
+  실제 브랜드 이미지 자산이 없어 왼쪽 패널은 `brandImage` 없이 `LoginSplit`도 지원하는
+  "단색 브랜드 패널 + 로고/타이틀/설명" 상태로 채워져 있다 — 나중에 이미지 자산이 정해지면
+  같은 위치에 `background-image`만 추가하면 된다.
+- **헤딩 계층**: 왼쪽 패널의 "SFOOD IT Editor"가 문서의 h1(브랜드/제품명)이고, 오른쪽의
+  "다시 오신 것을 환영해요"는 h2(이 화면의 실제 목적)다. 모바일 폭에서는 왼쪽 패널이 `hidden`으로
+  화면에서만 숨겨지고 DOM에는 그대로 남아 있어(h1이 없는 문서가 되지 않는다), 화면에는 오른쪽
+  영역만 보인다 — `LoginSplit`의 반응형 동작과 동일하다.
+- **오른쪽 영역은 카드(Card)로 감싸지 않는다(2026-08-25, 사용자 피드백으로 재조정)**: 처음에는
+  `Card`로 감쌌었는데, 테두리·그림자가 있는 박스 형태가 "자연스러운 로그인 유도"라는 방향과
+  맞지 않아 제거했다. 지금은 배경 위에 제목(`Typography variant="h2"`)과 버튼만 세로로 놓는다
+  (실패 시 `Alert`도 같은 자리에 끼워 넣는다). 폭 제한은 `Card`의 `max-w-[24rem]` 대신 감싸는
+  `div`에 `max-w-[22rem]`(arbitrary value — 이유는 `globals.css` 상단 "알려진 결함" 참고)을 줘서
+  큰 화면에서 버튼이 지나치게 늘어나지 않게 한다. "MS 계정으로 로그인" 액션은 외부 URL로 실제
+  이동해야 해서 `Button`(`ButtonHTMLAttributes` 기반, `href` 없음)이 아니라
+  `<a href={loginUrl}>`을 쓰되, `Button variant="primary" size="lg"`가 내부적으로 쓰는 것과 같은
+  토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover`, `rounded-btn` 등)를 그대로
+  입혀 "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다(사이드바의 "새 문서" 링크와
+  동일한 패턴 — `src/components/editor/EditorSidebar.tsx` 참고).
+- **설명 카피를 넣지 않는다**: 처음 버전에는 왼쪽 패널에 "사내 문서를 작성해 Confluence에
+  보관하고, 원할 때 Tech Blog 등 외부 뷰어에 게시하세요." 같은 문장이 있었는데, 이는 버튼이
+  이미 하는 일을 설명하는 튜토리얼식 카피라 지워야 할 것을 실수로 다시 넣은 것이었다(사용자
+  지적으로 재확인, 2026-08-25). 로그인 화면에는 브랜드명(h1)과 짧은 유도 문구(h2)만 두고,
+  "로그인하면 무엇을 할 수 있는지" 같은 설명은 넣지 않는다.
+
+## 문서 편집 화면 — 박스 없는 에디터 캔버스 구조 (2026-08-25)
+
+새 문서 작성/문서 편집 화면도 로그인 화면처럼 "박스(Card)로 감싸지 않는" 방향으로 다시
+짰다(사용자 피드백: "페이지 전체가 에디터 모드처럼 보이게"). 이전에는 페이지가 자기 헤더
+(제목 h1 + "탐색기로" 링크)를 그리고, 그 아래 `Card`로 감싼 `DocumentEditor`가 다시 자기
+하단 툴바(삭제/게시 설정/저장)를 그리는 이중 구조였다.
+
+- **헤더를 한 곳으로 합쳤다**: `DocumentEditor`가 상단 `sticky top-0` 헤더 하나를 직접
+  그린다 — 왼쪽 "탐색기로", 오른쪽 삭제·게시 설정·저장. 페이지 파일(`new/page.tsx`,
+  `[pageId]/page.tsx`)은 더 이상 자기 헤더나 `Card`를 그리지 않고 `<main><DocumentEditor
+  .../></main>`만 남는다. 헤더가 부모(`EditorShell`의 `overflow-y-auto` 영역)를 기준으로
+  스크롤 중에도 계속 보여서, 문서가 길어져도 저장 버튼을 찾으러 스크롤할 필요가 없다 —
+  해상도가 낮은 노트북에서도 안정적으로 쓸 수 있게 하려는 목적.
+- **글자 크기를 2단계로 좁혔다**: 예전에는 페이지 h1(24px)·제목 입력(30px, `text-3xl`)·버튼
+  (14px)·안내 문구(12px, `text-xs`)가 섞여 있었다. 이때는 제목 입력을 `text-2xl`(24px)로,
+  본문 리치 텍스트를 `.prose`에서 `.prose-sm`(16px → 14px)으로 낮췄었다.
+  > **2026-08-26 갱신**: 저해상도 노트북 문제의 실제 원인은 헤더의 버튼/링크/태그류였지
+  > 본문 읽기 영역이 아니었던 것으로 재확인됐다. UI 크롬(`text-sm`)은 그대로 두고, 제목은
+  > `text-4xl`(36px, 본문 리치 텍스트 H1과 크기를 맞춤)로, 본문은 표준 `prose` 스케일
+  > (16px)로 되돌렸다 — 사내 문서 뷰어 SF-Note 캡쳐와 실측 비교 근거
+  > (`src/components/editor/RichTextEditor.tsx`, `src/components/editor/DocumentEditor.tsx`
+  > 주석 참고). 현재 기준값은 아래 "정책 레퍼런스" 절 참고.
+  문서 안의 제목1/2/3 등 서식 계층은 이 규칙 밖이다(사용자가 직접 쓰는 콘텐츠의 구조이지
+  화면 크롬이 아니다).
+- **제목 중복 문제가 구조적으로 사라졌다**: 카드/페이지 제목이 없어지면서, 문서 제목은
+  `DocumentEditor` 안의 편집 가능한 입력창 하나로만 보인다(2026-08-25 UI 진단에서 고쳤던
+  "페이지 h1과 입력창이 같은 텍스트를 두 번 보여주는" 문제 자체가 다시 생길 수 없는 구조가
+  됐다).
+- **접근성**: 화면에 보이는 헤딩이 없어져도 문서에는 h1이 하나 있어야 하므로,
+  `DocumentEditor`가 `sr-only`(화면에는 안 보이고 스크린리더에만 읽히는) h1을 렌더링한다
+  (`새 문서 작성`/`문서 편집`).
+- **후속 결함 — 빈 문서에서 "쓰는 자리"가 안 보임**: 박스를 없앤 직후, 새 문서를 열면 제목·
+  태그 아래에 편집 영역이 전혀 안 보인다는 리포트가 있었다. 실제로는 TipTap 편집기가
+  정상 동작했다(빈 `<p>`가 24px 높이로 존재, contenteditable도 true) — 다만 테두리를 주던
+  `Card`가 사라지면서 그 24px가 페이지 여백과 구분이 안 됐던 것이다. `@tiptap/extension-placeholder`로
+  빈 문서에 안내 문구("내용을 입력하세요. '/'를 입력하면...")를 띄우고, `globals.css`의
+  `.ProseMirror`에 `min-height: 320px`를 줘서 캔버스 영역 자체를 눈에 보이게 확보했다
+  (2026-08-25, 산출물: `src/components/editor/RichTextEditor.tsx`, `src/app/globals.css`).
 
 ## Do / Don't (Component Guide 발췌)
 
@@ -172,7 +378,8 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
 <Button variant="primary">취소</Button>
 <Button variant="primary">삭제</Button>
 ```
-→ 편집 화면 하단 버튼(저장/삭제/게시 설정 이동)을 재설계할 때, "저장"만 `primary`로 두고 "삭제"는 `danger`, "게시 설정"은 `secondary`로 구분한다(지금 코드의 `button-danger-outline`과 방향은 같지만 컴포넌트로 교체).
+→ 편집 화면 헤더 버튼(저장/삭제/게시 설정 이동, 2026-08-25부터 상단 헤더에 위치)에도 같은
+원칙을 적용해 "저장"만 `primary`, "삭제"는 `danger`, "게시 설정"은 `secondary`로 구분한다.
 
 **폼 구조**: 라벨/에러를 `FormField`로 감싼다.
 ```tsx
@@ -219,12 +426,17 @@ toast('오류가 발생했습니다.', 'danger')
 | Motion | `--motion-fast`(100ms) / `default`(150ms) / `slow`(300ms) | 호버, 전환, 모달 등장 |
 | Radius | `--radius-btn`/`card`/`input`/`badge` | 컴포넌트별 모서리 반경 |
 
-기존 `globals.css`의 `--color-brand: #e4002b;` 등 커스텀 토큰 값은 `@sfood/ui` 도입 시 그대로 유지할지, 디자인 시스템의 기본 브랜드 색으로 맞출지는 실제 도입 작업(Task)에서 디자인 담당자와 다시 확인한다 — 이 문서에서는 "토큰 체계를 `@sfood/ui` 방식으로 통일한다"까지만 정하고, 정확한 색상 값은 확인되지 않은 사항으로 남긴다.
+**결정됨(2026-08-25, UI 진단 후속 조치)**: 기존 `globals.css`의 `--color-brand: #e4002b;` 등 커스텀 재정의는 완전히 제거하고, `@sfood/ui`의 기본 브랜드 스케일(`#d65050`)을 그대로 쓴다. `@sfood/ui/tokens/base.css`의 주석에 "s-food.co.kr 실제 사이트의 강조색(#d65050, 메뉴/아이콘 hover)을 600 기준으로 앵커해 도출"이라고 명시돼 있어, 이 값이 이미 회사 웹사이트 기준으로 보정된 최신 값임을 확인했다. 이 결정은 CLAUDE.md의 "1순위 @sfood/ui" 원칙과도 일치한다.
 
 ## 확인되지 않은 사항
-- 기존 브랜드 색상(`#e4002b`)을 `@sfood/ui` 토큰에 그대로 반영할지 여부.
+- (없음 — 마지막 항목이었던 브랜드 색상 반영 여부는 2026-08-25에 결정됨, "토큰 레퍼런스" 절 참고)
 
 ## 확인된 사항
+- ~~기존 브랜드 색상(`#e4002b`)을 `@sfood/ui` 토큰에 그대로 반영할지 여부~~ → **`@sfood/ui` 기본값(`#d65050`)을 그대로 쓴다.**
+  `@sfood/ui/tokens/base.css`의 주석에 이 값이 s-food.co.kr 실제 사이트 강조색을 앵커해 도출한
+  것이라고 명시돼 있어, `globals.css`의 `#e4002b` 재정의가 오히려 구식 값이었다(2026-08-25 UI
+  진단). 이 재정의는 애초에 `@sfood/ui/global.css`와의 임포트 순서 문제로 실제 적용된 적도
+  없었다 — 상세 원인은 이 파일의 "v4 주의사항 2 (C2)" 참고.
 - ~~`ChipGroup`이 "태그를 자유롭게 입력해서 추가"하는 입력 모드를 지원하는지~~ → **지원하지 않는다.**
   `ChipGroup({ items, value, onChange })`는 미리 정해진 `items` 목록 중 하나를 고르는 단일 선택
   세그먼트 컨트롤(`role="tablist"`/`role="tab"`)이고, 자유 입력 슬롯이 없다. 태그를 새로 "입력"하는
@@ -232,3 +444,12 @@ toast('오류가 발생했습니다.', 'danger')
   (`src/components/editor/TagInput.tsx`)로 구현했고, 태그로 "필터링"하는 화면(이 문서의 사이드바 앱
   셸, Task 14)은 그 정해진-목록 선택 특성이 정확히 맞아 `ChipGroup`을 그대로 썼다(선택된 칩을 다시
   클릭하면 필터가 풀리는 토글 동작은 `value`/`onChange`를 감싸는 쪽에서 구현).
+
+## 문서-코드 드리프트 방지 (2026-08-25, UI 진단 Phase 3)
+
+이 문서의 "Task 14/15 검증" 절들은 `@sfood/ui`의 특정 시점 타입 정의(`node_modules/@sfood/ui/dist/index.d.ts`)를
+근거로 한 결정이다. `@sfood/ui`가 업그레이드되어 그 타입이 바뀌면(예: `Sidebar`가 `children`을 지원하게
+되거나, `ChipGroup`이 다중 선택을 지원하게 되면) 이 문서의 서술이 조용히 낡아 버린다. 그 근거가 되는
+타입 사실을 `src/components/editor/design-system-contract.test.ts`에 `expectTypeOf`로 인코딩해 뒀다 —
+`@sfood/ui`를 업그레이드했는데 `tsc --noEmit`(또는 `npm test`)이 이 파일에서 실패하면, 그 부분의 결정을
+다시 검증하고 이 문서를 갱신해야 한다는 신호다.

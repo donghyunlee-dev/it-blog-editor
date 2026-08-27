@@ -61,15 +61,31 @@ describe("TagInput", () => {
     expect(onChange).toHaveBeenCalledWith(["리액트"]);
   });
 
-  it("이미 선택된 값과 입력한 초안을 제외한 추천 태그를 제공한다", () => {
+  it("이미 선택된 값과 입력한 초안을 제외한 추천 태그를 제공한다", async () => {
     render(
       <TagInput value={["React"]} onChange={vi.fn()} suggestions={["React", "Redux", "Backend"]} />
     );
 
-    const input = screen.getByPlaceholderText("태그 입력") as HTMLInputElement;
-    const datalist = document.getElementById(input.getAttribute("list") ?? "");
+    const input = screen.getByPlaceholderText("태그 입력");
+    // 드롭다운은 초안이 있을 때만(datalist와 달리 빈 입력에서는 뜨지 않음) 열린다.
+    await userEvent.type(input, "e");
 
-    expect(datalist).not.toBeNull();
-    expect(datalist?.querySelectorAll("option")).toHaveLength(2);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(screen.getByRole("option", { name: "Redux" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Backend" })).toBeInTheDocument();
+  });
+
+  it("추천 태그를 클릭하면 태그로 추가된다", async () => {
+    const onChange = vi.fn();
+    render(
+      <TagInput value={[]} onChange={onChange} suggestions={["Redux", "Backend"]} />
+    );
+
+    const input = screen.getByPlaceholderText("태그 입력");
+    await userEvent.type(input, "red");
+    await userEvent.click(screen.getByRole("option", { name: "Redux" }));
+
+    expect(onChange).toHaveBeenCalledWith(["Redux"]);
   });
 });

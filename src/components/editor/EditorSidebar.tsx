@@ -3,12 +3,79 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChipGroup, EmptyState, StatusBadge, Tag } from "@sfood/ui";
+import { ChipGroup, EmptyState, Tag } from "@sfood/ui";
+import { BrandIcon } from "@/components/BrandIcon";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 export interface EditorSidebarProps {
   documents: DocumentSummary[];
   activePageId?: string;
+  /** 모바일 오프캔버스 드로어에서 링크 클릭 시 드로어를 닫기 위한 콜백(데스크톱에서는 불필요). */
+  onNavigate?: () => void;
+  /** 데스크톱에서 사이드바를 접을 때 호출한다(EditorShell.tsx). 없으면 접기 버튼을 렌더링하지 않는다. */
+  onCollapse?: () => void;
+  /** 로그인한 사용자 이메일. 있으면 사이드바 하단에 로그아웃과 함께 표시한다. */
+  userEmail?: string;
+  /** 로그아웃 서버 액션. 없으면 하단 로그아웃 영역 자체를 렌더링하지 않는다. */
+  onLogout?: () => void | Promise<void>;
+}
+
+/**
+ * 게시 상태를 "게시됨"/"초안" 글자 대신 아이콘 + 색으로만 표시한다(2026-08-26, 사용자
+ * 요청 — "텍스트 말고 아이콘과 색상 등으로, 사람이 보고 알 수만 있으면 돼"). 색만으로
+ * 구분하면 색맹 사용자가 놓칠 수 있어 모양도 함께 다르게 한다 — 게시됨은 속이 찬 원 +
+ * 체크, 초안은 점선 테두리 원. `title`로 호버 시 텍스트를 보여주고 `aria-label`로
+ * 스크린리더에도 의미를 남겨, "텍스트를 없앤다"가 "의미까지 없앤다"가 되지 않게 한다.
+ * 원래는 문서 아이콘(DocumentIcon, 제목 옆)과 별도로 두 번째 줄에 있었는데, "페이지
+ * 아이콘 제거하고 게시 아이콘을 넣어달라"는 요청으로 제목 옆 자리를 이걸로 대체했다
+ * (2026-08-26).
+ */
+function StatusIcon({ isPublished }: { isPublished: boolean }) {
+  if (isPublished) {
+    return (
+      <svg
+        width="13"
+        height="13"
+        viewBox="0 0 20 20"
+        className="shrink-0 text-success"
+        role="img"
+        aria-label="게시됨"
+      >
+        <title>게시됨</title>
+        <circle cx="10" cy="10" r="8" fill="currentColor" fillOpacity="0.18" />
+        <path
+          d="M6.3 10.2l2.3 2.3 5-5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg
+      width="13"
+      height="13"
+      viewBox="0 0 20 20"
+      className="shrink-0 text-muted"
+      role="img"
+      aria-label="초안"
+    >
+      <title>초안</title>
+      <circle
+        cx="10"
+        cy="10"
+        r="7.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeDasharray="2.4 2.4"
+      />
+    </svg>
+  );
 }
 
 /**
@@ -30,7 +97,14 @@ export function extractPageIdFromPathname(
   return candidate && candidate !== "new" ? candidate : undefined;
 }
 
-export function EditorSidebar({ documents, activePageId }: EditorSidebarProps) {
+export function EditorSidebar({
+  documents,
+  activePageId,
+  onNavigate,
+  onCollapse,
+  userEmail,
+  onLogout,
+}: EditorSidebarProps) {
   // layout.tsx는 서버 컴포넌트라 현재 경로를 직접 알 수 없으므로, activePageId가
   // 명시적으로 주어지지 않으면(실제 앱에서는 항상 이 경우) 클라이언트에서
   // usePathname으로 현재 열려 있는 문서를 알아낸다. usePathname은 라우터 컨텍스트가
@@ -39,19 +113,95 @@ export function EditorSidebar({ documents, activePageId }: EditorSidebarProps) {
   const currentPageId = activePageId ?? extractPageIdFromPathname(pathname);
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
+  // 피드백 — "탐색기에 문서가 많을 경우에 보기 안좋은 문제"). 제목 기준 클라이언트
+  // 필터를 추가한다.
+  const [query, setQuery] = useState("");
 
   const allTags = useMemo(
     () => Array.from(new Set(documents.flatMap((document) => document.tags))),
     [documents]
   );
 
-  const visibleDocuments = activeTag
-    ? documents.filter((document) => document.tags.includes(activeTag))
-    : documents;
+  const visibleDocuments = documents
+    .filter((document) => !activeTag || document.tags.includes(activeTag))
+    .filter((document) =>
+      query.trim() ? document.title.toLowerCase().includes(query.trim().toLowerCase()) : true
+    );
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-surface">
-      <div className="border-b border-border p-3">
+    // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
+    // 조절한 폭을 바깥 래퍼(inline style)로 정하고, 이 <aside>는 그 폭을 그대로
+    // 채운다(2026-08-26, 사용자 요청 — "사이즈 조정 바").
+    <aside className="flex h-full w-full shrink-0 flex-col border-r border-border bg-surface">
+      {/*
+        예전에는 데스크톱 사이드바 어디에도 제품명이 없어서(모바일 상단 바에만
+        "SFOOD IT Editor" 텍스트가 있었다) 화면만 보면 어떤 서비스인지 알 수 없었다
+        (2026-08-26, 사용자 피드백). 로고 마크 + 제품명을 사이드바 최상단에 고정한다.
+        로고는 처음엔 글자 "S" 하나짜리 플레이스홀더였는데, 로그인 화면 브랜드
+        일러스트(BrandPanelArt)를 축약한 아이콘(BrandIcon)으로 교체했다. 오른쪽 끝에는
+        데스크톱 전용 접기 버튼을 둔다(모바일은 이미 오프캔버스 드로어라 별개 —
+        onCollapse가 없으면 아예 렌더링하지 않는다).
+      */}
+      {/*
+        py-3 + 내용물 높이로 계산에 맡겼더니, DocumentEditor.tsx 헤더와 이론상
+        같은 높이가 나와야 하는데도(각자 다른 내용물 — 아이콘/버튼 조합 — 이라
+        실제로는 미묘하게 어긋났다) 실제로는 국경선이 안 맞았다(2026-08-26, 사용자
+        피드백 — "패널과 헤더 라인 높이가 안맞아서 굉장히 불편해"). 계산에 맡기지
+        않고 h-14(56px)로 두 헤더 모두 못을 박아 항상 정확히 맞춘다.
+      */}
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+        {/*
+          제품명을 누르면 메인 화면(/editor)으로 이동한다(2026-08-26, 사용자 요청).
+          rounded-btn을 재사용해 나머지 아이콘 버튼들과 같은 hover/focus-visible
+          스타일을 공유한다 — 별도 스타일을 새로 만들지 않는다.
+        */}
+        <Link
+          href="/editor"
+          onClick={onNavigate}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-btn py-1 pl-1 -ml-1 transition-colors duration-default hover:bg-surface-raised"
+        >
+          <BrandIcon size={24} className="shrink-0 rounded" />
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+            SFOOD IT Editor
+          </span>
+        </Link>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="문서함 접기"
+            title="문서함 접기"
+            className="hidden shrink-0 rounded-btn p-1.5 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground md:block"
+          >
+            {/*
+              화살표 쪽 + 세로선이 붙어 있는 모양이 알파벳 "K"처럼 보인다는 피드백으로
+              (2026-08-26) 다시 그렸다 — 패널(바깥 사각형)을 세로선으로 나누고 왼쪽
+              칸에 작은 화살표를 넣는, 에디터에서 흔히 쓰는 "사이드바 접기" 아이콘
+              모양으로 바꿨다.
+            */}
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="2.5" y="3.5" width="15" height="13" rx="2" stroke="currentColor" strokeWidth="1.4" />
+              <line x1="8" y1="3.5" x2="8" y2="16.5" stroke="currentColor" strokeWidth="1.4" />
+              <path
+                d="M6 8l-1.6 2 1.6 2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/*
+        "새 문서"와 아래 검색 입력 사이 구분선을 없앴다(2026-08-26, 사용자 피드백 —
+        "새문서와 검색 사이 라인은 불필요하다"). 이 둘은 같은 "컨트롤 영역"이라 굳이
+        나눌 필요가 없고, 진짜 구분이 필요한 경계(컨트롤 영역 ↔ 문서 목록)는 검색
+        입력 쪽 border-b가 그대로 맡는다.
+      */}
+      <div className="p-3 pb-0">
         {/*
           @sfood/ui의 Button은 <button>만 지원해 href를 받을 수 없다(ButtonHTMLAttributes 기반).
           실제 페이지 이동이 필요하므로 Link를 쓰되, 이 사이드바의 유일한 1차 액션이라는 의미를
@@ -59,11 +209,31 @@ export function EditorSidebar({ documents, activePageId }: EditorSidebarProps) {
         */}
         <Link
           href="/editor/new"
+          onClick={onNavigate}
           className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
         >
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
           새 문서
         </Link>
       </div>
+
+      {documents.length > 0 && (
+        <div className="border-b border-border p-3">
+          <label className="sr-only" htmlFor="sidebar-doc-search">
+            문서 제목 검색
+          </label>
+          <input
+            id="sidebar-doc-search"
+            type="search"
+            placeholder="문서 검색"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="w-full rounded-input border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
+          />
+        </div>
+      )}
 
       {allTags.length > 0 && (
         <div className="border-b border-border p-3">
@@ -79,40 +249,59 @@ export function EditorSidebar({ documents, activePageId }: EditorSidebarProps) {
 
       <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
         {documents.length === 0 ? (
-          <EmptyState
-            title="아직 작성한 문서가 없습니다."
-            description='"새 문서"로 첫 글을 작성해 보세요.'
-          />
+          <EmptyState title="아직 작성한 문서가 없습니다." />
         ) : visibleDocuments.length === 0 ? (
-          <EmptyState title="이 태그가 붙은 문서가 없습니다." />
+          <EmptyState title="조건에 맞는 문서가 없습니다." />
         ) : (
-          <ul className="flex flex-col gap-1">
+          // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
+          // 구분 라인도 필요없어"라는 요청으로 뺐다(2026-08-26). 행 자체의 hover
+          // 배경(아래 isActive 삼항)만으로도 행 구분은 충분하다.
+          <ul className="flex flex-col gap-0.5">
             {visibleDocuments.map((document) => {
               const isActive = document.pageId === currentPageId;
               return (
                 <li key={document.pageId}>
                   <Link
                     href={`/editor/${document.pageId}`}
+                    onClick={onNavigate}
                     aria-current={isActive ? "page" : undefined}
+                    // 왼쪽 강조 테두리 바는 빼고 배경색만 쓴다 — 사용자 피드백: "이
+                    // 패턴은 AI가 자주 만드는 디자인이야"(2026-08-26). 위아래 패딩을
+                    // py-2(8px)에서 py-1.5(6px)로 좁혀 목록을 더 촘촘하게 만들고,
+                    // 왼쪽은 pl-2(8px, 기존 px-3 대비 4px 절약)로 줄여 제목이 잘리기
+                    // 전까지 보이는 글자 수를 늘렸다(2026-08-26, 사용자 요청 — "왼쪽
+                    // 공백도 좀 줄여서 제목이 더 보이게"). 오른쪽은 그대로 pr-3(12px)
+                    // 둬서 리사이즈 핸들과 부딪히지 않게 여유를 남긴다.
                     className={
-                      "block rounded-btn px-3 py-2 transition-colors duration-default " +
+                      "block rounded-btn py-1.5 pl-2 pr-3 transition-colors duration-default " +
                       (isActive
-                        ? "bg-surface-overlay text-foreground"
+                        ? "sidebar-row-active text-foreground"
                         : "text-foreground hover:bg-surface-raised")
                     }
                   >
-                    <p className="truncate text-sm font-medium">
-                      {document.title}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <StatusBadge
-                        status={document.isPublished ? "success" : "inactive"}
-                        label={document.isPublished ? "게시됨" : "초안"}
-                      />
-                      {document.tags.map((tag) => (
-                        <Tag key={tag}>{tag}</Tag>
-                      ))}
+                    {/*
+                      예전엔 제목 옆에 문서 아이콘(모든 행에서 똑같아 정보가 없었다)이
+                      있었는데, 게시 상태 아이콘으로 바꿨다 — 한눈에 게시됨/초안을
+                      구분할 수 있어 더 쓸모 있는 자리다(2026-08-26, "페이지 아이콘
+                      제거하고 게시 아이콘을 넣어줘"). 날짜는 문서를 열었을 때 보이는
+                      풋터로 옮겨서(DocumentEditor.tsx) 여기서는 뺐다. 아이콘·간격도
+                      같은 이유로 좁혔다(14px→13px, gap-1.5→gap-1).
+                    */}
+                    <div className="flex items-start gap-1">
+                      <span className="mt-0.5">
+                        <StatusIcon isPublished={document.isPublished} />
+                      </span>
+                      <p className="min-w-0 truncate text-sm font-medium">
+                        {document.title}
+                      </p>
                     </div>
+                    {document.tags.length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
+                        {document.tags.map((tag) => (
+                          <Tag key={tag}>{tag}</Tag>
+                        ))}
+                      </div>
+                    )}
                   </Link>
                 </li>
               );
@@ -120,6 +309,40 @@ export function EditorSidebar({ documents, activePageId }: EditorSidebarProps) {
           </ul>
         )}
       </nav>
+
+      {onLogout && (
+        // 예전에는 이메일 아래에 "로그아웃"이 풀폭 텍스트로 세로로 쌓여 있어 어색했고,
+        // 화면 맨 아래-왼쪽 구석이라 브라우저 확장 프로그램이 그리는 플로팅 버튼(예:
+        // 노션 웹 클리퍼의 원형 "N" 아이콘 — 이 앱 코드와 무관한 브라우저 확장 UI다)에
+        // 가려지기도 했다(2026-08-26, 사용자 피드백). 한 줄에 이메일 + 테마 토글 +
+        // 아이콘형 로그아웃 버튼으로 압축해 세로 공간을 줄이고, 텍스트 대신 아이콘
+        // 버튼이라 확장 프로그램 아이콘과도 덜 헷갈린다.
+        <form
+          action={onLogout}
+          className="flex items-center gap-1 border-t border-border p-3"
+        >
+          <span className="min-w-0 flex-1 truncate text-xs text-muted" title={userEmail}>
+            {userEmail}
+          </span>
+          <ThemeToggle />
+          <button
+            type="submit"
+            aria-label="로그아웃"
+            title="로그아웃"
+            className="rounded-btn p-1.5 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path
+                d="M8 17H4.5A1.5 1.5 0 0 1 3 15.5v-11A1.5 1.5 0 0 1 4.5 3H8M13 14l4-4-4-4M17 10H8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+        </form>
+      )}
     </aside>
   );
 }

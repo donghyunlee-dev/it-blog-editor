@@ -36,6 +36,7 @@ export interface DocumentDetail {
   title: string;
   doc: JSONContent;
   version: number;
+  updatedAt: string;
 }
 
 /**
@@ -154,6 +155,7 @@ export async function getDocumentDetail(
     title: page.title,
     doc: sourceProperty?.value.doc ?? { type: "doc", content: [] },
     version: page.version.number,
+    updatedAt: page.version.createdAt,
   };
 }
 

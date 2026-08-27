@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId, useRef, useState, type KeyboardEvent } from "react";
 import { Tag } from "@sfood/ui";
 
 export interface TagInputProps {
@@ -11,14 +11,24 @@ export interface TagInputProps {
 
 export function TagInput({ value, onChange, suggestions }: TagInputProps) {
   const [draft, setDraft] = useState("");
-  const datalistId = useId();
+  // 예전에는 <datalist>(브라우저 네이티브 자동완성)를 썼는데, 다크 테마 토큰이 전혀
+  // 적용되지 않아 대부분의 브라우저에서 OS 기본 라이트 배경 드롭다운으로 뜨는 문제가
+  // 있었다(2026-08-26 UI 진단). 직접 스타일한 드롭다운으로 교체한다.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listboxId = useId();
 
-  function commitDraft() {
-    const tag = draft.trim();
-    if (tag && !value.includes(tag)) {
-      onChange([...value, tag]);
+  function commitTag(tag: string) {
+    const trimmed = tag.trim();
+    if (trimmed && !value.includes(trimmed)) {
+      onChange([...value, trimmed]);
     }
     setDraft("");
+    setSuggestionsOpen(false);
+  }
+
+  function commitDraft() {
+    commitTag(draft);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -41,27 +51,61 @@ export function TagInput({ value, onChange, suggestions }: TagInputProps) {
   const candidates = suggestions.filter(
     (suggestion) => !value.includes(suggestion) && suggestion.toLowerCase().includes(draft.toLowerCase())
   );
+  const showSuggestions = suggestionsOpen && draft.length > 0 && candidates.length > 0;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="relative flex flex-wrap items-center gap-2">
       {value.map((tag) => (
         <Tag key={tag} onRemove={() => removeTag(tag)} removeLabel={`${tag} 삭제`}>
           {tag}
         </Tag>
       ))}
       <input
-        className="flex-1 min-w-[8rem] bg-transparent text-sm outline-none"
+        ref={inputRef}
+        className="min-w-[8rem] flex-1 bg-transparent text-sm outline-none"
         placeholder="태그 입력"
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setSuggestionsOpen(true);
+        }}
+        onFocus={() => setSuggestionsOpen(true)}
+        // 후보 목록 클릭보다 blur가 먼저 발생해 목록이 닫혀버리지 않도록 한 프레임
+        // 늦춰서 닫는다.
+        onBlur={() => setTimeout(() => setSuggestionsOpen(false), 100)}
         onKeyDown={handleKeyDown}
-        list={datalistId}
+        role="combobox"
+        aria-expanded={showSuggestions}
+        aria-autocomplete="list"
+        aria-controls={listboxId}
       />
-      <datalist id={datalistId}>
-        {candidates.map((candidate) => (
-          <option key={candidate} value={candidate} />
-        ))}
-      </datalist>
+      {showSuggestions && (
+        <ul
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 top-full z-10 mt-1 max-h-48 w-56 overflow-y-auto rounded-card border border-border bg-surface p-1 shadow-md"
+        >
+          {candidates.map((candidate) => (
+            <li key={candidate}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={false}
+                className="block w-full rounded px-2 py-1 text-left text-sm text-foreground hover:bg-surface-raised"
+                // input의 onBlur보다 먼저 실행되도록 mousedown에서 커밋한다(click은
+                // blur 이후에 발생해 늦게 잡히면 목록이 이미 닫혀 있을 수 있다).
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  commitTag(candidate);
+                  inputRef.current?.focus();
+                }}
+              >
+                {candidate}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

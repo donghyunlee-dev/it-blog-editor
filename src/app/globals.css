@@ -3,234 +3,107 @@
 @source "../../node_modules/@sfood/ui/dist";
 @plugin "@tailwindcss/typography";
 
-:root {
-  --color-background: #ffffff;
-  --color-text-primary: #54585a;
-  --color-text-secondary: #6a6a6a;
-  --color-brand: #e4002b;
-  --color-surface: #f2f2f2;
-  --shadow-card: rgba(0, 0, 0, 0.02) 0px 0px 0px 1px, rgba(0, 0, 0, 0.04) 0px 2px 6px,
-    rgba(0, 0, 0, 0.1) 0px 4px 8px;
+/*
+ * 알려진 결함: `max-w-xs`/`max-w-sm`/`max-w-md`/`max-w-lg`/`max-w-xl`/`max-w-2xl` 클래스를
+ * 쓰지 않는다 — 대신 `max-w-[24rem]`처럼 arbitrary value를 쓴다.
+ *
+ * `@config`로 불러온 v3 프리셋(tailwind.config.js → @sfood/ui의 preset)이
+ * theme.extend.spacing에 xs/sm/md/lg/xl/2xl 키를 정의하는데(컴포넌트 내부 padding/gap용
+ * spacing.sm = 8px 등), 이 프로젝트의 Tailwind v4 + v3 프리셋 호환 모드에서는 그 이름이
+ * max-width 스케일의 동명 키와 겹쳐 `max-w-sm` 등이 원래 값(24rem)이 아니라 spacing 쪽 값
+ * (8px)으로 계산된다 — 빌드 에러 없이 조용히 깨지는 문제다(2026-08-25, 로그인 화면 카드가
+ * 8px 폭으로 찌그러져 한글이 세로 한 글자씩 줄바꿈되는 것으로 발견. `.max-w-3xl` 이상
+ * 키는 겹치지 않아 정상 동작 확인).
+ *
+ * 표준 Tailwind maxWidth 기본값을 `@theme`로 되살리는 시도, tailwind.config.js의
+ * theme.extend.maxWidth로 보정하는 시도(루트 config·presets 배열에 추가하는 두 방식 모두)를
+ * 실제로 빌드해 확인했으나 이 프로젝트의 `@config` 호환 로더에서는 전부 조용히 무시되고
+ * 컴파일 결과가 바뀌지 않았다(같은 파일의 일반 CSS 규칙은 정상적으로 다시 컴파일되는 것으로
+ * 확인했으므로 캐시 문제는 아니다). 원인을 더 깊게 규명하기 전까지는, 이 여섯 키만은 항상
+ * arbitrary value로 우회한다.
+ *
+ * 위 "arbitrary value로 우회" 워크어라운드는 이 프로젝트 자신이 쓰는 코드에만 적용할 수
+ * 있다 — `@sfood/ui`의 `Modal`은 내부적으로 `size` prop(기본값 "md")에 따라
+ * `max-w-sm`/`max-w-md`/`max-w-2xl`을 자체적으로 쓰는데(node_modules/@sfood/ui/dist/index.js),
+ * `className`을 받지 않아 밖에서 폭을 덮어씌울 수도 없다. 그 결과 이 앱에서 Modal을
+ * 쓰는 곳(문서 삭제 확인, 게시 설정)마다 실제로는 16px 폭으로 렌더링되고 있었다 — 글자가
+ * 세로로 한 글자씩 쪼개지는 증상으로 확인됨(2026-08-26, 게시 설정 오버레이 캡쳐에서
+ * 처음 시각적으로 발견됐지만, size 옵션 3개(sm/md/lg→max-w-2xl)가 전부 이 여섯 키에
+ * 걸려 있어 그 전부터 있던 문서 삭제 모달도 같은 상태였을 것이다). 그래서 이 여섯
+ * 클래스 자체를 표준 Tailwind 값으로 되살려, 이 프로젝트 코드가 우회하는 것과 별개로
+ * `@sfood/ui` 내부 사용도 정상 동작하게 한다.
+ */
+.max-w-xs {
+  max-width: 20rem !important;
 }
 
-* {
-  box-sizing: border-box;
+.max-w-sm {
+  max-width: 24rem !important;
 }
 
+.max-w-md {
+  max-width: 28rem !important;
+}
+
+.max-w-lg {
+  max-width: 32rem !important;
+}
+
+.max-w-xl {
+  max-width: 36rem !important;
+}
+
+.max-w-2xl {
+  max-width: 42rem !important;
+}
+
+/*
+ * 색상 등 다른 토큰은 전부 `@sfood/ui`(디자인 시스템) 값을 그대로 따른다 — CLAUDE.md의
+ * "1순위 @sfood/ui" 원칙 참고. 이 프로젝트에서 별도로 재정의하지 않는다(과거에
+ * --color-brand(#e4002b)/--color-surface(#f2f2f2)/--color-background를 여기서
+ * 재정의했던 적이 있는데, `@sfood/ui`도 같은 이름의 변수를 선언해 조용히 무력화됐었다 —
+ * 2026-08-25 UI 진단. `@sfood/ui`의 기본 브랜드 스케일은 이미 s-food.co.kr 실제
+ * 강조색(#d65050)에 맞춰 보정되어 있다, base.css 주석 참고). `body`의 배경/글자색/폰트
+ * 스무딩은 원래 `@sfood/ui/global.css`의 body 규칙이 제공했는데, 그 파일 전체를 더 이상
+ * import하지 않으므로(이유는 src/app/layout.tsx의 import 주석 참고) 여기서 같은 값을
+ * 직접 선언한다. 한국어 서비스에 맞는 폰트만 이 프로젝트에서 지정한다 — 실서비스
+ * (ax-wiki.s-food.ai)와 동일한 Pretendard Variable을 `next/font/local`로 self-host해
+ * `--font-pretendard`로 주입한다(layout.tsx 참고). 예전엔 Pretendard를 스택에 적어만
+ * 두고 실제로 로드한 적이 없어 맨 앞의 "맑은고딕"(Windows 시스템 폰트)이 항상 이겼다.
+ */
 body {
-  margin: 0;
-  background: var(--color-background);
-  color: var(--color-text-primary);
-  font-family: "맑은고딕", Pretendard, -apple-system, system-ui, Roboto, "Helvetica Neue", sans-serif;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-pretendard), "Malgun Gothic", "맑은고딕", -apple-system, system-ui, Roboto, "Helvetica Neue", sans-serif;
   font-weight: 500;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-h1,
-h2,
-h3 {
-  font-weight: 700;
-  letter-spacing: -0.18px;
-}
+/*
+ * Tailwind 유틸리티 클래스(@layer utilities)가 이 기본값을 정상적으로 덮어쓸 수 있도록
+ * @layer base 안에 둔다. 레이어 밖에 두면(예전처럼) 특정성과 무관하게 이 규칙이 항상 이겨,
+ * `text-on-brand`/`text-foreground` 같은 클래스를 입힌 <a>(이 프로젝트에서 Button 대신
+ * 페이지 이동용으로 흔히 쓰는 패턴)도 전부 이 색으로 강제됐다 — 로그인 CTA·사이드바
+ * "새 문서" 등 링크형 버튼의 글자색 대비가 1.75:1까지 떨어졌던 원인(2026-08-25 UI 진단).
+ */
+@layer base {
+  a {
+    color: var(--color-foreground);
+  }
 
-a {
-  color: var(--color-text-primary);
-}
-
-.page {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 32px 24px;
-}
-
-.page-title {
-  font-size: 1.75rem;
-  line-height: 1.43;
-  margin: 0 0 8px;
-}
-
-.page-subtitle {
-  color: var(--color-text-secondary);
-  font-weight: 400;
-  margin: 0 0 24px;
-}
-
-.card {
-  background: var(--color-background);
-  border-radius: 20px;
-  box-shadow: var(--shadow-card);
-  padding: 24px;
-}
-
-.card + .card {
-  margin-top: 16px;
+  h1,
+  h2,
+  h3 {
+    font-weight: 700;
+    letter-spacing: -0.18px;
+  }
 }
 
 .stack {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 500;
-  padding: 0 24px;
-  height: 44px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-}
-
-.button-primary {
-  background: #222222;
-  color: #ffffff;
-}
-
-.button-primary:hover {
-  background: var(--color-brand);
-}
-
-.button-secondary {
-  background: var(--color-surface);
-  color: #222222;
-}
-
-.button-danger-outline {
-  background: transparent;
-  color: var(--color-brand);
-  border: 1px solid var(--color-brand);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.field label {
-  font-size: 0.88rem;
-  font-weight: 600;
-}
-
-.field input[type="text"],
-.field input[type="email"],
-.field textarea,
-.field select {
-  font-family: inherit;
-  font-size: 0.88rem;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: var(--color-text-primary);
-}
-
-.field textarea {
-  min-height: 320px;
-  resize: vertical;
-  line-height: 1.5;
-}
-
-.empty-state {
-  color: var(--color-text-secondary);
-  text-align: center;
-  padding: 48px 16px;
-}
-
-.doc-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.doc-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border-radius: 14px;
-  background: var(--color-background);
-  box-shadow: var(--shadow-card);
-  text-decoration: none;
-  color: inherit;
-}
-
-.doc-list-item-title {
-  font-weight: 600;
-}
-
-.doc-list-item-meta {
-  color: var(--color-text-secondary);
-  font-size: 0.81rem;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  font-size: 0.69rem;
-  font-weight: 600;
-  padding: 2px 10px;
-  border-radius: 14px;
-  background: var(--color-surface);
-  color: #222222;
-}
-
-.badge-brand {
-  background: var(--color-brand);
-  color: #ffffff;
-}
-
-.error-text {
-  color: var(--color-brand);
-  font-size: 0.81rem;
-}
-
-.viewer-content {
-  line-height: 1.6;
-  margin: 24px 0 32px;
-}
-
-.viewer-content table.viewer-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin: 16px 0;
-}
-
-.viewer-content table.viewer-table th,
-.viewer-content table.viewer-table td {
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.viewer-code {
-  background: var(--color-surface);
-  border-radius: 14px;
-  padding: 16px;
-  overflow-x: auto;
-  font-size: 0.88rem;
-}
-
-.viewer-panel {
-  border-radius: 14px;
-  padding: 16px;
-  margin: 16px 0;
-  background: var(--color-surface);
-}
-
-.viewer-panel strong {
-  display: block;
-  margin-bottom: 4px;
-}
-
-.viewer-panel-warning {
-  background: #fdecea;
 }
 
 .toolbar {
@@ -290,3 +163,327 @@ a {
   background: var(--color-surface-subtle);
   font-weight: 600;
 }
+
+/*
+ * 박스(Card) 없이 페이지 전체가 캔버스로 보이는 구조(2026-08-25)에서는 편집기 둘레에
+ * 테두리가 없어, 빈 문서일 때 "쓰는 자리"가 안 보이는 문제가 있었다(빈 <p>는 실제로는
+ * 24px 높이로 존재하지만 시각적 표시가 전혀 없었음). min-height로 캔버스 영역을 눈에
+ * 보이게 확보하고, @tiptap/extension-placeholder(RichTextEditor.tsx)가 붙이는
+ * `is-editor-empty` 클래스·`data-placeholder` 속성으로 안내 문구를 띄운다.
+ */
+/*
+ * `body`의 기본 font-weight(500, 위 body 규칙)는 버튼·라벨 같은 짧은 UI 텍스트에는
+ * 맞지만(대부분 자체적으로 font-medium을 또 선언해 사실상 무관), @tailwindcss/typography의
+ * `prose`는 문단에 자체 font-weight를 선언하지 않아 이 500이 그대로 새어 들어와 긴
+ * 본문 문장이 필요 이상으로 두꺼워 보였다(2026-08-26, Notion/Confluence 캡쳐와 나란히
+ * 비교해 확인 — 둘 다 본문은 일반 굵기다). 문서 본문만 표준 본문 굵기로 되돌린다.
+ * 헤딩(h1~h4)은 플러그인이 자체적으로 굵게(bold) 선언해 두므로 영향받지 않는다.
+ */
+/*
+ * min-height가 그냥 "320px"라는 매직 넘버였다 — 왜 320인지 근거가 없어 "대충 잡은
+ * 값"처럼 느껴진다는 지적을 받았다(2026-08-26, 사용자 피드백 — "빈 본문 영역이
+ * 근거 없이 대충 잡힌 느낌"). 화면 높이와 무관한 고정값 대신, "새 문서를 열면 캔버스가
+ * 화면 나머지를 자연스럽게 채운다"는 명확한 기준으로 바꾼다 — 뷰포트 높이에서 헤더·
+ * 제목·태그·여백이 차지하는 대략적인 높이(약 220px)를 뺀 나머지를 최소 높이로 준다.
+ * dvh를 지원하지 않는 브라우저를 위해 vh를 먼저 선언해 폴백으로 남겨 둔다.
+ */
+.ProseMirror {
+  min-height: calc(100vh - 220px);
+  min-height: calc(100dvh - 220px);
+  font-weight: 400;
+}
+
+/*
+ * 위 400은 라이트 모드 기준(Notion/Confluence 비교)이었는데, 다크 배경 위 옅은 색
+ * 글자는 얇은 굵기일수록 획이 배경에 묻혀 더 흐릿해 보이는 현상이 있다 — 색상표로는
+ * 제목(bold, 700)과 완전히 같은 색(getComputedStyle로 직접 확인: 둘 다
+ * rgb(249,250,251))인데도 본문이 더 흐릿하게 느껴졌다(2026-08-26, 사용자가 다시
+ * "다크 테마에서 글자가 안 보여"라고 재확인). 색상 문제가 아니라 다크 배경에서의
+ * 얇은 글자 가독성 문제라, 다크 모드에서만 살짝 더 굵게 보정한다.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .ProseMirror {
+    font-weight: 450;
+  }
+}
+
+[data-theme="dark"] .ProseMirror {
+  font-weight: 450;
+}
+
+/*
+ * 심각한 결함(2026-08-26, 실사용 확인): `dark:prose-invert`를 썼었는데, Tailwind의
+ * `dark:` variant는 기본적으로 `prefers-color-scheme: dark` 미디어 쿼리를 따른다 —
+ * 이 프로젝트가 실제로 테마를 결정하는 방식(ThemeToggle이 <html>에 다는
+ * `data-theme="light"/"dark"` 속성, @sfood/ui 토큰이 따르는 것과 동일한 방식)과
+ * 완전히 별개다. 그 결과 "OS는 다크인데 앱에서 라이트를 명시적으로 고른" 상태에서는
+ * 배경은 (토큰이 정상 반영돼) 흰색으로 바뀌는데 `dark:prose-invert`는 여전히
+ * OS 미디어 쿼리만 보고 발동해 본문 글자색이 다크모드용 밝은 색 그대로 남아 —
+ * 흰 배경 위에 거의 안 보이는 글자가 되는 정확히 그 문제가 재현됐다.
+ * Tailwind dark: variant에 기대는 대신, `prose`가 읽는 --tw-prose-* 변수를 이
+ * 프로젝트의 시맨틱 토큰에 직접 매핑한다 — 이 토큰들은 이미 어떤 방식으로 테마가
+ * 정해지든(OS 미디어 쿼리든 명시적 [data-theme]든) 항상 올바르게 반영되므로,
+ * Tailwind의 dark: 분기 없이도 항상 정확하다.
+ *
+ * 후속 결함(2026-08-26, "폰트 컬러 때문에 글자가 안보여" 재확인 — DevTools로
+ * 실제 DOM을 뜯어보고서야 원인 파악): 실제 구조는 `.prose`(RichTextEditor.tsx의
+ * className, 바깥) 안에 TipTap이 붙이는 `.ProseMirror`(contenteditable, 안쪽)가
+ * 있다. 아래 변수를 `.ProseMirror`에만 선언했더니, 자기만의 색상 규칙이 있는
+ * h1~h4·링크·굵게 등은 그 규칙이 각 요소에서 --tw-prose-*를 다시 조회해 정상
+ * 반영됐지만, 일반 `<p>`(별도 규칙 없이 그냥 `.prose` 자신의 color를 상속만 받는
+ * 요소)는 `.prose` 자신의 color가 "그 시점, 그 요소 기준"으로 이미 계산되어 있어
+ * — 자식인 `.ProseMirror`에 나중에 얹은 값을 반영하지 못했다(브라우저에서 직접
+ * getComputedStyle로 재현·확인: `.ProseMirror`에서는 --tw-prose-body가 올바른
+ * 값이었는데도 `<p>`의 실제 color는 옛 값이었다). `.prose` 자신에 선언해야
+ * `.prose`의 color 자체가 옳게 계산되고, 그걸 상속받는 `<p>`도 함께 옳아진다.
+ */
+.prose {
+  --tw-prose-body: var(--color-foreground);
+  --tw-prose-headings: var(--color-foreground);
+  --tw-prose-lead: var(--color-secondary);
+  /* 라이트 모드 기본값은 --color-brand-hover(더 짙은 톤) — 아래 다크 모드 오버라이드
+     참고. --color-brand 그대로 쓰면 흰 배경 대비 약 4.10:1로 WCAG AA(4.5:1)에
+     근소하게 못 미쳤다(2026-08-26, 실측). */
+  --tw-prose-links: var(--color-brand-hover);
+  --tw-prose-bold: var(--color-foreground);
+  --tw-prose-counters: var(--color-muted);
+  /* 글머리 기호는 border-strong(경계선용, 아주 옅음)이 아니라 muted를 써야
+     문서 내용으로서 눈에 띈다(2026-08-26, "지적한 것 외에" 재검토로 발견). */
+  --tw-prose-bullets: var(--color-muted);
+  --tw-prose-hr: var(--color-border);
+  --tw-prose-quotes: var(--color-foreground);
+  --tw-prose-quote-borders: var(--color-border);
+  --tw-prose-captions: var(--color-muted);
+  --tw-prose-kbd: var(--color-foreground);
+  --tw-prose-code: var(--color-foreground);
+  --tw-prose-pre-code: var(--color-foreground);
+  --tw-prose-pre-bg: var(--color-surface-subtle);
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
+}
+
+/*
+ * 다크 배경(#030712에 가까움)에서는 --color-brand 자체만으로도 대비 약 4.91:1로
+ * 이미 AA를 통과한다 — 오히려 더 짙은 brand-hover를 쓰면 다크 배경에서 대비가
+ * 약 3.06:1로 나빠진다. 그래서 링크색은 라이트/다크에서 서로 다른 브랜드 톤을
+ * 쓴다 — @sfood/ui 토큰(tokens/semantic.css)이 배경/전경에 쓰는 것과 같은
+ * 미디어 쿼리 + [data-theme] 조합 패턴을 그대로 따른다.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .prose {
+    --tw-prose-links: var(--color-brand);
+  }
+}
+
+[data-theme="dark"] .prose {
+  --tw-prose-links: var(--color-brand);
+}
+
+/*
+ * @tailwindcss/typography의 기본 `prose` 스케일(RichTextEditor.tsx 참고)은 문단·헤딩
+ * 여백이 넉넉해(예: h2 marginTop 48px) 목록이 많은 문서에서 스크롤이 과도하게 길어졌다
+ * (2026-08-26, Notion 캡쳐와 비교 — Notion은 문단·목록 간격이 훨씬 촘촘하다). 글자
+ * 크기는 표준 스케일을 유지하되, 세로 여백만 좀 더 촘촘하게 덮어쓴다. `:where()`로
+ * 감싸 특정성을 0으로 낮춘 플러그인 규칙 위에 일반 선택자로 얹는 것이라 순서와
+ * 무관하게 항상 이긴다.
+ */
+.ProseMirror {
+  line-height: 1.6;
+}
+
+.ProseMirror p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror h1 {
+  margin-top: 0;
+  margin-bottom: 0.6em;
+}
+
+.ProseMirror h2 {
+  margin-top: 1.4em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror h3 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+}
+
+.ProseMirror ul,
+.ProseMirror ol {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.ProseMirror li {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+.ProseMirror li > p {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
+}
+
+/*
+ * ProseMirror/TipTap은 포커스 시 outline을 자체적으로 리셋하지 않는다. 이 리셋이 없으면
+ * 브라우저 기본 포커스 아웃라인이 사각 테두리로 그려져, 박스(Card) 없이 페이지 전체가
+ * 캔버스로 보이도록 만든 구조(위 "박스 없이..." 절 참고)와 충돌한다 — 캔버스에 커서를
+ * 두는 순간 320px 높이의 넓은 쓰기 영역이 갑자기 작은 <textarea>처럼 테두리에 갇혀
+ * 보이는 문제가 있었다(2026-08-26 실사용 캡쳐로 확인 — 사용자가 "폭/높이가 작다"고
+ * 느낀 실제 원인이었다). TipTap은 포커스 시 `ProseMirror-focused` 클래스를 자동으로
+ * 붙이므로 이를 함께 리셋한다.
+ */
+.ProseMirror:focus,
+.ProseMirror-focused {
+  outline: none;
+}
+
+/*
+ * 박스 없는 캔버스라 본문도 제목처럼 포커스를 옮기기 전엔 "여기가 수정 가능한
+ * 영역"이라는 신호가 없었다(2026-08-26, 사용자 요청 — 제목과 같은 이유). padding과
+ * 그만큼의 음수 margin을 평소에도 걸어 두면(포커스 여부와 무관하게 항상 상쇄돼
+ * 있음) 글자의 평소 위치는 그대로 유지되면서, 포커스 시 배경색만 바뀌어도 레이아웃
+ * 이동(jank) 없이 살짝 넓은 배경이 나타난다.
+ */
+.ProseMirror {
+  margin: -8px -12px;
+  border-radius: var(--radius-card);
+  padding: 8px 12px;
+  transition: background-color var(--motion-default) ease;
+}
+
+.ProseMirror:focus,
+.ProseMirror-focused {
+  background-color: var(--color-surface-raised);
+}
+
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+
+/*
+ * @sfood/ui의 Alert/Toast는 라이트 모드 전용 하드코딩 팔레트를 쓴다(예:
+ * Alert danger = bg-red-50/border-red-200/text-red-800, Toast warning = bg-warning
+ * + 고정 text-white). 다크 배경 위에서 밝은 라이트모드 조각이 그대로 노출되거나
+ * (Alert), 흰 글자 대비가 WCAG AA(4.5:1)에 못 미치는 문제(Toast)가 있다(2026-08-26
+ * UI 진단). 컴포넌트 자체는 이 프로젝트에서 수정할 수 없으므로, 실제 렌더링되는
+ * 유틸리티 클래스를 대상으로 토큰 기반 값으로 덮어쓴다.
+ */
+[role="alert"].bg-red-50 {
+  background-color: color-mix(in srgb, var(--color-danger) 14%, var(--color-surface)) !important;
+  border-color: var(--color-danger) !important;
+  color: var(--color-danger) !important;
+}
+
+[role="alert"].bg-green-50 {
+  background-color: color-mix(in srgb, var(--color-success) 14%, var(--color-surface)) !important;
+  border-color: var(--color-success) !important;
+  color: var(--color-success) !important;
+}
+
+[role="alert"].bg-yellow-50 {
+  background-color: color-mix(in srgb, var(--color-warning) 14%, var(--color-surface)) !important;
+  border-color: var(--color-warning) !important;
+  color: var(--color-warning) !important;
+}
+
+[role="alert"].bg-blue-50 {
+  background-color: color-mix(in srgb, var(--color-info) 14%, var(--color-surface)) !important;
+  border-color: var(--color-info) !important;
+  color: var(--color-info) !important;
+}
+
+/*
+ * Toast의 흰 글자(text-white) 대비를 실제로 계산해 보니 warning만이 아니라 네
+ * variant 전부 WCAG AA(4.5:1) 미달이었다(2026-08-26, "지적한 것 외에 문제 없어
+ * 보이냐"는 피드백에 컴포넌트별로 다시 계산해 확인) — success(bg-success,
+ * green-500) 약 2.28:1, danger(red-500) 약 3.76:1, info(blue-500) 약 3.68:1,
+ * warning(amber-500) 약 1.98:1. 네 배경 모두 중간 명도라 흰 글자보다 짙은 글자가
+ * 항상 더 나은 대비를 준다(예: success 배경에 짙은 글자는 약 9.2:1) — variant별로
+ * 따로 맞추는 대신 네 배경 전부에 통하는 짙은 텍스트로 통일한다.
+ */
+.fixed.bottom-4.right-4.z-50 > .text-white {
+  color: var(--gray-900) !important;
+}
+
+/*
+ * @sfood/ui의 Input/Textarea/Select/Switch는 전부 `focus:ring-brand`로 포커스 스타일을
+ * 갖고 있지만, Button은 그런 focus: 클래스가 전혀 없다(node_modules/@sfood/ui/dist/index.js
+ * 확인). 그 결과 저장/삭제/게시 설정 같은 모든 Button과, 그 토큰 클래스를 그대로 재사용하는
+ * "새 문서"/로그인 CTA 같은 <a> 버튼이 포커스를 받으면 브랜드와 무관한 브라우저 기본
+ * 아웃라인이 그대로 드러난다(2026-08-26, 실사용 캡쳐에 "새 문서" 버튼 주변 테두리로 반복
+ * 확인됨). Button·이를 흉내낸 버튼형 링크가 항상 갖는 `rounded-btn` 클래스를 대상으로
+ * Input과 톤을 맞춘 브랜드 포커스 링을 준다.
+ */
+.rounded-btn:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/*
+ * 브라우저는 <button>에 기본적으로 cursor: pointer를 주지 않는다(대부분 브라우저의
+ * UA 스타일시트가 cursor: default를 쓴다) — Tailwind Preflight도 이를 되살려 주지
+ * 않는다. 처음엔 Switch(button role="switch")만 고쳤는데(게시 설정 토글에서 발견),
+ * 사실 @sfood/ui의 Button 자체도 cursor 유틸리티가 전혀 없어서 저장/삭제/게시 설정
+ * 등 앱의 모든 버튼이 똑같이 마우스 포인터가 안 바뀌고 있었다(2026-08-26, 사용자
+ * 재확인 — "모든 버튼에 마우스 포인터가 변화가 없네"). Button이 항상 갖는
+ * `rounded-btn`까지 함께 대상으로 삼아 한 번에 고친다.
+ */
+button[role="switch"],
+.rounded-btn {
+  cursor: pointer;
+}
+
+/*
+ * 사이드바에서 현재 열려 있는 문서 행에 `bg-surface-overlay`를 줬었는데,
+ * `tokens/semantic.css`를 보면 라이트 모드에서 --color-surface-overlay가
+ * --color-surface와 똑같이 흰색이다(다크 모드에서만 gray-800으로 갈라진다) —
+ * 그래서 라이트 모드에서는 선택된 문서가 사이드바 배경과 구분이 전혀 안 됐다
+ * (2026-08-26, 사용자 피드백 — "선택한 페이지에 대한 문서함에 표현이 없네").
+ * 라이트/다크 어느 쪽에서도 항상 주변과 달라 보이도록, 토큰이 우연히 같은 값이
+ * 되는 경우에 기대지 않고 브랜드색을 옅게 섞은 배경을 직접 만든다.
+ */
+.sidebar-row-active {
+  background-color: color-mix(in srgb, var(--color-brand) 10%, var(--color-surface));
+}
+
+/*
+ * `/editor` 첫 화면의 "대표 기능" 스포트라이트 카드용. 문서 목록이 없는 첫 화면이
+ * 밋밋하다는 피드백(2026-08-26, "특별한 기능의 소개처럼 안보여")에 대응해, 이
+ * 서비스에서 가장 차별화된 기능(외부 공개) 하나를 브랜드색을 옅게 섞은 배경으로
+ * 도드라지게 보여준다 — 나머지 카드(중립 surface)와 다른 무게감을 준다.
+ */
+.spotlight-card {
+  background-color: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
+  border-color: color-mix(in srgb, var(--color-brand) 25%, var(--color-border));
+}
+.spotlight-icon-chip {
+  background-color: color-mix(in srgb, var(--color-brand) 15%, transparent);
+}
+
+/*
+ * 스포트라이트 카드 위의 강조 텍스트/아이콘 색. `text-brand`(브랜드 원색, #d65050)를
+ * 그대로 쓰면 라이트 모드의 옅은 분홍 배경 위에서 대비가 3.8:1로 WCAG AA(4.5:1)에
+ * 못 미쳤다 — 실측(getComputedStyle 기반 상대휘도 계산) 후 라이트에서는 더 어두운
+ * brand-hover, 다크에서는 더 밝은 brand-300으로 테마별로 갈라 항상 기준을 넘기게 한다
+ * (2026-08-26).
+ */
+.spotlight-accent-text {
+  color: var(--color-brand-hover);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .spotlight-accent-text {
+    color: var(--brand-300);
+  }
+}
+[data-theme="dark"] .spotlight-accent-text {
+  color: var(--brand-300);
+}
+

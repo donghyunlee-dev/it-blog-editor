@@ -38,7 +38,7 @@ import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@
 // omits entirely (mouse-only) — a small addition, not a deviation from any
 // documented API.
 
-interface CommandItem {
+export interface CommandItem {
   title: string;
   run: (editor: Editor, range: Range) => void;
 }
@@ -55,6 +55,10 @@ const ITEMS: CommandItem[] = [
   {
     title: "글머리 목록",
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleBulletList().run(),
+  },
+  {
+    title: "번호 목록",
+    run: (editor, range) => editor.chain().focus().deleteRange(range).toggleOrderedList().run(),
   },
   {
     title: "표",
@@ -95,6 +99,18 @@ const ITEMS: CommandItem[] = [
         .run(),
   },
 ];
+
+/**
+ * 기본 항목 목록에 호출부가 넘긴 추가 항목(예: pageId가 있어야 하는 "이미지" 삽입)을 덧붙이고
+ * 쿼리로 필터링한다. 이미지 항목은 pageId/toast 등 컴포넌트 쪽 컨텍스트가 필요해 이 모듈의
+ * 정적 ITEMS 배열에 넣을 수 없으므로, RichTextEditor가 `SlashCommandExtension.configure()`로
+ * items 함수 자체를 이걸로 교체해 주입한다.
+ */
+export function createSlashItems(query: string, extraItems: CommandItem[] = []): CommandItem[] {
+  return [...ITEMS, ...extraItems].filter((item) =>
+    item.title.toLowerCase().includes(query.toLowerCase())
+  );
+}
 
 // `render()` is invoked exactly once per editor instance (confirmed in
 // index.js: `const renderer = render == null ? void 0 : render();` runs once
@@ -190,8 +206,7 @@ export const SlashCommandExtension = Extension.create({
     return {
       suggestion: {
         char: "/",
-        items: ({ query }: { query: string }) =>
-          ITEMS.filter((item) => item.title.toLowerCase().includes(query.toLowerCase())),
+        items: ({ query }: { query: string }) => createSlashItems(query),
         render: createSlashMenuRenderer,
       },
     };

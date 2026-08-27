@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listTagSuggestions } from "@/lib/editor/tag-suggestions";
@@ -13,20 +12,11 @@ export default async function NewDocumentPage() {
 
   const tagSuggestions = await listTagSuggestions(email);
 
+  // DocumentEditor가 헤더(탐색기로·저장)와 본문 캔버스를 전부 소유한다(2026-08-25,
+  // "박스 없이 페이지 전체가 에디터처럼 보이게" 요청 — 산출물: DocumentEditor.tsx).
   return (
-    <main className="page">
-      <div className="toolbar">
-        <div>
-          <h1 className="page-title">새 문서 작성</h1>
-          <p className="page-subtitle">문서를 작성하고 저장하세요.</p>
-        </div>
-        <Link href="/editor" className="button button-secondary">
-          탐색기로
-        </Link>
-      </div>
-      <div className="card">
-        <DocumentEditor mode="create" tagSuggestions={tagSuggestions} />
-      </div>
+    <main>
+      <DocumentEditor mode="create" tagSuggestions={tagSuggestions} />
     </main>
   );
 }
