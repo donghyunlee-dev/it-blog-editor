@@ -8,6 +8,7 @@ import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
+import { useUnsavedChanges } from "./UnsavedChangesContext";
 
 interface DocumentEditorProps {
   mode: "create" | "edit";
@@ -188,6 +189,7 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
+  const { setDirty, guardNavigate } = useUnsavedChanges();
   const [title, setTitle] = useState(initialTitle);
   const [doc, setDoc] = useState<JSONContent>(withAtLeastOneBlock(initialDoc));
   const [tags, setTags] = useState<string[]>(initialTags);
@@ -195,6 +197,22 @@ export function DocumentEditor({
   const [status, setStatus] = useState<"idle" | "saving" | "deleting">("idle");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+
+  /** 제목·본문·태그 중 하나라도 바뀌면 "저장하지 않은 변경사항 있음"으로 표시한다
+   * (P0-1a — EditorShell의 UnsavedChangesProvider가 이 값을 보고 탭 닫기/앱 내부 이동을
+   * 막는다). */
+  function handleTitleChange(value: string) {
+    setTitle(value);
+    setDirty(true);
+  }
+  function handleDocChange(value: JSONContent) {
+    setDoc(value);
+    setDirty(true);
+  }
+  function handleTagsChange(value: string[]) {
+    setTags(value);
+    setDirty(true);
+  }
 
   /** 응답 본문에서 공통 에러 형식의 메시지를 꺼낸다(비-JSON 응답이면 기본 문구). */
   async function errorMessageOf(response: Response, fallback: string) {
@@ -261,6 +279,11 @@ export function DocumentEditor({
         setVersion(data.version);
       }
 
+      // 문서 본문 저장이 성공한 시점부터 다시 "저장하지 않은 변경사항 없음"으로
+      // 취급한다(P0-1a). 태그 저장이 뒤이어 실패해도(아래 경고 토스트) 본문 자체는
+      // 이미 저장됐으므로 이탈 경고를 계속 띄우는 건 사실과 다르다.
+      setDirty(false);
+
       // 새 문서도 생성 응답으로 받은 pageId로 곧바로 태그를 저장한다. 그렇지 않으면
       // 첫 저장에서 입력한 태그가 조용히 사라진다.
       const tagError = currentPageId ? await saveTags(currentPageId) : null;
@@ -310,6 +333,9 @@ export function DocumentEditor({
       if (!response.ok) {
         throw new Error(await errorMessageOf(response, "삭제에 실패했습니다."));
       }
+      // 삭제 자체가 이 문서를 없애버리므로, 편집 중이던 내용의 "저장 안 됨" 상태는
+      // 더 이상 의미가 없다(P0-1a) — 방어적으로 정리한다.
+      setDirty(false);
       // 삭제된 문서가 사이드바 목록에서 즉시 사라지도록 새로고침한다.
       router.refresh();
       router.push("/editor");
@@ -356,6 +382,10 @@ export function DocumentEditor({
         */}
         <Link
           href="/editor"
+          // 저장하지 않은 변경사항이 있으면 즉시 이동하지 않고 확인 Modal을 띄운다
+          // (P0-1a, EditorShell의 UnsavedChangesProvider). onNavigate는 next/link의
+          // 내장 prop(v15.3.0+)으로, SPA 네비게이션에서만 호출된다.
+          onNavigate={(event) => guardNavigate(event, "/editor")}
           aria-label="문서함으로 돌아가기"
           title="문서함으로 돌아가기"
           className="rounded-btn p-1.5 text-foreground transition-colors duration-default hover:bg-surface-raised"
@@ -441,10 +471,10 @@ export function DocumentEditor({
             <input>은 애초에 여러 줄을 표시할 수 없는 요소라 <textarea>로 바꾸고,
             useAutoGrowHeight로 줄바꿈될 때마다 높이를 늘린다. Enter는 줄바꿈이
             아니라 "제목 입력 끝"으로 취급해 막는다(제목은 개념적으로 한 줄이다). */}
-        <TitleTextarea value={title} onChange={setTitle} />
+        <TitleTextarea value={title} onChange={handleTitleChange} />
 
         <div className="mt-2">
-          <TagInput value={tags} onChange={setTags} suggestions={tagSuggestions} />
+          <TagInput value={tags} onChange={handleTagsChange} suggestions={tagSuggestions} />
         </div>
 
         {/*
@@ -457,7 +487,7 @@ export function DocumentEditor({
           시점에 필요한 사람에게만 보이므로, 미리 띄워두던 이 문구는 그냥 뺀다.
         */}
         <div className="mt-6">
-          <RichTextEditor content={doc} onChange={setDoc} pageId={pageId} />
+          <RichTextEditor content={doc} onChange={handleDocChange} pageId={pageId} />
         </div>
 
         {/*

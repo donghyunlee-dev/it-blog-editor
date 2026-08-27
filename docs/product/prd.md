@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 30 / 67 항목 완료 (최근 갱신: 2026-08-27 — 프로덕션 준비도 감사를 반영해 Phase 4를 신설하고 37개 세부 항목으로 분할)
+> 전체 진행률: 31 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-1a(저장하지 않은 변경사항 이탈 경고) 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -189,7 +189,7 @@
 [CLAUDE.md](../../CLAUDE.md) "작업 루틴" 참고). 🔶는 착수 전 GitHub Issue로 결정을 받아야 하는 항목이다.
 
 **P0 — 즉시 조치(데이터 손실·오작동·정보 노출 차단)**
-- [ ] (P0-1a) 저장하지 않은 변경사항이 있는 상태에서 탭 닫기·뒤로가기·다른 문서로 이동 시 이탈 경고를 띄운다.
+- [x] (완료, P0-1a) 저장하지 않은 변경사항이 있는 상태에서 탭 닫기·다른 문서로 이동 시 이탈 경고를 띄운다 — Next.js `<Link onNavigate>`(v15.3.0+)로 앱 내부 이동을 가로채 `Modal`로 확인받고, `beforeunload`로 탭 닫기/새로고침을 막는다. 브라우저 뒤로가기/앞으로가기 버튼(popstate)은 Next.js App Router에 안전한 차단 API가 없어 범위 밖으로 명시적으로 제외했다(추후 필요 시 재논의). 산출물: `docs/superpowers/tasks/P0-1a-unsaved-changes-warning/{task,plan,result,test}.md`, src/components/editor/UnsavedChangesContext.tsx, src/components/editor/EditorShell.tsx, src/components/editor/DocumentEditor.tsx, src/components/editor/EditorSidebar.tsx
 - [ ] 🔶 (P0-1b) 자동 저장 도입 — **주의**: `docs/superpowers/plans/2026-08-21-editor-ui-ux-implementation.md`의 Global Constraints가 "저장은 수동 유지, 자동저장을 추가하지 않는다"고 이미 명시적으로 결정한 바 있다. 이번 감사와 상충하므로 재논의가 필요하다(로컬 임시저장만 할지, 서버 오토세이브까지 할지, 주기는 얼마로 할지) — [Issue #1](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/1) 답변 후 착수.
 - [ ] (P0-2) 게시 설정 Modal의 "게시함" 스위치를 끌 때 `Modal` 확인 절차를 추가한다(문서 삭제와 동일한 안전장치).
 - [ ] (P0-3) `updateDocument`의 `sourceDocument` 속성 저장에도 페이지 본문과 동일한 버전 검사를 적용해 동시 편집 시 원고 유실을 막는다.

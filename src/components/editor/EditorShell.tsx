@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EditorSidebar } from "./EditorSidebar";
+import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 const MOBILE_QUERY = "(max-width: 767px)";
@@ -145,7 +146,12 @@ export function EditorShell({ documents, children, userEmail, onLogout }: Editor
 
   const drawerHidden = isMobile && !open;
 
+  // 사이드바(EditorSidebar)와 문서 편집 화면(children, DocumentEditor)이 함께 감싸이는
+  // 유일한 지점이라(둘 다 여기 아래에서 렌더링된다) 이탈 경고(P0-1a)의 Provider를 여기
+  // 하나에만 둔다 — "다른 문서로 이동" 가드가 사이드바 링크와 편집 화면의 뒤로가기
+  // 링크 모두에 적용되려면 두 쪽이 같은 Context를 공유해야 한다.
   return (
+    <UnsavedChangesProvider>
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button
@@ -239,5 +245,6 @@ export function EditorShell({ documents, children, userEmail, onLogout }: Editor
 
       <div className="flex-1 overflow-y-auto">{children}</div>
     </div>
+    </UnsavedChangesProvider>
   );
 }

@@ -4,6 +4,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import { DocumentEditor } from "./DocumentEditor";
+import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 
 // layout.tsx(사이드바)는 Next.js 레이아웃 특성상 클라이언트 네비게이션에서 다시
 // 실행되지 않으므로, DocumentEditor의 저장/삭제 성공 경로가 router.refresh()를
@@ -16,6 +17,47 @@ const { push, refresh } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh }),
+}));
+
+// next/link의 실제 클릭 핸들러는 onNavigate를 부르기 전에 AppRouterContext(별도의 내부
+// 컨텍스트, useRouter 모킹으로는 채워지지 않는다)가 있는지부터 확인해서, 라우터
+// 프로바이더 없는 테스트에서는 onNavigate 자체가 절대 호출되지 않는다(node_modules/next/
+// dist/client/app-dir/link.js의 linkClicked). 진짜 라우터 컨텍스트를 흉내 내는 대신,
+// Link의 계약(onClick 먼저, 그 다음 onNavigate — 막히면 중단)만 재현하는 가벼운 대역으로
+// 바꿔 끼운다 — P0-1a의 "이동 가드"가 실제로 걸리는지를 검증하기 위함이다.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    onClick,
+    onNavigate,
+    children,
+    ...rest
+  }: {
+    href: string;
+    onClick?: (event: React.MouseEvent) => void;
+    onNavigate?: (event: { preventDefault: () => void }) => void;
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a
+      href={href}
+      onClick={(event: React.MouseEvent) => {
+        onClick?.(event);
+        let prevented = false;
+        onNavigate?.({
+          preventDefault: () => {
+            prevented = true;
+          },
+        });
+        if (prevented) {
+          event.preventDefault();
+        }
+      }}
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 // RichTextEditor는 TipTap(ProseMirror) 기반이라 contenteditable·레이아웃 측정 API에
@@ -58,6 +100,20 @@ vi.mock("./RichTextEditor", () => ({
  */
 function renderEditor(ui: ReactElement) {
   return render(<ToastProvider>{ui}</ToastProvider>);
+}
+
+/**
+ * 실제 앱에서는 EditorShell이 항상 UnsavedChangesProvider로 DocumentEditor를 감싼다
+ * (P0-1a). 위 renderEditor는 그 Provider 없이 DocumentEditor 단독 동작을 확인하는
+ * 기존 테스트들을 위한 것이고, 이탈 경고 자체를 검증하는 테스트는 이 헬퍼로 실제
+ * 구성과 동일하게 감싸서 렌더링한다.
+ */
+function renderEditorWithGuard(ui: ReactElement) {
+  return render(
+    <ToastProvider>
+      <UnsavedChangesProvider>{ui}</UnsavedChangesProvider>
+    </ToastProvider>
+  );
 }
 
 /** URL별로 다른 응답을 주는 fetch 대역을 설치하고, 호출 기록용 mock을 돌려준다. */
@@ -398,5 +454,46 @@ describe("DocumentEditor", () => {
     renderEditor(<DocumentEditor {...EDIT_PROPS} />);
 
     expect(screen.queryByText("이미지 등록")).not.toBeInTheDocument();
+  });
+
+  it("저장하지 않은 변경사항이 있으면 문서함으로 돌아가기를 눌러도 확인해야 이동한다(P0-1a)", async () => {
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+
+    await userEvent.type(screen.getByLabelText("제목"), " (수정)");
+
+    await userEvent.click(
+      screen.getByRole("link", { name: "문서함으로 돌아가기" })
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "계속 편집" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("link", { name: "문서함으로 돌아가기" })
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "변경사항 버리고 이동" })
+    );
+    expect(push).toHaveBeenCalledWith("/editor");
+  });
+
+  it("저장에 성공하면 그 뒤로는 확인 없이 문서함으로 돌아갈 수 있다(P0-1a)", async () => {
+    stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+
+    await userEvent.type(screen.getByLabelText("제목"), " (수정)");
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+    await screen.findByText("저장되었습니다.");
+
+    await userEvent.click(
+      screen.getByRole("link", { name: "문서함으로 돌아가기" })
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

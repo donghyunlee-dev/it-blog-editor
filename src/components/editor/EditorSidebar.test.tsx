@@ -1,8 +1,55 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
+import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
+
+// P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
+// 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
+// 반환할 뿐 던지지 않는 실제 동작을 그대로 쓴다 — 다른 기존 테스트들이 이에 의존한다).
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("next/navigation")>();
+  return { ...actual, useRouter: () => ({ push }) };
+});
+
+// DocumentEditor.test.tsx와 같은 이유로 next/link를 대역으로 바꾼다 — 실제 Link는
+// AppRouterContext 없이는 onNavigate 자체를 호출하지 않는다.
+vi.mock("next/link", () => ({
+  default: ({
+    href,
+    onClick,
+    onNavigate,
+    children,
+    ...rest
+  }: {
+    href: string;
+    onClick?: (event: React.MouseEvent) => void;
+    onNavigate?: (event: { preventDefault: () => void }) => void;
+    children?: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a
+      href={href}
+      onClick={(event: React.MouseEvent) => {
+        onClick?.(event);
+        let prevented = false;
+        onNavigate?.({
+          preventDefault: () => {
+            prevented = true;
+          },
+        });
+        if (prevented) {
+          event.preventDefault();
+        }
+      }}
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
+}));
 
 const DOCS: DocumentSummary[] = [
   {
@@ -22,6 +69,10 @@ const DOCS: DocumentSummary[] = [
 ];
 
 describe("EditorSidebar", () => {
+  beforeEach(() => {
+    push.mockClear();
+  });
+
   it("문서 목록과 게시 상태 아이콘을 보여준다", () => {
     render(<EditorSidebar documents={DOCS} />);
 
@@ -105,6 +156,38 @@ describe("EditorSidebar", () => {
 
     expect(screen.getByText("pioneer@s-food.com")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
+  });
+
+  it("편집 중인 문서에 저장하지 않은 변경사항이 있으면 다른 문서 클릭 시 확인을 받는다(P0-1a)", async () => {
+    function DirtyButton() {
+      const { setDirty } = useUnsavedChanges();
+      return (
+        <button type="button" onClick={() => setDirty(true)}>
+          편집 중으로 표시
+        </button>
+      );
+    }
+
+    render(
+      <UnsavedChangesProvider>
+        <DirtyButton />
+        <EditorSidebar documents={DOCS} />
+      </UnsavedChangesProvider>
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "편집 중으로 표시" })
+    );
+
+    await userEvent.click(screen.getByRole("link", { name: /문서B/ }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(push).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "변경사항 버리고 이동" })
+    );
+    expect(push).toHaveBeenCalledWith("/editor/2");
   });
 });
 

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ChipGroup, EmptyState, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 export interface EditorSidebarProps {
@@ -111,6 +112,13 @@ export function EditorSidebar({
   // 없어도 null을 반환할 뿐 던지지 않으므로 라우터 프로바이더 없는 테스트에서도 안전하다.
   const pathname = usePathname();
   const currentPageId = activePageId ?? extractPageIdFromPathname(pathname);
+  // 편집 중인 문서에 저장하지 않은 변경사항이 있으면, 이 사이드바의 링크(로고/"새
+  // 문서"/문서 행)로 다른 화면으로 이동하려 할 때도 확인을 받는다(P0-1a). 이 훅이
+  // 반환하는 guardNavigate는 <Link>의 내장 onNavigate prop용이고, 이 컴포넌트 자체의
+  // props에 있는 onNavigate(모바일 드로어를 닫는 onClick 콜백)와는 별개다 — 혼동하지
+  // 않도록 아래에서 각 <Link>에 onClick={onNavigate}와 onNavigate={guardNavigate(...)}를
+  // 함께 둔다.
+  const { guardNavigate } = useUnsavedChanges();
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
@@ -159,6 +167,7 @@ export function EditorSidebar({
         <Link
           href="/editor"
           onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, "/editor")}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-btn py-1 pl-1 -ml-1 transition-colors duration-default hover:bg-surface-raised"
         >
           <BrandIcon size={24} className="shrink-0 rounded" />
@@ -210,6 +219,7 @@ export function EditorSidebar({
         <Link
           href="/editor/new"
           onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, "/editor/new")}
           className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
         >
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -264,6 +274,9 @@ export function EditorSidebar({
                   <Link
                     href={`/editor/${document.pageId}`}
                     onClick={onNavigate}
+                    onNavigate={(event) =>
+                      guardNavigate(event, `/editor/${document.pageId}`)
+                    }
                     aria-current={isActive ? "page" : undefined}
                     // 왼쪽 강조 테두리 바는 빼고 배경색만 쓴다 — 사용자 피드백: "이
                     // 패턴은 AI가 자주 만드는 디자인이야"(2026-08-26). 위아래 패딩을

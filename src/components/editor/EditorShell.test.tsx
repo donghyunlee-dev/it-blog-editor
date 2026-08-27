@@ -4,6 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { EditorShell } from "./EditorShell";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
+// EditorShell이 UnsavedChangesProvider(P0-1a)를 통해 useRouter()를 호출하게 됐다 — 실제
+// next/navigation의 useRouter는 AppRouterContext 없이는 던지므로 여기서 모킹한다.
+// usePathname은 EditorSidebar가 활성 문서 강조 표시에 쓰는데, 라우터 프로바이더 없이도
+// null을 반환할 뿐 던지지 않는 실제 동작 그대로 유지한다(이 테스트들은 활성 표시를
+// 검증하지 않는다).
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => null,
+}));
+
 const DOCS: DocumentSummary[] = [
   {
     pageId: "1",
