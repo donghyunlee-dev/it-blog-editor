@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 34 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-4b(이미지 업로드 개수 제한) 완료)
+> 전체 진행률: 35 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-5a(slug 조회 캐시) 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -195,7 +195,7 @@
 - [x] (완료, P0-3) `updateDocument`의 `sourceDocument` 속성 저장에도 페이지 본문과 동일한 버전 검사를 적용해 동시 편집 시 원고 유실을 막는다 — 저장 시작 시점에 속성 버전을 함께 읽어 두고, 실제 쓰기 직전 다시 확인해 그 사이 다른 요청이 먼저 썼으면 `ConflictError`를 던진다(완전한 원자적 트랜잭션은 Confluence Cloud API의 근본적 한계로 불가능 — "조용한 유실"을 "감지 가능한 오류"로 바꾸는 데까지가 이 계층에서 가능한 범위). 산출물: `docs/superpowers/tasks/P0-3-sourcedocument-version-guard/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts
 - [ ] 🔶 (P0-4a) 이미지 업로드 최대 파일 크기를 제한한다 — 상한 값은 [Issue #2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2)에서 결정.
 - [x] (완료, P0-4b) 이미지 업로드 개수(붙여넣기/드래그앤드롭 1회 처리량, 문서당 누적)에 상한을 둔다 — 1회 처리량은 원래부터 파일 1개만 처리하고 있어 사실상 이미 제한돼 있었고, 문서당 누적 30장 상한을 드래그앤드롭·붙여넣기·슬래시 메뉴 세 진입점에 공통 적용했다(서버 측 강제는 범위 밖 — UX 가드레일이지 보안 경계가 아니라고 판단). 산출물: `docs/superpowers/tasks/P0-4b-image-upload-count-limit/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
-- [ ] (P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책).
+- [x] (완료, P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책) — Space 전체 slug 인덱스를 15초 TTL로 캐시하고, 이 프로세스가 직접 게시할 때는 즉시 무효화한다. 다른 프로세스가 TTL 안에 새로 게시한 slug는 못 볼 수 있다는 한계를 의도적으로 받아들였다(근본 해결은 P0-5b/Issue #3). 산출물: `docs/superpowers/tasks/P0-5a-slug-lookup-cache/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts
 - [ ] 🔶 (P0-5b) slug 조회를 구조적으로 해결한다(색인 구조 또는 Confluence CQL 검색 활용 여부) — 방식은 [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 결정.
 - [ ] (P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다.
 

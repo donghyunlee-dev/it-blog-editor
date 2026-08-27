@@ -371,13 +371,35 @@ export async function listAllSpacePages(
 }
 
 // ── Slug lookup (게시 문서 목록을 순회하며 슬러그 중복 확인) ──
+//
+// P0-5a(즉시 완화책): Space 전체 스캔 + 페이지마다 별도 getPageProperty 호출(N+1)은
+// 문서 수가 늘어날수록 선형으로 느려진다(docs/product/data-spec.md의 알려진 위험).
+// 근본적인 구조 개선(색인/CQL)은 P0-5b(Issue #3)에서 별도로 결정하기로 하고, 그 전까지
+// 스캔 결과를 짧은 TTL 동안 캐시해 반복 호출 비용을 없앤다.
+//
+// 알려진 한계: 이 프로세스가 아닌 다른 프로세스/인스턴스가 TTL 안에 새로 게시한 slug는
+// 캐시가 알아채지 못할 수 있다(아주 좁은 창에서 이론적 중복 게시 가능성) — TTL을 짧게
+// 잡아 창을 최소화할 뿐 0으로 만들지는 못한다. 이 프로세스 자신이 게시할 때는
+// `invalidateSlugIndexCache()`로 캐시를 즉시 비워 스스로는 항상 최신 상태를 본다.
+const SLUG_INDEX_TTL_MS = 15_000;
 
-export async function findPublishedPageBySlug(
+interface SlugIndexCache {
+  spaceId: string;
+  builtAt: number;
+  bySlugKey: Map<string, ConfluencePage>;
+}
+
+let slugIndexCache: SlugIndexCache | null = null;
+
+function slugKey(viewerId: string, slug: string): string {
+  return `${viewerId}:${slug}`;
+}
+
+async function buildSlugIndex(
   spaceId: string,
-  viewerId: string,
-  slug: string,
   propertyKey: string
-): Promise<ConfluencePage | null> {
+): Promise<Map<string, ConfluencePage>> {
+  const index = new Map<string, ConfluencePage>();
   let cursor: string | null = null;
 
   do {
@@ -396,18 +418,53 @@ export async function findPublishedPageBySlug(
       }>(candidate.id, propertyKey);
       // 게시 취소된 문서는 viewers 메타데이터(재게시 시 이전 slug 제안용)를 그대로 유지하므로,
       // 현재 게시 중인 문서만 slug를 점유한 것으로 본다.
-      if (
-        property?.value?.isPublished === true &&
-        property?.value?.viewers?.[viewerId]?.slug === slug
-      ) {
-        return candidate;
+      if (property?.value?.isPublished === true && property.value.viewers) {
+        for (const [viewerId, meta] of Object.entries(property.value.viewers)) {
+          if (meta?.slug) {
+            index.set(slugKey(viewerId, meta.slug), candidate);
+          }
+        }
       }
     }
 
     cursor = page._links.next ?? null;
   } while (cursor);
 
-  return null;
+  return index;
+}
+
+export async function findPublishedPageBySlug(
+  spaceId: string,
+  viewerId: string,
+  slug: string,
+  propertyKey: string
+): Promise<ConfluencePage | null> {
+  const now = Date.now();
+  const isFresh =
+    slugIndexCache !== null &&
+    slugIndexCache.spaceId === spaceId &&
+    now - slugIndexCache.builtAt < SLUG_INDEX_TTL_MS;
+
+  if (!isFresh) {
+    slugIndexCache = {
+      spaceId,
+      builtAt: now,
+      bySlugKey: await buildSlugIndex(spaceId, propertyKey),
+    };
+  }
+
+  return slugIndexCache!.bySlugKey.get(slugKey(viewerId, slug)) ?? null;
+}
+
+/** 이 프로세스가 방금 게시해 알고 있는 slug 상태가 바뀌었을 때 호출한다(publish.ts). */
+export function invalidateSlugIndexCache(): void {
+  slugIndexCache = null;
+}
+
+/** 테스트 전용 — 모듈 레벨 캐시가 테스트 간에 오염되지 않도록 초기화한다. 프로덕션
+ * 코드에서는 절대 호출하지 않는다. */
+export function __resetSlugIndexCacheForTests(): void {
+  slugIndexCache = null;
 }
 
 // ── Footer Comments (댓글) ──

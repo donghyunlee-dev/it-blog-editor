@@ -150,6 +150,37 @@ describe("setPublishState — 생명주기", () => {
     expect(calls).toEqual(["move", "reveal", "upsert"]);
   });
 
+  it("게시가 성공하면 slug 조회 캐시를 무효화한다(P0-5a) — 방금 쓴 slug를 스스로 놓치지 않기 위해서다", async () => {
+    stubAuthorProperty(null);
+    stubCurrentPage("draft-1");
+    stubAccountFolder();
+    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "publishMetadata",
+      value: { isPublished: true, viewers: {} },
+      version: { number: 1 },
+    });
+    vi.spyOn(client, "movePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "published-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(access, "revealPageToSpace").mockResolvedValue(undefined);
+    const invalidateSpy = vi.spyOn(client, "invalidateSlugIndexCache");
+
+    await setPublishState({
+      pageId: "doc-1",
+      isPublished: true,
+      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
+    });
+
+    expect(invalidateSpy).toHaveBeenCalled();
+  });
+
   it("이미 게시된 문서를 이동 없이 다시 저장하면 메타데이터만 갱신한다", async () => {
     // 게시됨 폴더에 이미 있는 문서의 slug/metaDescription만 바꿔 다시 저장하는 경우:
     // isPublished === true && isCurrentlyPublished === true 분기이므로

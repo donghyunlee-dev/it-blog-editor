@@ -4,6 +4,7 @@ import {
   getConfiguredSpace,
   getPage,
   getPageProperty,
+  invalidateSlugIndexCache,
   movePage,
   upsertPageProperty,
 } from "@/lib/confluence/client";
@@ -136,6 +137,10 @@ export async function setPublishState(input: SetPublishStateInput) {
       viewers,
     };
     await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);
+    // P0-5a: 이 프로세스가 방금 새 slug를 게시했으니, 캐시된 slug 인덱스가 있다면
+    // 곧바로 비워서 스스로는 항상 최신 상태를 보게 한다(예: 연속으로 다른 문서를 같은
+    // slug로 게시하려는 시도를 놓치지 않는다).
+    invalidateSlugIndexCache();
 
     return { pageId: input.pageId, isPublished: true, viewers, publishedAt: value.publishedAt };
   }

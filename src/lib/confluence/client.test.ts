@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listChildPages, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { __resetSlugIndexCacheForTests, addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, invalidateSlugIndexCache, listChildPages, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -8,6 +8,10 @@ beforeEach(() => {
   process.env.CONFLUENCE_EMAIL = "service@example.com";
   process.env.CONFLUENCE_API_TOKEN = "test-token";
   vi.restoreAllMocks();
+  // P0-5a: findPublishedPageBySlug가 모듈 레벨 캐시를 갖게 되면서, 리셋 없이는 한
+  // 테스트에서 채운 캐시가 다른 테스트(같은 spaceId="1")의 fetch 대역을 무시하고
+  // 그대로 재사용해 버린다.
+  __resetSlugIndexCacheForTests();
 });
 
 describe("getCurrentConfluenceUser", () => {
@@ -248,6 +252,85 @@ describe("findPublishedPageBySlug", () => {
     const result = await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
 
     expect(result).toBeNull();
+  });
+});
+
+describe("findPublishedPageBySlug 캐시(P0-5a)", () => {
+  function stubOnePublishedPage() {
+    return vi.fn(async (url: string) => {
+      if (url.includes("/pages?limit=100")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "1", status: "current", title: "A", spaceId: "1", parentId: null, version: { number: 1, createdAt: "" } },
+            ],
+            _links: {},
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("/pages/1/properties")) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "p1",
+                key: "publishMetadata",
+                value: { isPublished: true, viewers: { "tech-blog": { slug: "my-post" } } },
+                version: { number: 1 },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+  }
+
+  it("같은 spaceId를 짧은 시간 안에 다시 검사하면 Space를 다시 스캔하지 않는다", async () => {
+    const fetchMock = stubOnePublishedPage();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    const second = await findPublishedPageBySlug("1", "tech-blog", "other-post", "publishMetadata");
+
+    expect(first?.id).toBe("1");
+    expect(second).toBeNull();
+    // 두 번째 호출(다른 slug 검사)은 캐시된 인덱스를 조회만 할 뿐, fetch를 새로 하지 않는다.
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+  });
+
+  it("invalidateSlugIndexCache() 호출 뒤에는 다시 스캔한다", async () => {
+    const fetchMock = stubOnePublishedPage();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+    const callsAfterFirst = fetchMock.mock.calls.length;
+
+    invalidateSlugIndexCache();
+    await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+  });
+
+  it("TTL이 지나면 다시 스캔한다", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = stubOnePublishedPage();
+      vi.stubGlobal("fetch", fetchMock);
+
+      await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+      const callsAfterFirst = fetchMock.mock.calls.length;
+
+      vi.advanceTimersByTime(20_000); // TTL(15초)보다 길게 흐르게 한다.
+      await findPublishedPageBySlug("1", "tech-blog", "my-post", "publishMetadata");
+
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
