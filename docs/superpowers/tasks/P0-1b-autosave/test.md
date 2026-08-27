@@ -45,5 +45,19 @@
 ## 검증 중 새로 발견한 결정 사항
 없음 — Issue #1의 확정 조건을 그대로 구현했다.
 
+## 후속 조치 — 실사용 가시성 확인(2026-08-27)
+| 커맨드 | 결과 |
+|---|---|
+| `npx vitest run src/components/editor/DocumentEditor.test.tsx`(진단 로그+성공 토스트 추가 후) | 통과 (26/26) |
+| `npx vitest run src/components/editor/DocumentEditor.test.tsx`(진단 로그 제거, 토스트 유지 후) | 통과 (26/26) |
+| `npm test`(전체) | 통과 (172/172, 변동 없음) |
+| `npx tsc --noEmit` | 통과 |
+| `npm run lint` | 통과 |
+| `npm run build` | 통과 |
+
+사용자가 실제 dev 서버에서 재확인해 "이제 보인다"고 확인했다 — 토스트 추가가 문제를
+해결했다(`result.md`의 "후속 조치" 참고). 진단용 로그는 요청대로 제거했다.
+
 ## 최종 판정
 - [x] 수용 기준(`task.md`)을 모두 만족함 — PRD 갱신 가능. Issue #1을 닫는다.
+- [x] 실사용 가시성 문제(자동 저장 성공 토스트 부재)를 사용자 확인으로 해결함.

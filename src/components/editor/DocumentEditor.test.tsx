@@ -544,7 +544,7 @@ describe("DocumentEditor — 자동 저장(P0-1b)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("자동 저장이 성공하면 로컬 임시 저장본을 지운다", async () => {
+  it("자동 저장이 성공하면 로컬 임시 저장본을 지우고 눈에 띄는 토스트를 띄운다", async () => {
     stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
 
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
@@ -555,6 +555,10 @@ describe("DocumentEditor — 자동 저장(P0-1b)", () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(readAutosaveSnapshot("page-1")).toBeNull();
+    // 풋터의 조용한 상태 표시만으로는 놓치기 쉽다는 실사용 피드백(2026-08-27)으로
+    // 성공 시에도 토스트를 띄우도록 바꿨다 — 풋터 상태 표시와 토스트가 같은 문구를
+    // 쓰므로(둘 다 "자동 저장됨") getAllByText로 최소 1곳 이상 나타나는지 확인한다.
+    expect((await screen.findAllByText("자동 저장됨")).length).toBeGreaterThan(0);
   });
 
   it("자동 저장이 실패하면 로컬 임시 저장본을 남겨두고 경고 토스트를 띄운다", async () => {

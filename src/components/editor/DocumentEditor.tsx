@@ -368,6 +368,10 @@ export function DocumentEditor({
       setDirty(false);
       clearAutosaveSnapshot(pageId);
       setAutosaveStatus("saved");
+      // 풋터의 조용한 표시만으로는 놓치기 쉽다는 실사용 피드백(2026-08-27)으로,
+      // 매 분 뜨더라도 눈에 띄는 토스트를 함께 띄운다 — 실패 시에는 이미 토스트를
+      // 쓰고 있어(아래 catch) 성공 쪽만 없었다.
+      toast("자동 저장됨", "success");
     } catch (err) {
       setAutosaveStatus("failed");
       toast(
