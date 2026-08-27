@@ -50,9 +50,17 @@ export async function toErrorResponse(error: unknown): Promise<NextResponse> {
     });
   }
 
-  const message = error instanceof Error ? error.message : "알 수 없는 오류";
-  await notifyUpstreamFailure(message);
-  return NextResponse.json(errorBody("UPSTREAM_ERROR", message), {
-    status: 502,
-  });
+  const detail = error instanceof Error ? error.message : "알 수 없는 오류";
+  // 분류되지 않은 오류(주로 ConfluenceApiError)는 Confluence 응답 본문 같은 내부 정보를
+  // 그대로 담고 있을 수 있어(client.ts 참고) 클라이언트에는 절대 원문을 노출하지 않는다
+  // (P0-6). 원인 파악은 서버 로그와 Slack 알림(운영자 전용 채널)으로만 한다.
+  console.error("[toErrorResponse] 분류되지 않은 오류:", detail);
+  await notifyUpstreamFailure(detail);
+  return NextResponse.json(
+    errorBody(
+      "UPSTREAM_ERROR",
+      "일시적인 오류로 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요."
+    ),
+    { status: 502 }
+  );
 }

@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 35 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-5a(slug 조회 캐시) 완료)
+> 전체 진행률: 36 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-6(오류 응답 새니타이즈) 완료. 결정 대기 3건(P0-1b/4a/5b)을 제외한 P0 전 항목 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -197,7 +197,7 @@
 - [x] (완료, P0-4b) 이미지 업로드 개수(붙여넣기/드래그앤드롭 1회 처리량, 문서당 누적)에 상한을 둔다 — 1회 처리량은 원래부터 파일 1개만 처리하고 있어 사실상 이미 제한돼 있었고, 문서당 누적 30장 상한을 드래그앤드롭·붙여넣기·슬래시 메뉴 세 진입점에 공통 적용했다(서버 측 강제는 범위 밖 — UX 가드레일이지 보안 경계가 아니라고 판단). 산출물: `docs/superpowers/tasks/P0-4b-image-upload-count-limit/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
 - [x] (완료, P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책) — Space 전체 slug 인덱스를 15초 TTL로 캐시하고, 이 프로세스가 직접 게시할 때는 즉시 무효화한다. 다른 프로세스가 TTL 안에 새로 게시한 slug는 못 볼 수 있다는 한계를 의도적으로 받아들였다(근본 해결은 P0-5b/Issue #3). 산출물: `docs/superpowers/tasks/P0-5a-slug-lookup-cache/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts
 - [ ] 🔶 (P0-5b) slug 조회를 구조적으로 해결한다(색인 구조 또는 Confluence CQL 검색 활용 여부) — 방식은 [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 결정.
-- [ ] (P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다.
+- [x] (완료, P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다 — 분류되지 않은 오류(UPSTREAM_ERROR/502)만 대상이고, 도메인 에러 4종(의도된 사용자 메시지)과 Slack 알림(운영자 전용, 상세 유지)은 그대로 둔다. 산출물: `docs/superpowers/tasks/P0-6-sanitize-error-messages/{task,plan,result,test}.md`, src/lib/api-response.ts
 
 **P1 — 실사용 확장 전 필요**
 - [ ] (P1-1a) 사이드바 검색을 태그·본문까지 확장한다.
