@@ -9,6 +9,15 @@ import { RichTextEditor } from "./RichTextEditor";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
+import {
+  clearAutosaveSnapshot,
+  readAutosaveSnapshot,
+  writeAutosaveSnapshot,
+  type AutosaveSnapshot,
+} from "@/lib/editor/autosave-storage";
+
+/** Issue #1(P0-1b)에서 결정된 주기 — "1분마다 체크해서 저장한다". */
+const AUTOSAVE_INTERVAL_MS = 60_000;
 
 interface DocumentEditorProps {
   mode: "create" | "edit";
@@ -189,7 +198,7 @@ export function DocumentEditor({
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const { setDirty, guardNavigate } = useUnsavedChanges();
+  const { isDirty, setDirty, guardNavigate } = useUnsavedChanges();
   const [title, setTitle] = useState(initialTitle);
   const [doc, setDoc] = useState<JSONContent>(withAtLeastOneBlock(initialDoc));
   const [tags, setTags] = useState<string[]>(initialTags);
@@ -197,6 +206,31 @@ export function DocumentEditor({
   const [status, setStatus] = useState<"idle" | "saving" | "deleting">("idle");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<
+    "idle" | "saving" | "saved" | "failed"
+  >("idle");
+  const [recoverableSnapshot, setRecoverableSnapshot] =
+    useState<AutosaveSnapshot | null>(null);
+
+  /**
+   * 1분 주기 타이머(아래)는 매 키 입력마다 다시 만들어지면 안 된다("1분마다 체크"는
+   * 고정 주기지 "마지막 입력 후 1분"이 아니다, P0-1b). 타이머는 mode/pageId가 바뀔
+   * 때만 다시 등록하고, 실제로 저장할 "지금 값"은 이 ref들로 읽는다.
+   */
+  const titleRef = useRef(title);
+  const docRef = useRef(doc);
+  const tagsRef = useRef(tags);
+  const versionRef = useRef(version);
+  const isDirtyRef = useRef(isDirty);
+  const statusRef = useRef(status);
+  useEffect(() => {
+    titleRef.current = title;
+    docRef.current = doc;
+    tagsRef.current = tags;
+    versionRef.current = version;
+    isDirtyRef.current = isDirty;
+    statusRef.current = status;
+  });
 
   /** 제목·본문·태그 중 하나라도 바뀌면 "저장하지 않은 변경사항 있음"으로 표시한다
    * (P0-1a — EditorShell의 UnsavedChangesProvider가 이 값을 보고 탭 닫기/앱 내부 이동을
@@ -245,6 +279,116 @@ export function DocumentEditor({
       return err instanceof Error ? err.message : "태그 저장에 실패했습니다.";
     }
   }
+
+  /**
+   * 문서를 열었을 때(마운트 시 1회) 이 문서의 임시 저장본이 남아있는지 확인한다
+   * (P0-1b). `savedAt`이 서버에서 방금 불러온 문서의 최종 수정 시각(`initialUpdatedAt`)
+   * 보다 최신이면 "서버가 아직 반영하지 못한 편집"이라는 뜻이라 복구를 묻는다. 그보다
+   * 오래됐거나 같으면 이미 반영된(또는 애초에 무의미한) 오래된 흔적이므로 조용히 지운다.
+   */
+  useEffect(() => {
+    if (mode !== "edit" || !pageId) {
+      return;
+    }
+    const snapshot = readAutosaveSnapshot(pageId);
+    if (!snapshot) {
+      return;
+    }
+    const isNewerThanServer =
+      !initialUpdatedAt ||
+      new Date(snapshot.savedAt).getTime() > new Date(initialUpdatedAt).getTime();
+    if (isNewerThanServer) {
+      // localStorage는 서버 렌더링 시점에 읽을 수 없어 마운트 이후에만 확인할 수
+      // 있다 — recoverableSnapshot의 초기값(null)은 서버·클라이언트 첫 렌더에서
+      // 항상 같으므로(Modal이 처음엔 항상 닫혀 있음) hydration mismatch가 없는
+      // 의도된 2-pass 패턴이다(ThemeToggle.tsx/EditorShell.tsx와 동일).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRecoverableSnapshot(snapshot);
+    } else {
+      clearAutosaveSnapshot(pageId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pageId]);
+
+  function recoverFromSnapshot() {
+    if (!recoverableSnapshot || !pageId) {
+      return;
+    }
+    setTitle(recoverableSnapshot.title);
+    setDoc(withAtLeastOneBlock(recoverableSnapshot.doc));
+    setTags(recoverableSnapshot.tags);
+    setDirty(true);
+    clearAutosaveSnapshot(pageId);
+    setRecoverableSnapshot(null);
+  }
+
+  function discardSnapshot() {
+    if (pageId) {
+      clearAutosaveSnapshot(pageId);
+    }
+    setRecoverableSnapshot(null);
+  }
+
+  /**
+   * 1분마다 호출된다(등록 자체는 아래 useEffect, mode/pageId가 바뀔 때만 다시 만든다).
+   * 변경사항이 없거나(조건 1) 이미 저장·삭제가 진행 중이면 건너뛴다. 저장을 시도하기
+   * 전에 먼저 localStorage에 임시 저장해(조건 3) Confluence 저장이 실패해도 복구할 수
+   * 있게 해둔다. 태그는 자동 저장 대상이 아니다(task.md "범위 밖" 참고).
+   */
+  async function performAutosave() {
+    if (!pageId || !isDirtyRef.current || statusRef.current !== "idle") {
+      return;
+    }
+
+    const snapshotTitle = titleRef.current;
+    const snapshotDoc = docRef.current;
+    const snapshotTags = tagsRef.current;
+    writeAutosaveSnapshot(pageId, {
+      title: snapshotTitle,
+      doc: snapshotDoc,
+      tags: snapshotTags,
+    });
+
+    setAutosaveStatus("saving");
+    try {
+      const response = await fetch(`/api/editor/documents/${pageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: snapshotTitle,
+          doc: snapshotDoc,
+          version: versionRef.current,
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await errorMessageOf(response, "자동 저장에 실패했습니다."));
+      }
+      const data = await response.json();
+      setVersion(data.version);
+      setDirty(false);
+      clearAutosaveSnapshot(pageId);
+      setAutosaveStatus("saved");
+    } catch (err) {
+      setAutosaveStatus("failed");
+      toast(
+        `자동 저장에 실패했습니다(로컬에는 임시 저장되었습니다): ${
+          err instanceof Error ? err.message : "알 수 없는 오류"
+        }`,
+        "warning"
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (mode !== "edit" || !pageId) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      void performAutosave();
+    }, AUTOSAVE_INTERVAL_MS);
+    return () => window.clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, pageId]);
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
@@ -497,8 +641,14 @@ export function DocumentEditor({
           옅은 글자의 메타 정보 풋터 형태를 따른다.
         */}
         {mode === "edit" && initialUpdatedAt && (
-          <footer className="mt-4 border-t border-border pt-4 text-xs text-muted">
-            최종 수정: {formatUpdatedAt(initialUpdatedAt)}
+          <footer className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted">
+            <span>최종 수정: {formatUpdatedAt(initialUpdatedAt)}</span>
+            {/* 자동 저장(P0-1b)은 매번 "저장되었습니다" 토스트를 띄우지 않는다(1분마다
+                뜨면 방해가 된다) — 대신 이 조용한 상태 표시만 남긴다. */}
+            <span role="status" aria-live="polite">
+              {autosaveStatus === "saving" && "자동 저장 중..."}
+              {autosaveStatus === "saved" && "자동 저장됨"}
+            </span>
           </footer>
         )}
       </div>
@@ -525,6 +675,34 @@ export function DocumentEditor({
         }
       >
         이 문서를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
+      </Modal>
+
+      {/*
+        P0-1b — 이 문서를 마지막으로 불러온 뒤(initialUpdatedAt 기준) 자동 저장이
+        Confluence에는 반영하지 못했지만 이 브라우저의 localStorage에는 남아있는
+        편집이 있을 때만 뜬다(대부분은 정상적으로 이미 저장돼 있어 뜨지 않는다).
+      */}
+      <Modal
+        open={recoverableSnapshot !== null}
+        onClose={discardSnapshot}
+        title="임시 저장된 내용이 있습니다"
+        footer={
+          <>
+            {/* variant="primary"를 여기서 쓰지 않는다 — 헤더의 "저장" 버튼이 이미 이
+                화면의 유일한 primary다(CLAUDE.md 규칙). "무시"는 로컬에만 있던 임시본을
+                버리는 동작이라 danger, "복구"는 그보다 덜 위험한 secondary로 구분한다. */}
+            <Button type="button" variant="danger" onClick={discardSnapshot}>
+              무시
+            </Button>
+            <Button type="button" variant="secondary" onClick={recoverFromSnapshot}>
+              복구
+            </Button>
+          </>
+        }
+      >
+        이 문서를 마지막으로 불러온 뒤 Confluence에 저장하지 못한 임시 저장본이
+        있습니다{recoverableSnapshot && `(${formatUpdatedAt(recoverableSnapshot.savedAt)} 기준)`}.
+        복구하시겠습니까?
       </Modal>
 
       {mode === "edit" && pageId && initialPublishState && (

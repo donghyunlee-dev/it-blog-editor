@@ -7,7 +7,7 @@
 
 | PRD 항목 | 이슈 | 결정 사항 | 상태 |
 |---|---|---|---|
-| P0-1b | [#1](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/1) | 자동 저장 도입 여부·방식·주기 | 대기 |
+| P0-1b | [#1](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/1) | 자동 저장 도입 여부·방식·주기 | 반영됨 — 변경분만/1분 주기/localStorage 백업. `docs/superpowers/tasks/P0-1b-autosave/` |
 | P0-4a | [#2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2) | 이미지 업로드 최대 파일 크기 | 대기 |
 | P0-5b | [#3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3) | slug 조회 구조적 해결 방식(CQL/인덱스) | 대기 |
 | P1-4a | [#4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4) | 구조화 로깅 도구/전송 대상 | 대기 |

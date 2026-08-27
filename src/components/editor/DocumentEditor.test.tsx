@@ -1,10 +1,14 @@
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import { DocumentEditor } from "./DocumentEditor";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
+import {
+  readAutosaveSnapshot,
+  writeAutosaveSnapshot,
+} from "@/lib/editor/autosave-storage";
 
 // layout.tsx(사이드바)는 Next.js 레이아웃 특성상 클라이언트 네비게이션에서 다시
 // 실행되지 않으므로, DocumentEditor의 저장/삭제 성공 경로가 router.refresh()를
@@ -495,5 +499,117 @@ describe("DocumentEditor", () => {
     );
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("DocumentEditor — 자동 저장(P0-1b)", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("변경사항이 있으면 1분 뒤 자동으로 저장하고, 태그 요청은 보내지 않는다", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    // 컴포넌트의 자동 저장 setInterval이 진짜 타이머로 등록된 뒤에 가짜 타이머로
+    // 바꾸면 그 타이머는 가짜 시계의 통제를 받지 않는다 — 렌더링 전에 먼저 켠다.
+    // userEvent는 delay: null로 내부 대기를 없애 가짜 타이머와 함께 동작하게 한다.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent.setup({ delay: null });
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+    await user.type(screen.getByLabelText("제목"), " (자동저장 대상)");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    const putCall = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/editor/documents/page-1" && init?.method === "PUT"
+    );
+    expect(putCall).toBeDefined();
+    expect(
+      fetchMock.mock.calls.some(([url]) => url === "/api/editor/documents/page-1/tags")
+    ).toBe(false);
+  });
+
+  it("변경사항이 없으면 1분이 지나도 자동 저장 요청을 보내지 않는다", async () => {
+    const fetchMock = stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("자동 저장이 성공하면 로컬 임시 저장본을 지운다", async () => {
+    stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent.setup({ delay: null });
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+    await user.type(screen.getByLabelText("제목"), " (수정)");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(readAutosaveSnapshot("page-1")).toBeNull();
+  });
+
+  it("자동 저장이 실패하면 로컬 임시 저장본을 남겨두고 경고 토스트를 띄운다", async () => {
+    stubFetch(() =>
+      jsonResponse({ error: { code: "UPSTREAM_ERROR", message: "네트워크 오류" } }, 502)
+    );
+
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent.setup({ delay: null });
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+    await user.type(screen.getByLabelText("제목"), " (수정)");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(readAutosaveSnapshot("page-1")).not.toBeNull();
+    expect(await screen.findByText(/자동 저장에 실패했습니다/)).toBeInTheDocument();
+  });
+
+  it("서버 최종 수정 시각보다 최신인 임시 저장본이 있으면 복구를 묻고, 복구하면 그 값으로 바뀐다", async () => {
+    writeAutosaveSnapshot("page-1", {
+      title: "복구된 제목",
+      doc: {
+        type: "doc",
+        content: [{ type: "paragraph", content: [{ type: "text", text: "복구된 본문" }] }],
+      },
+      tags: [],
+    });
+
+    renderEditorWithGuard(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        initialUpdatedAt="2020-01-01T00:00:00.000Z"
+      />
+    );
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "복구" }));
+
+    expect(screen.getByLabelText("제목")).toHaveValue("복구된 제목");
+    expect(readAutosaveSnapshot("page-1")).toBeNull();
+  });
+
+  it("서버 최종 수정 시각보다 오래된 임시 저장본은 조용히 지우고 복구를 묻지 않는다", () => {
+    writeAutosaveSnapshot("page-1", {
+      title: "오래된 임시 저장본",
+      doc: { type: "doc", content: [] },
+      tags: [],
+    });
+
+    const farFuture = new Date(Date.now() + 60_000).toISOString();
+    renderEditorWithGuard(
+      <DocumentEditor {...EDIT_PROPS} initialUpdatedAt={farFuture} />
+    );
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(readAutosaveSnapshot("page-1")).toBeNull();
   });
 });
