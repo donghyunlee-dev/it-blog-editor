@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 37 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-1b(자동 저장, Issue #1 결정 반영) 완료. 결정 대기 2건(P0-4a/5b)을 제외한 P0 전 항목 완료)
+> 전체 진행률: 38 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P1-1a(사이드바 태그 검색) 완료, 본문 검색은 Issue #7로 결정 분리)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -200,7 +200,7 @@
 - [x] (완료, P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다 — 분류되지 않은 오류(UPSTREAM_ERROR/502)만 대상이고, 도메인 에러 4종(의도된 사용자 메시지)과 Slack 알림(운영자 전용, 상세 유지)은 그대로 둔다. 산출물: `docs/superpowers/tasks/P0-6-sanitize-error-messages/{task,plan,result,test}.md`, src/lib/api-response.ts
 
 **P1 — 실사용 확장 전 필요**
-- [ ] (P1-1a) 사이드바 검색을 태그·본문까지 확장한다.
+- [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 🔶 본문 검색은 `listDocuments()`의 기존 N+1 조회 비용을 배로 늘리는 아키텍처 트레이드오프라 별도 결정 필요 — [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7). 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [ ] (P1-1b) 문서 목록 정렬 옵션(최신순/제목순)을 추가한다.
 - [ ] (P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다.
 - [ ] (P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가한다.

@@ -13,3 +13,4 @@
 | P1-4a | [#4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4) | 구조화 로깅 도구/전송 대상 | 대기 |
 | P1-5 | [#5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5) | 레이트리밋 구현 방식과 임계값 | 대기 |
 | P2-3 | [#6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6) | AWS 배포 방식 및 시크릿 매니저 종류 | 대기 |
+| P1-1a(본문 검색) | [#7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7) | 본문 검색 지원 여부·방식(N+1 비용 트레이드오프) | 대기 |

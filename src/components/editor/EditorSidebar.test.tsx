@@ -158,6 +158,35 @@ describe("EditorSidebar", () => {
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
   });
 
+  it("검색어가 제목에 포함된 문서를 보여준다", async () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    await userEvent.type(screen.getByPlaceholderText("문서 검색"), "문서A");
+
+    expect(screen.getByText("문서A")).toBeInTheDocument();
+    expect(screen.queryByText("문서B")).not.toBeInTheDocument();
+  });
+
+  it("검색어가 제목에는 없지만 태그에 포함되면 그 문서를 보여준다(P1-1a)", async () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    await userEvent.type(screen.getByPlaceholderText("문서 검색"), "backend");
+
+    expect(screen.getByText("문서B")).toBeInTheDocument();
+    expect(screen.queryByText("문서A")).not.toBeInTheDocument();
+  });
+
+  it("태그 필터와 검색어가 함께(AND) 적용된다(P1-1a)", async () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    await userEvent.click(screen.getByRole("tab", { name: "React" }));
+    await userEvent.type(screen.getByPlaceholderText("문서 검색"), "문서B");
+
+    // 태그 필터(React)만으로는 문서A가 남고, 검색어(문서B)만으로는 문서B가 남는다 —
+    // 둘 다 만족하는 문서가 없으므로 빈 상태여야 한다.
+    expect(screen.getByText("조건에 맞는 문서가 없습니다.")).toBeInTheDocument();
+  });
+
   it("편집 중인 문서에 저장하지 않은 변경사항이 있으면 다른 문서 클릭 시 확인을 받는다(P0-1a)", async () => {
     function DirtyButton() {
       const { setDirty } = useUnsavedChanges();

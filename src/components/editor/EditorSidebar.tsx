@@ -133,9 +133,20 @@ export function EditorSidebar({
 
   const visibleDocuments = documents
     .filter((document) => !activeTag || document.tags.includes(activeTag))
-    .filter((document) =>
-      query.trim() ? document.title.toLowerCase().includes(query.trim().toLowerCase()) : true
-    );
+    .filter((document) => {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        return true;
+      }
+      // P1-1a: 제목뿐 아니라 태그도 검색 대상이다 — DocumentSummary.tags는 이미
+      // 클라이언트에 내려와 있어 추가 조회 없이 확장할 수 있다. 본문(문서 내용)
+      // 검색은 다루지 않는다(docs/superpowers/tasks/P1-1a-search-by-tag-and-content/
+      // task.md 참고 — listDocuments의 기존 N+1 비용을 더 늘리는 문제라 별도 결정 필요).
+      return (
+        document.title.toLowerCase().includes(q) ||
+        document.tags.some((tag) => tag.toLowerCase().includes(q))
+      );
+    });
 
   return (
     // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
@@ -232,7 +243,7 @@ export function EditorSidebar({
       {documents.length > 0 && (
         <div className="border-b border-border p-3">
           <label className="sr-only" htmlFor="sidebar-doc-search">
-            문서 제목 검색
+            문서 제목·태그 검색
           </label>
           <input
             id="sidebar-doc-search"
