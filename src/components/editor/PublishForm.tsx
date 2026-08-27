@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FormField, Input, Switch, Textarea, useToast } from "@sfood/ui";
+import { Button, FormField, Input, Modal, Switch, Textarea, useToast } from "@sfood/ui";
 
 interface ViewerMetadata {
   slug: string;
@@ -65,6 +65,9 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   // 토글 옆 안내 문구를 aria-describedby로 연결하기 위한 id 접두사.
   const hintId = useId();
+  // 이미 게시된 문서를 끄려는 시도만 확인을 받는다(P0-2 — 감사에서 지적된 위험은
+  // "이미 공개된 문서가 실수로 순간 비공개 전환"되는 쪽이지, 게시 시작이 아니다).
+  const [unpublishConfirmOpen, setUnpublishConfirmOpen] = useState(false);
 
   /** 응답 본문에서 공통 에러 형식의 메시지를 꺼낸다(비-JSON 응답이면 기본 문구). */
   async function errorMessageOf(response: Response, fallback: string) {
@@ -115,9 +118,30 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
     }
   }
 
+  /**
+   * 이미 게시된 문서를 끄려는 시도(next===false && 현재 isPublished===true)는 즉시
+   * 반영하지 않고 확인 Modal부터 띄운다(P0-2 — `window.confirm()` 대신 `Modal`을 쓰는
+   * 이 프로젝트 규칙, `DocumentEditor.tsx`의 삭제 확인 모달과 같은 패턴). `setIsPublished`를
+   * 아직 호출하지 않으므로 `Switch`의 `checked`는 그대로 true를 가리켜, 사용자가 확인하기
+   * 전까지는 시각적으로도 켜진 상태 그대로 남는다.
+   */
   function handlePublishedChange(next: boolean) {
+    if (!next && isPublished) {
+      setUnpublishConfirmOpen(true);
+      return;
+    }
     setIsPublished(next);
     void persist({ isPublished: next, enabledViewers, viewerFields });
+  }
+
+  function confirmUnpublish() {
+    setUnpublishConfirmOpen(false);
+    setIsPublished(false);
+    void persist({ isPublished: false, enabledViewers, viewerFields });
+  }
+
+  function cancelUnpublish() {
+    setUnpublishConfirmOpen(false);
   }
 
   function handleViewerToggle(viewerId: string, enabled: boolean) {
@@ -236,6 +260,32 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
         {saveState === "saving" && "저장 중..."}
         {saveState === "saved" && "모든 변경 사항이 저장됨"}
       </p>
+
+      {/*
+        이 컴포넌트 자체가 이미 DocumentEditor.tsx의 게시 설정 Modal 안에서 렌더링되므로
+        이건 중첩된 두 번째 Modal이다. @sfood/ui의 Modal은 포털을 쓰지 않고 자기 위치에서
+        `fixed inset-0`로 그리지만, `position: fixed`는 `relative` 조상(바깥 Modal의 다이얼로그
+        박스)에 갇히지 않고 뷰포트 기준으로 그대로 전체 화면을 덮으므로 정상적으로 위에
+        쌓인다(DOM상 더 늦게 그려지는 안쪽 Modal이 바깥 Modal 위에 자연스럽게 올라온다).
+      */}
+      <Modal
+        open={unpublishConfirmOpen}
+        onClose={cancelUnpublish}
+        title="게시 취소"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={cancelUnpublish}>
+              취소
+            </Button>
+            <Button type="button" variant="danger" onClick={confirmUnpublish}>
+              게시 취소
+            </Button>
+          </>
+        }
+      >
+        게시를 취소하면 이 문서가 즉시 비공개로 전환되어 더 이상 노출 중인 뷰어에서
+        보이지 않습니다. 계속하시겠습니까?
+      </Modal>
     </div>
   );
 }

@@ -175,11 +175,86 @@ describe("PublishForm", () => {
       />
     );
 
+    // 이미 게시된 문서를 끄는 시도라 확인 모달을 거쳐야 한다(P0-2).
     await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
+    await userEvent.click(screen.getByRole("button", { name: "게시 취소" }));
 
     expect(
       await screen.findByText("이미 사용 중인 slug입니다.")
     ).toBeInTheDocument();
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("이미 게시된 문서의 게시함 스위치를 끄면 곧바로 저장하지 않고 확인 모달을 띄운다(P0-2)", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
+
+    renderForm(
+      <PublishForm
+        pageId="doc-1"
+        initial={{
+          isPublished: true,
+          viewers: {
+            "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
+          },
+        }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    // 확인 전에는 스위치도 여전히 켜진 상태로 남는다.
+    expect(screen.getByRole("switch", { name: "게시함" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "게시 취소" }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(patchBodyOf(fetchMock)).toEqual({
+      isPublished: false,
+      viewers: { "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" } },
+    });
+  });
+
+  it("게시취소 확인 모달에서 취소하면 요청을 보내지 않고 스위치도 켜진 채로 남는다(P0-2)", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: false }));
+
+    renderForm(
+      <PublishForm
+        pageId="doc-1"
+        initial={{
+          isPublished: true,
+          viewers: {
+            "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
+          },
+        }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
+    await userEvent.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("switch", { name: "게시함" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  it("아직 게시되지 않은 문서에서 게시함 스위치를 켤 때는 확인 절차 없이 즉시 저장한다(P0-2)", async () => {
+    const fetchMock = stubFetch(jsonResponse({ isPublished: true }));
+
+    renderForm(
+      <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
