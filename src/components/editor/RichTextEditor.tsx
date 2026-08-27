@@ -5,6 +5,7 @@ import { Node, type Editor } from "@tiptap/core";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import StarterKit from "@tiptap/starter-kit";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
@@ -22,6 +23,26 @@ import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
 // `(view: EditorView, event: DragEvent, slice: Slice, moved: boolean) => boolean | void`
 // (paste는 `slice`까지 3개)로 브리프의 예시보다 파라미터가 많지만, 이 파일처럼
 // 뒤쪽 파라미터를 쓰지 않는 콜백은 TS 함수 타입 호환 규칙상 그대로 대입 가능하다.
+
+/**
+ * 문서 하나에 이미지가 통제 없이 계속 쌓이는 것을 막는 UX 가드레일(P0-4b) — 진짜
+ * 보안/비용 경계인 파일 크기 상한(P0-4a, 값 결정 대기 중)과는 별개다. 서버에 다시
+ * 저장하는 시점까지 강제하지는 않는다(task.md "범위 밖" 참고) — 세 업로드 진입점
+ * (드래그앤드롭·붙여넣기·슬래시 메뉴)이 새 업로드를 시작하기 전에만 확인한다.
+ */
+const MAX_IMAGES_PER_DOCUMENT = 30;
+const IMAGE_LIMIT_MESSAGE = `이미지는 문서당 최대 ${MAX_IMAGES_PER_DOCUMENT}장까지 첨부할 수 있습니다.`;
+
+/** 현재 문서(ProseMirror doc)에 이미 삽입된 이미지 노드 수를 센다. */
+function countImageNodes(doc: ProseMirrorNode): number {
+  let count = 0;
+  doc.descendants((node) => {
+    if (node.type.name === "image") {
+      count += 1;
+    }
+  });
+  return count;
+}
 
 /** 드롭/붙여넣기로 받은 이미지를 업로드한 뒤, 해당 위치에 image 노드를 삽입한다. */
 function insertUploadedImage(
@@ -55,6 +76,11 @@ function createImageSlashItem(
       input.addEventListener("change", () => {
         const file = input.files?.[0];
         if (!file) return;
+
+        if (countImageNodes(editor.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
+          onError(IMAGE_LIMIT_MESSAGE);
+          return;
+        }
 
         editor.chain().focus().deleteRange(range).run();
         const pos = editor.state.selection.from;
@@ -429,6 +455,10 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
           toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
           return true;
         }
+        if (countImageNodes(view.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
+          toast(IMAGE_LIMIT_MESSAGE, "info");
+          return true;
+        }
 
         const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
         const pos = coords?.pos ?? view.state.selection.from;
@@ -447,6 +477,10 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
 
         if (!pageId) {
           toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+          return true;
+        }
+        if (countImageNodes(view.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
+          toast(IMAGE_LIMIT_MESSAGE, "info");
           return true;
         }
 
