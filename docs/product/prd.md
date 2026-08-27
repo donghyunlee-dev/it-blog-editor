@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 32 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-2(게시취소 확인 모달) 완료)
+> 전체 진행률: 33 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P0-3(동시 편집 시 sourceDocument 버전 가드) 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -192,7 +192,7 @@
 - [x] (완료, P0-1a) 저장하지 않은 변경사항이 있는 상태에서 탭 닫기·다른 문서로 이동 시 이탈 경고를 띄운다 — Next.js `<Link onNavigate>`(v15.3.0+)로 앱 내부 이동을 가로채 `Modal`로 확인받고, `beforeunload`로 탭 닫기/새로고침을 막는다. 브라우저 뒤로가기/앞으로가기 버튼(popstate)은 Next.js App Router에 안전한 차단 API가 없어 범위 밖으로 명시적으로 제외했다(추후 필요 시 재논의). 산출물: `docs/superpowers/tasks/P0-1a-unsaved-changes-warning/{task,plan,result,test}.md`, src/components/editor/UnsavedChangesContext.tsx, src/components/editor/EditorShell.tsx, src/components/editor/DocumentEditor.tsx, src/components/editor/EditorSidebar.tsx
 - [ ] 🔶 (P0-1b) 자동 저장 도입 — **주의**: `docs/superpowers/plans/2026-08-21-editor-ui-ux-implementation.md`의 Global Constraints가 "저장은 수동 유지, 자동저장을 추가하지 않는다"고 이미 명시적으로 결정한 바 있다. 이번 감사와 상충하므로 재논의가 필요하다(로컬 임시저장만 할지, 서버 오토세이브까지 할지, 주기는 얼마로 할지) — [Issue #1](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/1) 답변 후 착수.
 - [x] (완료, P0-2) 게시 설정 Modal의 "게시함" 스위치를 끌 때 `Modal` 확인 절차를 추가한다(문서 삭제와 동일한 안전장치). 게시 시작(켜기)·뷰어별 노출 토글·slug/메타 설명 저장은 기존처럼 확인 없이 즉시 저장된다 — 위험한 쪽(이미 공개된 문서의 순간 비공개 전환)만 막는다. 산출물: `docs/superpowers/tasks/P0-2-unpublish-confirm-modal/{task,plan,result,test}.md`, src/components/editor/PublishForm.tsx
-- [ ] (P0-3) `updateDocument`의 `sourceDocument` 속성 저장에도 페이지 본문과 동일한 버전 검사를 적용해 동시 편집 시 원고 유실을 막는다.
+- [x] (완료, P0-3) `updateDocument`의 `sourceDocument` 속성 저장에도 페이지 본문과 동일한 버전 검사를 적용해 동시 편집 시 원고 유실을 막는다 — 저장 시작 시점에 속성 버전을 함께 읽어 두고, 실제 쓰기 직전 다시 확인해 그 사이 다른 요청이 먼저 썼으면 `ConflictError`를 던진다(완전한 원자적 트랜잭션은 Confluence Cloud API의 근본적 한계로 불가능 — "조용한 유실"을 "감지 가능한 오류"로 바꾸는 데까지가 이 계층에서 가능한 범위). 산출물: `docs/superpowers/tasks/P0-3-sourcedocument-version-guard/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts
 - [ ] 🔶 (P0-4a) 이미지 업로드 최대 파일 크기를 제한한다 — 상한 값은 [Issue #2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2)에서 결정.
 - [ ] (P0-4b) 이미지 업로드 개수(붙여넣기/드래그앤드롭 1회 처리량, 문서당 누적)에 상한을 둔다.
 - [ ] (P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책).

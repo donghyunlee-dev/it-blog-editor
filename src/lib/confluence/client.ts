@@ -245,12 +245,34 @@ export async function getPageProperty<T = unknown>(
   return result.results[0] ?? null;
 }
 
+/**
+ * `upsertPageProperty`가 `expectedVersion`으로 넘겨받은 값이 실제로 쓰기 직전에 다시 읽은
+ * 속성 버전과 다를 때 던진다. `ConflictError`(도메인 계층, `src/lib/editor/errors.ts`)와는
+ * 별개다 — 이 파일은 저수준 연동 계층이라 도메인 에러를 몰라야 한다(architecture.md의
+ * 계층 원칙). 호출부(`documents.ts`)가 이 에러를 잡아 `ConflictError`로 바꾼다.
+ */
+export class PropertyVersionConflictError extends Error {
+  constructor(message = "Content property가 예상한 버전과 다릅니다.") {
+    super(message);
+    this.name = "PropertyVersionConflictError";
+  }
+}
+
 export async function upsertPageProperty<T = unknown>(
   pageId: string,
   key: string,
-  value: T
+  value: T,
+  options?: { expectedVersion?: number }
 ): Promise<ConfluencePageProperty<T>> {
   const existing = await getPageProperty<T>(pageId, key);
+
+  if (options?.expectedVersion !== undefined) {
+    // 속성이 아직 한 번도 없으면(버전 개념 자체가 없음) 0으로 취급한다.
+    const actualVersion = existing?.version.number ?? 0;
+    if (actualVersion !== options.expectedVersion) {
+      throw new PropertyVersionConflictError();
+    }
+  }
 
   if (!existing) {
     return confluenceRequest<ConfluencePageProperty<T>>(

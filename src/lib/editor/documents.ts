@@ -7,6 +7,7 @@ import {
   getPage,
   getPageProperty,
   listChildPages,
+  PropertyVersionConflictError,
   updatePage,
   upsertPageProperty,
 } from "@/lib/confluence/client";
@@ -205,13 +206,32 @@ export interface UpdateDocumentInput {
   expectedVersion: number;
 }
 
-/** 기존 문서를 수정한다. 요청한 버전이 최신이 아니면 ConflictError(409)를 던진다. */
+/**
+ * 기존 문서를 수정한다. 요청한 버전이 최신이 아니면 ConflictError(409)를 던진다.
+ *
+ * 페이지 본문(storage format)뿐 아니라 편집 원본을 담은 `sourceDocument` content
+ * property도 함께 저장하는데, 이 두 쓰기는 Confluence가 트랜잭션으로 묶어주지 않는
+ * 서로 다른 리소스다. 저장을 시작하는 시점에 `sourceDocument`의 현재 버전을 함께
+ * 읽어 두고(`sourceProperty`), 실제로 그 속성을 쓰는 순간에도 그 버전이 그대로인지
+ * 확인한다(`upsertPageProperty`의 `expectedVersion` 옵션) — 그 사이 다른 요청이 먼저
+ * 써서 버전이 움직였다면 조용히 덮어쓰지 않고 ConflictError를 던진다. 본문은 이미
+ * 저장된 뒤일 수 있어(부분 성공) 완전한 원자성은 아니지만, "조용한 원고 유실"을
+ * "감지 가능한 오류"로 바꾼다 — Confluence Cloud REST API가 여러 리소스에 걸친
+ * 트랜잭션을 지원하지 않아 이보다 더 근본적인 해결은 이 계층에서 불가능하다
+ * (docs/superpowers/tasks/P0-3-sourcedocument-version-guard/task.md 참고).
+ */
 export async function updateDocument(input: UpdateDocumentInput) {
   if (!input.title.trim() || isEmptyDoc(input.doc)) {
     throw new ValidationError("제목 또는 본문이 누락되었습니다.");
   }
 
-  const current = await getPageOrThrow(input.pageId);
+  const [current, sourceProperty] = await Promise.all([
+    getPageOrThrow(input.pageId),
+    getPageProperty<{ doc: JSONContent }>(
+      input.pageId,
+      SOURCE_DOCUMENT_PROPERTY_KEY
+    ),
+  ]);
   if (current.version.number !== input.expectedVersion) {
     throw new ConflictError(
       `문서가 이미 최신 버전(${current.version.number})으로 변경되었습니다. 최신 내용을 확인한 뒤 다시 저장하세요.`
@@ -225,9 +245,21 @@ export async function updateDocument(input: UpdateDocumentInput) {
     nextVersion: current.version.number + 1,
   });
 
-  await upsertPageProperty(input.pageId, SOURCE_DOCUMENT_PROPERTY_KEY, {
-    doc: input.doc,
-  });
+  try {
+    await upsertPageProperty(
+      input.pageId,
+      SOURCE_DOCUMENT_PROPERTY_KEY,
+      { doc: input.doc },
+      { expectedVersion: sourceProperty?.version.number ?? 0 }
+    );
+  } catch (error) {
+    if (error instanceof PropertyVersionConflictError) {
+      throw new ConflictError(
+        "문서 본문은 저장됐지만, 편집 원본이 동시에 다른 곳에서 변경되어 반영하지 못했습니다. 최신 내용을 다시 불러온 뒤 저장하세요."
+      );
+    }
+    throw error;
+  }
 
   return { pageId: updated.id, version: updated.version.number };
 }

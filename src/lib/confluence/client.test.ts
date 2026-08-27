@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listChildPages, listLabels, movePage, removeLabel, restrictPageToAccount } from "./client";
+import { addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, listChildPages, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -296,5 +296,81 @@ describe("listChildPages", () => {
       { id: "c3", status: "current", title: "C", spaceId: "1", parentId: "parent-1", version: { number: 1, createdAt: "2026-08-25T00:00:00.000Z" } },
     ]);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("upsertPageProperty", () => {
+  function stubExistingProperty(versionNumber: number) {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || init.method === undefined) {
+        // GET /properties?key=... — 현재 속성 조회
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: "prop-1",
+                key: "sourceDocument",
+                value: { doc: { type: "doc", content: [] } },
+                version: { number: versionNumber },
+              },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: "prop-1",
+          key: "sourceDocument",
+          value: { doc: { type: "doc", content: [] } },
+          version: { number: versionNumber + 1 },
+        }),
+        { status: 200 }
+      );
+    });
+  }
+
+  it("expectedVersion을 넘기지 않으면 검사 없이 항상 현재 버전+1로 덮어쓴다(기존 동작)", async () => {
+    const fetchMock = stubExistingProperty(3);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await upsertPageProperty("111", "sourceDocument", {
+      doc: { type: "doc", content: [] },
+    });
+
+    expect(result.version.number).toBe(4);
+    const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+    expect(putCall).toBeDefined();
+  });
+
+  it("expectedVersion이 현재 버전과 같으면 정상적으로 PUT한다", async () => {
+    const fetchMock = stubExistingProperty(3);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await upsertPageProperty(
+      "111",
+      "sourceDocument",
+      { doc: { type: "doc", content: [] } },
+      { expectedVersion: 3 }
+    );
+
+    expect(result.version.number).toBe(4);
+  });
+
+  it("expectedVersion이 현재 버전과 다르면 PUT을 보내지 않고 PropertyVersionConflictError를 던진다", async () => {
+    const fetchMock = stubExistingProperty(3);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      upsertPageProperty(
+        "111",
+        "sourceDocument",
+        { doc: { type: "doc", content: [] } },
+        { expectedVersion: 2 }
+      )
+    ).rejects.toThrow(PropertyVersionConflictError);
+
+    const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+    expect(putCall).toBeUndefined();
   });
 });

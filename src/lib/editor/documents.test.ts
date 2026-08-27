@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as tags from "./tags";
-import { UnauthorizedError, ValidationError } from "./errors";
+import { ConflictError, UnauthorizedError, ValidationError } from "./errors";
 import {
   createDocument,
   getDocumentDetail,
@@ -368,6 +368,12 @@ describe("updateDocument", () => {
       parentId: "folder-1",
       version: { number: 1, createdAt: "" },
     });
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: { doc: {} },
+      version: { number: 5 },
+    });
     vi.spyOn(client, "updatePage").mockResolvedValue({
       id: "doc-1",
       status: "current",
@@ -380,7 +386,7 @@ describe("updateDocument", () => {
       id: "prop-1",
       key: "sourceDocument",
       value: {},
-      version: { number: 1 },
+      version: { number: 6 },
     });
 
     const result = await updateDocument({
@@ -390,10 +396,54 @@ describe("updateDocument", () => {
       expectedVersion: 1,
     });
 
-    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "sourceDocument", {
-      doc: SAMPLE_DOC,
-    });
+    // P0-3: sourceDocument 저장 시점에도, 저장을 시작할 때 읽어 둔 속성 버전(5)을
+    // 그대로 전달해 그 사이 다른 요청이 먼저 쓰지 않았는지 확인한다.
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "doc-1",
+      "sourceDocument",
+      { doc: SAMPLE_DOC },
+      { expectedVersion: 5 }
+    );
     expect(result).toEqual({ pageId: "doc-1", version: 2 });
+  });
+
+  it("본문 저장 중 다른 요청이 sourceDocument를 먼저 갱신했으면(속성 버전 드리프트) ConflictError를 던진다(P0-3)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: { doc: {} },
+      version: { number: 5 },
+    });
+    vi.spyOn(client, "updatePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "새 제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    // 이 요청이 저장을 시작한 뒤(속성 버전 5를 읽은 뒤), 실제로 쓰기 직전에 다른
+    // 요청이 먼저 써서 버전이 이미 움직여 있는 상황을 흉내낸다.
+    vi.spyOn(client, "upsertPageProperty").mockRejectedValue(
+      new client.PropertyVersionConflictError()
+    );
+
+    await expect(
+      updateDocument({
+        pageId: "doc-1",
+        title: "새 제목",
+        doc: SAMPLE_DOC,
+        expectedVersion: 1,
+      })
+    ).rejects.toThrow(ConflictError);
   });
 
   it("텍스트 없는 빈 문단만 있으면 ValidationError를 던진다(createDocument와 동일한 검증 경로)", async () => {
