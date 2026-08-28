@@ -98,6 +98,15 @@ vi.mock("./RichTextEditor", () => ({
   ),
 }));
 
+// VersionHistory 자체의 로딩/성공/실패 동작은 VersionHistory.test.tsx가 다룬다. 여기서는
+// "이력" 버튼이 Modal을 열고 올바른 pageId를 넘기는지만 확인하면 되므로 가벼운 대역으로
+// 바꿔 끼운다.
+vi.mock("./VersionHistory", () => ({
+  VersionHistory: ({ pageId }: { pageId: string }) => (
+    <div data-testid="version-history" data-page-id={pageId} />
+  ),
+}));
+
 /**
  * useToast()는 Provider 없이도 no-op 컨텍스트 기본값으로 동작하므로 렌더 자체는
  * 성공하지만, 토스트 메시지를 화면에서 조회하려면 실제 Provider가 필요하다.
@@ -390,6 +399,20 @@ describe("DocumentEditor", () => {
     expect(
       within(screen.getByRole("dialog")).getByRole("switch", { name: "게시함" })
     ).toBeInTheDocument();
+  });
+
+  it("이력 버튼을 누르면 버전 이력 모달이 열리고 올바른 pageId를 넘긴다(P1-2a)", async () => {
+    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "이력" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("version-history")).toHaveAttribute(
+      "data-page-id",
+      "page-1"
+    );
   });
 
   it("태그 자동완성 후보를 TagInput에 전달한다", async () => {

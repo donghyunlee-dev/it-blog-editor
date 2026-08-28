@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetSlugIndexCacheForTests, addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, invalidateSlugIndexCache, listChildPages, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { __resetSlugIndexCacheForTests, addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, invalidateSlugIndexCache, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -455,5 +455,58 @@ describe("upsertPageProperty", () => {
 
     const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
     expect(putCall).toBeUndefined();
+  });
+});
+
+describe("listPageVersions", () => {
+  it("_links.next 커서를 따라가며 모든 버전을 모은다", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/api/v2/pages/111/versions?limit=50")) {
+        return new Response(
+          JSON.stringify({
+            results: [{ number: 2, createdAt: "2026-08-27T00:00:00.000Z" }],
+            _links: { next: "/api/v2/pages/111/versions?cursor=abc" },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.endsWith("/api/v2/pages/111/versions?cursor=abc")) {
+        return new Response(
+          JSON.stringify({
+            results: [{ number: 1, createdAt: "2026-08-20T00:00:00.000Z" }],
+            _links: {},
+          }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const versions = await listPageVersions("111");
+
+    expect(versions).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("최신순(createdAt 내림차순)으로 정렬해 반환한다", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          results: [
+            { number: 1, createdAt: "2026-08-20T00:00:00.000Z" },
+            { number: 3, createdAt: "2026-08-27T00:00:00.000Z" },
+            { number: 2, createdAt: "2026-08-24T00:00:00.000Z" },
+          ],
+          _links: {},
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const versions = await listPageVersions("111");
+
+    expect(versions.map((v) => v.number)).toEqual([3, 2, 1]);
   });
 });
