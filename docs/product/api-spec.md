@@ -73,17 +73,11 @@
 
 **Response Body (성공)**
 ```json
-{
-  "exists": true,
-  "accountFolderId": "12345",
-  "draftFolderId": "12346",
-  "publishedFolderId": "12347",
-  "spaceKey": "SFOODIT"
-}
+{ "exists": true, "accountFolderId": "12345", "spaceKey": "SFOODIT" }
 ```
 (폴더가 없으면 `{ "exists": false }`)
 
-응답은 계정 폴더(`accountFolderId`)와 그 하위 "초안"/"게시" 서브페이지 ID(`draftFolderId`/`publishedFolderId`)를 함께 반환한다. 상세는 [confluence-content-structure-design.md](../superpowers/specs/2026-08-21-confluence-content-structure-design.md) 참고.
+**2026-08-28 갱신(P0-8)**: 예전에는 `draftFolderId`/`publishedFolderId`도 함께 반환했으나, "초안"/"게시" 서브페이지 구조 자체가 제거되면서 빠졌다(응답을 실제로 소비하는 프런트엔드 코드가 없어 영향 없음).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -98,14 +92,9 @@
 
 **Response Body (성공, 201)**
 ```json
-{
-  "accountFolderId": "12345",
-  "draftFolderId": "12346",
-  "publishedFolderId": "12347",
-  "spaceKey": "SFOODIT"
-}
+{ "accountFolderId": "12345", "spaceKey": "SFOODIT" }
 ```
-계정 폴더와 "초안"(제한)/"게시"(제한 없음) 서브페이지 세 개를 한 번에 만든다.
+계정 폴더(제한 없음) 하나만 만든다(P0-8 — "초안"/"게시" 서브페이지는 더 이상 만들지 않는다).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |

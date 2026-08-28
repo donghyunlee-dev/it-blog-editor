@@ -2,15 +2,12 @@ import {
   ConfluenceApiError,
   getPage,
   getPageProperty,
-  movePage,
   upsertPageProperty,
 } from "@/lib/confluence/client";
 import { hidePageFromOthers, revealPageToSpace } from "./access";
-import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { NotFoundError, ValidationError } from "./errors";
 
 const PUBLISH_PROPERTY_KEY = "publishMetadata";
-const AUTHOR_PROPERTY_KEY = "authorMeta";
 
 /** 클라이언트(PublishForm)가 보내는 뷰어별 입력값 — 아직 공개 slug가 계산되기 전이다. */
 export interface PublishViewerInput {
@@ -89,53 +86,32 @@ function validateAndComposeViewers(
   return composed;
 }
 
-/** 문서의 `authorMeta`에서 작성자를 찾아 그 계정 폴더(초안/게시 서브폴더 포함)를 반환한다. */
-async function getAuthorFolderOrThrow(pageId: string) {
-  const authorProperty = await getPageProperty<{ actualAuthorEmail: string }>(
-    pageId,
-    AUTHOR_PROPERTY_KEY
-  );
-  const authorEmail = authorProperty?.value?.actualAuthorEmail;
-  if (!authorEmail) {
-    throw new Error("작성자 정보를 찾을 수 없어 문서를 이동할 수 없습니다.");
-  }
-  return (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
-}
-
 /**
  * 문서의 게시 여부·뷰어별 slug/메타 설명을 설정한다.
  *
- * 현재 게시 여부는 저장된 `publishMetadata.isPublished` 플래그가 아니라 **실제 페이지 위치**
- * (부모가 작성자 계정 폴더의 "게시" 서브폴더인지)로 판단하고, 물리적 이동/권한 제한 토글을
- * 메타데이터 기록보다 **먼저** 수행한다. 중간에 실패하더라도 저장된 메타데이터가 실제 상태보다
- * 뒤처지기만 하므로(공개 폴더에 있는 문서를 "초안"이라고 잘못 표시하는 fail-open 상태가 생기지
- * 않음), 같은 요청을 그대로 재시도하면 실제 위치에서 올바른 동작이 다시 도출된다.
- *
- * 위치 판단을 위해서도 작성자의 계정 폴더(`publishedFolderId`)를 먼저 알아야 하므로, 게시·
- * 게시취소 두 분기 모두 작성자 조회를 선행한다.
+ * P0-8 이전에는 문서를 계정 폴더 내 "초안"/"게시" 서브폴더 사이로 물리적으로 이동시키고,
+ * 그 위치를 게시 여부의 진실로 삼았다(메타데이터 기록 실패에도 재시도가 안전하도록). "아무도
+ * Confluence를 직접 열어보지 않는다"는 결정(P0-7) 이후 그 구조 자체를 없앴으므로, 이제는
+ * restriction 토글만으로 게시 여부를 결정한다. restriction 적용/해제는 그 자체로 멱등
+ * 연산이라(같은 상태를 다시 걸어도 안전) 순서 원칙만 지키면 재시도 안전성이 그대로
+ * 유지된다 — **restriction 변경을 항상 메타데이터 기록보다 먼저** 한다. 메타데이터 기록이
+ * 실패해도 실제 공개 여부(restriction)는 항상 의도한 상태와 일치하므로, 최악의 경우도
+ * "실제로는 이미 반영됐는데 표시가 잠깐 뒤처짐"이지 보안 위반이 아니다.
  */
 export async function setPublishState(input: SetPublishStateInput) {
   const existingProperty = await getPublishPropertyOrThrow(input.pageId);
   const previousState: PublishMetadata =
     existingProperty?.value ?? { isPublished: false, viewers: {} };
 
-  const [currentPage, authorFolder] = await Promise.all([
-    getPage(input.pageId),
-    getAuthorFolderOrThrow(input.pageId),
-  ]);
-  const isCurrentlyPublished = currentPage.parentId === authorFolder.publishedFolderId;
-
   if (input.isPublished) {
+    const currentPage = await getPage(input.pageId);
     const requestedViewers = input.viewers ?? previousState.viewers;
     if (Object.keys(requestedViewers).length === 0) {
       throw new ValidationError("게시 시 최소 하나의 뷰어 설정이 필요합니다.");
     }
     const viewers = validateAndComposeViewers(currentPage.title, requestedViewers);
 
-    if (!isCurrentlyPublished) {
-      await movePage(input.pageId, authorFolder.publishedFolderId);
-      await revealPageToSpace(input.pageId);
-    }
+    await revealPageToSpace(input.pageId);
 
     const value: PublishMetadata = {
       isPublished: true,
@@ -147,14 +123,7 @@ export async function setPublishState(input: SetPublishStateInput) {
     return { pageId: input.pageId, isPublished: true, viewers, publishedAt: value.publishedAt };
   }
 
-  if (isCurrentlyPublished) {
-    // 제한을 먼저 걸고 나서 옮긴다. Confluence 페이지 제한은 부모로부터 상속되지 않으므로
-    // (설계 문서 "숨김 메커니즘 — 상속에 의존하지 않는 명시적 제한"), 순서를 뒤집으면 이동
-    // 성공 후 제한 실패 시 문서가 제한 없이 개인 폴더에 놓여 Space 구성원에게 노출된다.
-    // 이 순서에서는 최악의 경우가 "제한된 상태로 잘못된 위치에 남음"이라 노출 창이 없다.
-    await hidePageFromOthers(input.pageId);
-    await movePage(input.pageId, authorFolder.draftFolderId);
-  }
+  await hidePageFromOthers(input.pageId);
 
   const value: PublishMetadata = { isPublished: false, viewers: previousState.viewers };
   await upsertPageProperty(input.pageId, PUBLISH_PROPERTY_KEY, value);

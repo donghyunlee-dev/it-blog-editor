@@ -58,34 +58,33 @@ function page(id: string, title: string, parentId: string): client.ConfluencePag
   };
 }
 
-/** sourceDocument property에서 title을 돌려주는 getPageProperty 스텁(P0-7 — listDocuments가
- * Confluence page.title이 아니라 이 값을 표시 제목으로 쓴다). */
-function stubSourceTitles(titlesByPageId: Record<string, string>) {
+/** sourceDocument/publishMetadata property를 문서별로 돌려주는 getPageProperty 스텁
+ * (P0-7 — 표시 제목은 sourceDocument에서, P0-8 — 게시 여부는 publishMetadata에서 읽는다). */
+function stubProperties(
+  byPageId: Record<
+    string,
+    { sourceDocument?: { title?: string; doc?: unknown }; publishMetadata?: { isPublished: boolean } }
+  >
+) {
   return vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
-    if (key !== "sourceDocument" || !(pageId in titlesByPageId)) {
-      return null;
-    }
-    return {
-      id: "prop-1",
-      key,
-      value: { title: titlesByPageId[pageId], doc: {} },
-      version: { number: 1 },
-    };
+    const entry = byPageId[pageId]?.[key as "sourceDocument" | "publishMetadata"];
+    if (!entry) return null;
+    return { id: "prop-1", key, value: entry, version: { number: 1 } };
   });
 }
 
 describe("listDocuments", () => {
-  it("초안 폴더에만 문서가 있으면 초안 목록을 그대로 반환한다", async () => {
+  it("계정 폴더의 문서 목록을 반환한다", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
-      if (parentId === "draft-1") {
-        return [page("doc-1", "internal-key-1", "draft-1")];
+      if (parentId === "account-1") {
+        return [page("doc-1", "internal-key-1", "account-1")];
       }
       return [];
     });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
-    stubSourceTitles({ "doc-1": "초안 문서" });
+    stubProperties({ "doc-1": { sourceDocument: { title: "초안 문서" } } });
 
-    const documents = await listDocuments("draft-1", "published-1");
+    const documents = await listDocuments("account-1");
 
     expect(documents).toEqual([
       {
@@ -98,20 +97,26 @@ describe("listDocuments", () => {
     ]);
   });
 
-  it("게시 폴더에 있는 문서도 초안 문서와 함께 반환하며, 어느 서브폴더에서 나왔는지로 게시 여부를 판단한다", async () => {
+  it("게시 여부는 publishMetadata.isPublished로 판단한다(P0-8 — 더 이상 폴더 위치로 판단하지 않는다)", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
-      if (parentId === "draft-1") {
-        return [page("doc-1", "internal-key-1", "draft-1")];
-      }
-      if (parentId === "published-1") {
-        return [page("doc-2", "internal-key-2", "published-1")];
+      if (parentId === "account-1") {
+        return [
+          page("doc-1", "internal-key-1", "account-1"),
+          page("doc-2", "internal-key-2", "account-1"),
+        ];
       }
       return [];
     });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
-    stubSourceTitles({ "doc-1": "초안 문서", "doc-2": "게시된 문서" });
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "초안 문서" } },
+      "doc-2": {
+        sourceDocument: { title: "게시된 문서" },
+        publishMetadata: { isPublished: true },
+      },
+    });
 
-    const documents = await listDocuments("draft-1", "published-1");
+    const documents = await listDocuments("account-1");
 
     expect(documents).toEqual([
       {
@@ -133,15 +138,17 @@ describe("listDocuments", () => {
 
   it("각 문서의 태그를 함께 반환한다(중복 조회 없음)", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
-      if (parentId === "published-1") {
-        return [page("doc-1", "internal-key-1", "published-1")];
+      if (parentId === "account-1") {
+        return [page("doc-1", "internal-key-1", "account-1")];
       }
       return [];
     });
     const tagsSpy = vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
-    stubSourceTitles({ "doc-1": "문서1" });
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "문서1" }, publishMetadata: { isPublished: true } },
+    });
 
-    const documents = await listDocuments("draft-1", "published-1");
+    const documents = await listDocuments("account-1");
 
     expect(documents).toEqual([
       {
@@ -158,15 +165,15 @@ describe("listDocuments", () => {
 
   it("sourceDocument에 title이 없으면(예: 마이그레이션 이전 데이터) Confluence page title로 대체한다", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
-      if (parentId === "draft-1") {
-        return [page("doc-1", "레거시 제목", "draft-1")];
+      if (parentId === "account-1") {
+        return [page("doc-1", "레거시 제목", "account-1")];
       }
       return [];
     });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
     vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
 
-    const documents = await listDocuments("draft-1", "published-1");
+    const documents = await listDocuments("account-1");
 
     expect(documents[0].title).toBe("레거시 제목");
   });
@@ -180,7 +187,7 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
   // 동작하는(같은 인자면 메모이즈하는) 구현으로 교체해 "우리 코드가 `cache()`를 올바르게
   // 감싸 사용하고 있는지"를 검증한다 — dispatcher가 있는 실제 런타임에서 기대하는 동작과
   // 정확히 같은 것을 이 스텁으로 재현한다.
-  it("같은 (draftFolderId, publishedFolderId)로 다시 호출해도 하위 목록 조회는 한 번만 실행된다", async () => {
+  it("같은 accountFolderId로 다시 호출해도 하위 목록 조회는 한 번만 실행된다", async () => {
     vi.resetModules();
     vi.doMock("react", async (importOriginal) => {
       const actual = await importOriginal<typeof import("react")>();
@@ -207,26 +214,25 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
       const listChildPagesSpy = vi
         .spyOn(freshClient, "listChildPages")
         .mockImplementation(async (parentId) => {
-          if (parentId === "draft-1") {
-            return [page("doc-1", "문서1", "draft-1")];
+          if (parentId === "account-1") {
+            return [page("doc-1", "문서1", "account-1")];
           }
           return [];
         });
       vi.spyOn(freshTags, "getTags").mockResolvedValue([]);
       vi.spyOn(freshClient, "getPageProperty").mockResolvedValue(null);
 
-      // `/editor` 레이아웃과 `listTagSuggestions`는 각자 독립적으로 같은 두 문자열 값으로
-      // 이 함수를 호출한다(공유 객체 참조가 없다). listDocuments가 두 폴더 ID를 원시값
+      // `/editor` 레이아웃과 `listTagSuggestions`는 각자 독립적으로 같은 문자열 값으로
+      // 이 함수를 호출한다(공유 객체 참조가 없다). listDocuments가 폴더 ID를 원시값
       // 인자로 그대로 받기 때문에, 서로 다른 호출부에서 두 번 불려도 `cache()`가 값 기반으로
-      // 동일 호출로 인식해 dedup해야 한다 — 그래서 여기서도 매번 새로 두 문자열 리터럴을
+      // 동일 호출로 인식해 dedup해야 한다 — 그래서 여기서도 매번 새로 문자열 리터럴을
       // 전달해 호출하고, 공유 객체를 만들지 않는다.
-      await freshListDocuments("draft-1", "published-1");
-      await freshListDocuments("draft-1", "published-1");
+      await freshListDocuments("account-1");
+      await freshListDocuments("account-1");
 
-      // listChildPages는 listDocuments 한 번 호출당 2번(초안 폴더 + 게시 폴더) 불린다.
       // cache()가 제대로 적용됐다면 두 번째 listDocuments 호출은 완전히 스킵되어
-      // 총 호출 수는 2(1회분)로 유지된다 — dedup이 없다면 4가 된다.
-      expect(listChildPagesSpy).toHaveBeenCalledTimes(2);
+      // listChildPages 총 호출 수는 1(1회분)로 유지된다 — dedup이 없다면 2가 된다.
+      expect(listChildPagesSpy).toHaveBeenCalledTimes(1);
     } finally {
       vi.doUnmock("react");
       vi.resetModules();
@@ -293,7 +299,7 @@ describe("createDocument", () => {
     const hideSpy = vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     const result = await createDocument({
-      draftFolderId: "folder-1",
+      accountFolderId: "folder-1",
       title: "제목",
       doc: SAMPLE_DOC,
       actualAuthorEmail: "user@s-food.com",
@@ -322,7 +328,7 @@ describe("createDocument", () => {
   it("텍스트 없는 빈 문단만 있으면 ValidationError를 던진다", async () => {
     await expect(
       createDocument({
-        draftFolderId: "folder-1",
+        accountFolderId: "folder-1",
         title: "제목",
         doc: EMPTY_PARAGRAPH_DOC,
         actualAuthorEmail: "user@s-food.com",
@@ -333,7 +339,7 @@ describe("createDocument", () => {
   it("공백 문자만 있으면 ValidationError를 던진다", async () => {
     await expect(
       createDocument({
-        draftFolderId: "folder-1",
+        accountFolderId: "folder-1",
         title: "제목",
         doc: WHITESPACE_ONLY_DOC,
         actualAuthorEmail: "user@s-food.com",
@@ -364,7 +370,7 @@ describe("createDocument", () => {
     vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
 
     const result = await createDocument({
-      draftFolderId: "folder-1",
+      accountFolderId: "folder-1",
       title: "제목",
       doc: IMAGE_ONLY_DOC,
       actualAuthorEmail: "user@s-food.com",
@@ -530,8 +536,6 @@ describe("deleteDocument", () => {
   function stubPersonalFolder() {
     return vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
       accountFolderId: "account-1",
-      draftFolderId: "draft-folder-1",
-      publishedFolderId: "published-folder-1",
       spaceKey: "SPACE",
     });
   }

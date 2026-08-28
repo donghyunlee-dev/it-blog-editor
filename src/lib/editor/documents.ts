@@ -23,9 +23,11 @@ import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage"
 import { hidePageFromOthers } from "./access";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { getTags } from "./tags";
+import type { PublishMetadata } from "./publish";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
+const PUBLISH_PROPERTY_KEY = "publishMetadata";
 export const DELETED_DOCUMENTS_PROPERTY_KEY = "deletedDocuments";
 
 export interface DeletedDocumentEntry {
@@ -91,54 +93,44 @@ async function readAuthorEmail(pageId: string): Promise<string | null> {
 }
 
 /**
- * 계정 폴더(초안/게시)에 속한 문서 목록을 조회한다. 게시하면 문서가 계정 폴더 하위 "초안"에서
- * 같은 계정 폴더 하위 "게시"로 이동할 뿐 계정 밖으로 나가지 않으므로, 두 서브폴더의 자식을
- * 그대로 합치면 곧 그 계정 소유 문서 전체가 된다 — 더 이상 공유 게시됨 루트를 스캔해
- * authorMeta로 소유권을 필터링할 필요가 없다.
+ * 계정 폴더에 속한 문서 목록을 조회한다. 게시 여부와 무관하게 한 계정의 모든 문서가 같은
+ * 계정 폴더 하위에 평평하게 있다(P0-8 — 예전에는 "초안"/"게시" 두 서브폴더 사이로 문서를
+ * 물리적으로 이동시키고 그 위치로 게시 여부를 판단했는데, "Confluence는 아무도 직접 열어보지
+ * 않는 DB일 뿐"이라는 결정(P0-7) 이후 폴더 이동이 있던 이유 자체가 사라져 제거했다). 게시
+ * 여부는 이제 `publishMetadata` property로 판단한다(`publish.ts` 참고).
  *
  * Confluence 페이지의 실제 title은 더 이상 표시용 제목이 아니다(P0-7 — Space 전체에서
  * 유일해야 하는 Confluence 제약을 내부 고유키로 흡수하고, 사용자가 입력한 진짜 제목은
- * `sourceDocument` property에 따로 저장한다). 그래서 문서마다 이 property를 한 번씩 더
- * 읽는다 — 계정 하나가 가진 문서 수 범위 내의 비용이라 Space 전체를 스캔하던 기존
- * slug 조회 문제(P0-5b)와는 성격이 다르다.
+ * `sourceDocument` property에 따로 저장한다). 그래서 문서마다 이 property도 함께 읽는다 —
+ * 계정 하나가 가진 문서 수 범위 내의 비용이라 Space 전체를 스캔하던 기존 slug 조회 문제
+ * (P0-5b)와는 성격이 다르다.
  *
  * `/editor/[pageId]`가 로드될 때 `/editor` 레이아웃(사이드바용)과 `listTagSuggestions`가
- * 각각 독립적으로 이 함수를 (같은 폴더 쌍으로) 호출한다. React의 `cache()`로 감싸 같은
+ * 각각 독립적으로 이 함수를 (같은 계정 폴더 ID로) 호출한다. React의 `cache()`로 감싸 같은
  * 요청(같은 서버 렌더 트리) 안에서는 동일 인자 호출이 중복 실행되지 않고 메모이즈되도록 한다
  * — Next.js App Router의 요청 스코프 dedup 패턴
- * (https://react.dev/reference/react/cache)을 그대로 따른다. `cache()`는 원시값 인자는
- * 값으로, 객체 인자는 참조로 메모이즈하므로, 두 폴더 ID를 객체 하나로 묶지 않고 별개의
- * 문자열 인자 두 개로 받는다 — 두 호출부가 각자 새 객체 리터럴을 만들면 참조가 달라져
- * dedup이 조용히 깨지기 때문이다.
+ * (https://react.dev/reference/react/cache)을 그대로 따른다.
  */
 export const listDocuments = cache(async function listDocuments(
-  draftFolderId: string,
-  publishedFolderId: string
+  accountFolderId: string
 ): Promise<DocumentSummary[]> {
-  const [draftPages, publishedPages] = await Promise.all([
-    listChildPages(draftFolderId),
-    listChildPages(publishedFolderId),
-  ]);
-
-  const entries = [
-    ...draftPages.map((page) => ({ page, isPublished: false })),
-    ...publishedPages.map((page) => ({ page, isPublished: true })),
-  ];
+  const pages = await listChildPages(accountFolderId);
 
   return Promise.all(
-    entries.map(async ({ page, isPublished }) => {
-      const [tagList, sourceProperty] = await Promise.all([
+    pages.map(async (page) => {
+      const [tagList, sourceProperty, publishProperty] = await Promise.all([
         getTags(page.id),
         getPageProperty<{ title?: string; doc: JSONContent }>(
           page.id,
           SOURCE_DOCUMENT_PROPERTY_KEY
         ),
+        getPageProperty<PublishMetadata>(page.id, PUBLISH_PROPERTY_KEY),
       ]);
       return {
         pageId: page.id,
         title: sourceProperty?.value?.title ?? page.title,
         updatedAt: page.version.createdAt,
-        isPublished,
+        isPublished: publishProperty?.value?.isPublished ?? false,
         tags: tagList,
       };
     })
@@ -185,17 +177,16 @@ export async function getDocumentDetail(
 }
 
 export interface CreateDocumentInput {
-  draftFolderId: string;
+  accountFolderId: string;
   title: string;
   doc: JSONContent;
   actualAuthorEmail: string;
 }
 
 /**
- * 개인 폴더의 "초안" 서브폴더 하위에 신규 문서(Confluence 페이지)를 생성한다. 새로 만든 문서는
- * 항상 `hidePageFromOthers`로 작성자 본인 전용으로 제한하므로, 호출자는 반드시
- * `draftFolderId`(초안 서브폴더)를 넘겨야 한다 — "게시" 서브폴더로 만들면 제한이 걸린 게시
- * 문서가 생기는 모순된 상태가 된다.
+ * 계정 폴더 하위에 신규 문서(Confluence 페이지)를 생성한다. 새로 만든 문서는 항상
+ * `hidePageFromOthers`로 작성자 본인 전용으로 제한한다(게시 전까지는 항상 비공개 — P0-8,
+ * 예전의 "초안" 서브폴더와 동일한 보안 속성).
  *
  * Confluence 페이지의 실제 title은 사용자가 입력한 제목이 아니라 `randomUUID()`로 만든
  * 내부 고유키다(P0-7). Confluence는 Space 전체에서 페이지 title이 유일해야 하는데(부모가
@@ -216,7 +207,7 @@ export async function createDocument(input: CreateDocumentInput) {
   const internalKey = randomUUID();
   const page = await createPage({
     spaceId: space.id,
-    parentId: input.draftFolderId,
+    parentId: input.accountFolderId,
     title: internalKey,
     bodyValue: tiptapDocToStorageFormat(input.doc),
   });

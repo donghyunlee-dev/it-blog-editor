@@ -15,8 +15,6 @@ export async function GET() {
     return NextResponse.json({
       exists: true,
       accountFolderId: folder.accountFolderId,
-      draftFolderId: folder.draftFolderId,
-      publishedFolderId: folder.publishedFolderId,
       spaceKey: folder.spaceKey,
     });
   } catch (error) {
@@ -30,12 +28,7 @@ export async function POST() {
     const folder = await createPersonalFolder(email);
 
     return NextResponse.json(
-      {
-        accountFolderId: folder.accountFolderId,
-        draftFolderId: folder.draftFolderId,
-        publishedFolderId: folder.publishedFolderId,
-        spaceKey: folder.spaceKey,
-      },
+      { accountFolderId: folder.accountFolderId, spaceKey: folder.spaceKey },
       { status: 201 }
     );
   } catch (error) {
