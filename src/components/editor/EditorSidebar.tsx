@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChipGroup, EmptyState, Select, Tag } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
+
+/** P1-1c: 문서 목록을 이 개수만큼씩 점진적으로 보여준다("더 보기" 버튼). */
+const PAGE_SIZE = 30;
 
 export interface EditorSidebarProps {
   documents: DocumentSummary[];
@@ -135,7 +138,7 @@ export function EditorSidebar({
     [documents]
   );
 
-  const visibleDocuments = documents
+  const filteredDocuments = documents
     .filter((document) => !activeTag || document.tags.includes(activeTag))
     .filter((document) => {
       const q = query.trim().toLowerCase();
@@ -158,6 +161,22 @@ export function EditorSidebar({
         ? a.title.localeCompare(b.title, "ko")
         : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
+
+  // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/태그/정렬이
+  // 바뀌면 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서
+  // 늘려둔 "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번
+  // 더 오래된 개수로 그렸다가 다시 그리는 깜빡임이 생기므로, React 공식 문서가 권장하는
+  // "렌더링 중 상태 조정" 패턴을 쓴다(https://react.dev/learn/you-might-not-need-an-effect
+  // "Adjusting some state when a prop changes").
+  const filterKey = `${activeTag ?? ""} ${query} ${sortBy}`;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setVisibleCount(PAGE_SIZE);
+  }
+  const visibleDocuments = filteredDocuments.slice(0, visibleCount);
+  const hasMore = filteredDocuments.length > visibleDocuments.length;
 
   return (
     // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
@@ -296,7 +315,7 @@ export function EditorSidebar({
       <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
         {documents.length === 0 ? (
           <EmptyState title="아직 작성한 문서가 없습니다." />
-        ) : visibleDocuments.length === 0 ? (
+        ) : filteredDocuments.length === 0 ? (
           <EmptyState title="조건에 맞는 문서가 없습니다." />
         ) : (
           // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
@@ -356,6 +375,18 @@ export function EditorSidebar({
               );
             })}
           </ul>
+        )}
+        {/* P1-1c: 문서가 많으면 한 번에 다 그리지 않고 점진적으로 보여준다. */}
+        {hasMore && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-2 w-full"
+            onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+          >
+            더 보기
+          </Button>
         )}
       </nav>
 

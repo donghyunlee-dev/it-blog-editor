@@ -68,6 +68,15 @@ const DOCS: DocumentSummary[] = [
   },
 ];
 
+/** 페이지네이션 테스트 전용 — 한 페이지 크기(30)를 넘기기 위한 문서 35개. */
+const MANY_DOCS: DocumentSummary[] = Array.from({ length: 35 }, (_, i) => ({
+  pageId: `many-${i}`,
+  title: `문서${String(i).padStart(3, "0")}`,
+  updatedAt: "2026-08-21T00:00:00.000Z",
+  isPublished: false,
+  tags: ["공통"],
+}));
+
 /** 정렬 테스트 전용 — 제목 순서(가나다)와 최신 수정 순서가 서로 반대가 되도록 만든다. */
 const SORT_DOCS: DocumentSummary[] = [
   {
@@ -220,6 +229,43 @@ describe("EditorSidebar", () => {
     render(<EditorSidebar documents={[]} />);
 
     expect(screen.queryByLabelText("문서 정렬")).not.toBeInTheDocument();
+  });
+
+  it("결과가 30개 이하면 더 보기 버튼이 없다(P1-1c)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByRole("button", { name: "더 보기" })).not.toBeInTheDocument();
+  });
+
+  it("31개 이상이면 처음 30개만 보이고 더 보기 버튼이 나타난다(P1-1c)", () => {
+    render(<EditorSidebar documents={MANY_DOCS} />);
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    expect(within(nav).getAllByRole("listitem")).toHaveLength(30);
+    expect(screen.getByRole("button", { name: "더 보기" })).toBeInTheDocument();
+  });
+
+  it("더 보기를 누르면 나머지 문서가 모두 보이고 버튼이 사라진다(P1-1c)", async () => {
+    render(<EditorSidebar documents={MANY_DOCS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "더 보기" }));
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    expect(within(nav).getAllByRole("listitem")).toHaveLength(35);
+    expect(screen.queryByRole("button", { name: "더 보기" })).not.toBeInTheDocument();
+  });
+
+  it("검색어를 바꾸면 표시 개수가 처음(30개)으로 리셋된다(P1-1c)", async () => {
+    render(<EditorSidebar documents={MANY_DOCS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "더 보기" }));
+    // 태그(공통)로 검색해도 35개 모두 여전히 매치되지만, 검색어가 바뀌었으니
+    // 표시 개수는 다시 30개부터 시작해야 한다.
+    await userEvent.type(screen.getByPlaceholderText("문서 검색"), "공통");
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    expect(within(nav).getAllByRole("listitem")).toHaveLength(30);
+    expect(screen.getByRole("button", { name: "더 보기" })).toBeInTheDocument();
   });
 
   it("태그 필터와 검색어가 함께(AND) 적용된다(P1-1a)", async () => {

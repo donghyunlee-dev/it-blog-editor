@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 39 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P1-1b(문서 목록 정렬 옵션) 완료)
+> 전체 진행률: 40 / 67 항목 완료 (최근 갱신: 2026-08-27 — Phase 4 P1-1c(문서 목록 페이지네이션, 화면 쪽) 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -202,7 +202,7 @@
 **P1 — 실사용 확장 전 필요**
 - [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 🔶 본문 검색은 `listDocuments()`의 기존 N+1 조회 비용을 배로 늘리는 아키텍처 트레이드오프라 별도 결정 필요 — [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7). 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-1b) 문서 목록 정렬 옵션(최신순/제목순)을 추가한다 — 기본값 최신순, 태그·검색어 필터 적용 후 정렬. 산출물: `docs/superpowers/tasks/P1-1b-document-list-sort/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
-- [ ] (P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다.
+- [x] (완료, P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다 — 화면(사이드바) 쪽만 "더 보기" 버튼으로 30개씩 점진적으로 그린다. 서버 조회 범위(`listDocuments()`) 자체의 페이지네이션은 다루지 않았다 — 태그 자동완성(`tag-suggestions.ts`)이 같은 함수로 전체 목록을 필요로 해서 P0-5a/P1-1a와 같은 종류의 아키텍처 결정이 필요하다(`task.md` 참고, 별도 이슈 없이 알려진 위험으로 남김). 산출물: `docs/superpowers/tasks/P1-1c-document-list-pagination/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [ ] (P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가한다.
 - [ ] (P1-2b) 삭제된 문서를 복구하는 기능을 추가한다.
 - [ ] (P1-3) `confluenceRequest`에 429/5xx 대상 재시도·지수 백오프를 추가한다.
