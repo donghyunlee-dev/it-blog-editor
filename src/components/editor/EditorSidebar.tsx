@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button, ChipGroup, EmptyState, Select, Tag } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
@@ -122,6 +123,10 @@ export function EditorSidebar({
   // 않도록 아래에서 각 <Link>에 onClick={onNavigate}와 onNavigate={guardNavigate(...)}를
   // 함께 둔다.
   const { guardNavigate } = useUnsavedChanges();
+  const router = useRouter();
+  // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
+  // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
+  const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
@@ -216,6 +221,24 @@ export function EditorSidebar({
             SFOOD IT Editor
           </span>
         </Link>
+        {/* P1-2b: 실수로 삭제한 문서를 다시 찾을 수 있는 진입점. */}
+        <button
+          type="button"
+          onClick={() => setDeletedDocsOpen(true)}
+          aria-label="삭제된 문서"
+          title="삭제된 문서"
+          className="shrink-0 rounded-btn p-1.5 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+              d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m-6.5 0 .6 9.5A1.5 1.5 0 0 0 7.6 17h4.8a1.5 1.5 0 0 0 1.5-1.5L14.5 6"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
         {onCollapse && (
           <button
             type="button"
@@ -423,6 +446,14 @@ export function EditorSidebar({
           </button>
         </form>
       )}
+
+      <Modal
+        open={deletedDocsOpen}
+        onClose={() => setDeletedDocsOpen(false)}
+        title="삭제된 문서"
+      >
+        <DeletedDocumentsModal onRestored={() => router.refresh()} />
+      </Modal>
     </aside>
   );
 }

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
+import * as folder from "./folder";
 import * as tags from "./tags";
 import { ConflictError, UnauthorizedError, ValidationError } from "./errors";
 import {
   createDocument,
+  deleteDocument,
   getDocumentDetail,
   listDocuments,
   requireDocumentOwner,
@@ -466,5 +468,98 @@ describe("updateDocument", () => {
         expectedVersion: 1,
       })
     ).rejects.toThrow(ValidationError);
+  });
+});
+
+describe("deleteDocument", () => {
+  function stubPage() {
+    vi.spyOn(client, "getPage").mockResolvedValue(
+      page("doc-1", "삭제될 문서", "draft-folder-1")
+    );
+  }
+
+  function stubPersonalFolder() {
+    return vi.spyOn(folder, "findPersonalFolder").mockResolvedValue({
+      accountFolderId: "account-1",
+      draftFolderId: "draft-folder-1",
+      publishedFolderId: "published-folder-1",
+      spaceKey: "SPACE",
+    });
+  }
+
+  it("작성자 계정 폴더의 deletedDocuments 속성에 삭제 항목을 추가하고 페이지를 삭제한다(P1-2b)", async () => {
+    stubPage();
+    stubPersonalFolder();
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+      if (key === "authorMeta") {
+        return {
+          id: "prop-author",
+          key,
+          value: { actualAuthorEmail: "user@s-food.com" },
+          version: { number: 1 },
+        };
+      }
+      if (key === "deletedDocuments" && pageId === "account-1") {
+        return {
+          id: "prop-deleted",
+          key,
+          value: [{ pageId: "old-doc", title: "예전 삭제 문서", deletedAt: "2026-08-01T00:00:00.000Z" }],
+          version: { number: 3 },
+        };
+      }
+      return null;
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-deleted",
+      key: "deletedDocuments",
+      value: [],
+      version: { number: 4 },
+    });
+    const deletePageSpy = vi.spyOn(client, "deletePage").mockResolvedValue(undefined);
+
+    await deleteDocument("doc-1");
+
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "account-1",
+      "deletedDocuments",
+      [
+        { pageId: "old-doc", title: "예전 삭제 문서", deletedAt: "2026-08-01T00:00:00.000Z" },
+        expect.objectContaining({ pageId: "doc-1", title: "삭제될 문서" }),
+      ]
+    );
+    expect(deletePageSpy).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("작성자를 찾을 수 없어도(authorMeta 없음) 삭제 자체는 계속 진행한다", async () => {
+    stubPage();
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+    const deletePageSpy = vi.spyOn(client, "deletePage").mockResolvedValue(undefined);
+
+    await deleteDocument("doc-1");
+
+    expect(upsertSpy).not.toHaveBeenCalled();
+    expect(deletePageSpy).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("레지스트리 기록이 실패해도(예: Confluence 오류) 삭제 자체는 계속 진행한다", async () => {
+    stubPage();
+    stubPersonalFolder();
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "authorMeta") {
+        return {
+          id: "prop-author",
+          key,
+          value: { actualAuthorEmail: "user@s-food.com" },
+          version: { number: 1 },
+        };
+      }
+      throw new client.ConfluenceApiError(502, "일시적 오류");
+    });
+    const deletePageSpy = vi.spyOn(client, "deletePage").mockResolvedValue(undefined);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(deleteDocument("doc-1")).resolves.toBeUndefined();
+    expect(deletePageSpy).toHaveBeenCalledWith("doc-1");
   });
 });

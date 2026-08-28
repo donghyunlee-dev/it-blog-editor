@@ -204,7 +204,7 @@
 - [x] (완료, P1-1b) 문서 목록 정렬 옵션(최신순/제목순)을 추가한다 — 기본값 최신순, 태그·검색어 필터 적용 후 정렬. 산출물: `docs/superpowers/tasks/P1-1b-document-list-sort/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다 — 화면(사이드바) 쪽만 "더 보기" 버튼으로 30개씩 점진적으로 그린다. 서버 조회 범위(`listDocuments()`) 자체의 페이지네이션은 다루지 않았다 — 태그 자동완성(`tag-suggestions.ts`)이 같은 함수로 전체 목록을 필요로 해서 P0-5a/P1-1a와 같은 종류의 아키텍처 결정이 필요하다(`task.md` 참고, 별도 이슈 없이 알려진 위험으로 남김). 산출물: `docs/superpowers/tasks/P1-1c-document-list-pagination/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [ ] (P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가한다.
-- [ ] (P1-2b) 삭제된 문서를 복구하는 기능을 추가한다.
+- [ ] (P1-2b, **PR 리뷰 대기**) 삭제된 문서를 복구하는 기능을 추가한다 — 삭제 시 작성자 계정 폴더의 `deletedDocuments` property에 기록해두고(휴지통을 직접 질의하는 대신 P0-5a와 같은 "직접 기록해둔 상태만 신뢰" 패턴 재사용), 사이드바 "삭제된 문서" Modal에서 "초안"으로 되돌릴 수 있다. `movePage`가 트래시된 페이지를 대상으로도 동작하는지는 이 환경에서 실제 인스턴스로 검증하지 못했다 — P1-2a와 같은 이유로 PR로 올려 머지 전 확인을 거치기로 했다(`docs/superpowers/tasks/P1-2b-restore-deleted-document/task.md` 참고). 모든 검증이 끝나 머지되면 이 항목을 완료로 바꾼다. 산출물(브랜치 `feature/p1-2b-restore-deleted-document`): `docs/superpowers/tasks/P1-2b-restore-deleted-document/{task,plan,result,test}.md`, src/lib/editor/documents.ts, src/lib/editor/deleted-documents.ts, src/app/api/editor/documents/deleted/route.ts, src/app/api/editor/documents/[pageId]/restore/route.ts, src/components/editor/DeletedDocumentsModal.tsx, src/components/editor/EditorSidebar.tsx
 - [ ] (P1-3) `confluenceRequest`에 429/5xx 대상 재시도·지수 백오프를 추가한다.
 - [ ] 🔶 (P1-4a) 구조화 로깅을 도입한다 — 라이브러리/전송 대상은 [Issue #4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4)에서 결정.
 - [ ] (P1-4b) Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다.
