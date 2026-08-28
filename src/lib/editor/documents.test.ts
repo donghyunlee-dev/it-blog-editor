@@ -8,6 +8,7 @@ import {
   createDocument,
   deleteDocument,
   getDocumentDetail,
+  getDocumentVersionHistory,
   listDocuments,
   requireDocumentOwner,
   updateDocument,

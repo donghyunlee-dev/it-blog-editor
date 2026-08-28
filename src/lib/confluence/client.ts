@@ -226,6 +226,44 @@ export async function updatePage(input: {
   });
 }
 
+// ── Page Versions (버전 이력, 읽기 전용 — P1-2a) ──
+
+export interface ConfluencePageVersion {
+  number: number;
+  createdAt: string;
+  message?: string;
+  authorId?: string;
+}
+
+/**
+ * 페이지의 전체 버전 이력을 최신순으로 반환한다. Confluence Cloud REST API v2
+ * 문서(`GET /api/v2/pages/{id}/versions`) 기준으로 구현했으나, 이 프로젝트에
+ * 접근 가능한 실제 Confluence 인스턴스가 없어 응답 필드명·정렬 기본값을 실제로
+ * 검증하지는 못했다(docs/superpowers/tasks/P1-2a-revision-history-view/task.md
+ * 참고) — 그래서 서버가 주는 정렬에 의존하지 않고 클라이언트에서 직접 정렬한다.
+ */
+export async function listPageVersions(
+  pageId: string
+): Promise<ConfluencePageVersion[]> {
+  const versions: ConfluencePageVersion[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const query: string = cursor ?? `/api/v2/pages/${pageId}/versions?limit=50`;
+    const page = await confluenceRequest<{
+      results: ConfluencePageVersion[];
+      _links: { next?: string };
+    }>(query);
+
+    versions.push(...page.results);
+    cursor = page._links.next ?? null;
+  } while (cursor);
+
+  return versions.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
+
 // ── Content Properties ────────────────────────────────
 
 export interface ConfluencePageProperty<T = unknown> {
