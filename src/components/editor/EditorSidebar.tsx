@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Button, ChipGroup, EmptyState, Select, Tag } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
@@ -122,6 +123,10 @@ export function EditorSidebar({
   // 않도록 아래에서 각 <Link>에 onClick={onNavigate}와 onNavigate={guardNavigate(...)}를
   // 함께 둔다.
   const { guardNavigate } = useUnsavedChanges();
+  const router = useRouter();
+  // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
+  // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
+  const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
@@ -390,6 +395,42 @@ export function EditorSidebar({
         )}
       </nav>
 
+      {/*
+        문서 목록(nav)과 계정 정보 사이에 별도로 분리한 "문서 관련 기능" 영역이다
+        (2026-08-28, 사용자 요청 — "페이지 관련된 기능이 있으면 별도의 영역을
+        분리하는 게 좋겠어"). 지금은 "삭제된 문서" 하나뿐이지만, 문서 자체를
+        다루는(개별 문서 열기가 아닌) 기능이 늘어나면 이 자리에 계속 추가한다.
+      */}
+      <div className="border-t border-border p-2">
+        <button
+          type="button"
+          onClick={() => setDeletedDocsOpen(true)}
+          className="flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+        >
+          {/*
+            휴지통(삭제) 아이콘 대신 "되돌리기" 아이콘을 쓴다(2026-08-28, 사용자
+            요청 — 이 버튼은 삭제하는 동작이 아니라 삭제된 것을 복구하는 동작이라
+            휴지통 아이콘이 오해를 준다는 지적).
+          */}
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+              d="M4.5 8A6 6 0 1 1 6 13.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M4.5 4v4h4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          삭제된 문서
+        </button>
+      </div>
+
       {onLogout && (
         // 예전에는 이메일 아래에 "로그아웃"이 풀폭 텍스트로 세로로 쌓여 있어 어색했고,
         // 화면 맨 아래-왼쪽 구석이라 브라우저 확장 프로그램이 그리는 플로팅 버튼(예:
@@ -423,6 +464,14 @@ export function EditorSidebar({
           </button>
         </form>
       )}
+
+      <Modal
+        open={deletedDocsOpen}
+        onClose={() => setDeletedDocsOpen(false)}
+        title="삭제된 문서"
+      >
+        <DeletedDocumentsModal onRestored={() => router.refresh()} />
+      </Modal>
     </aside>
   );
 }

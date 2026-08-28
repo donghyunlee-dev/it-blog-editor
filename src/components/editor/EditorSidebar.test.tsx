@@ -8,10 +8,10 @@ import type { DocumentSummary } from "@/lib/editor/documents";
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
 // 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
 // 반환할 뿐 던지지 않는 실제 동작을 그대로 쓴다 — 다른 기존 테스트들이 이에 의존한다).
-const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
-  return { ...actual, useRouter: () => ({ push }) };
+  return { ...actual, useRouter: () => ({ push, refresh }) };
 });
 
 // DocumentEditor.test.tsx와 같은 이유로 next/link를 대역으로 바꾼다 — 실제 Link는
@@ -98,6 +98,7 @@ const SORT_DOCS: DocumentSummary[] = [
 describe("EditorSidebar", () => {
   beforeEach(() => {
     push.mockClear();
+    refresh.mockClear();
   });
 
   it("문서 목록과 게시 상태 아이콘을 보여준다", () => {
@@ -309,6 +310,23 @@ describe("EditorSidebar", () => {
       screen.getByRole("button", { name: "변경사항 버리고 이동" })
     );
     expect(push).toHaveBeenCalledWith("/editor/2");
+  });
+
+  it("'삭제된 문서' 버튼을 누르면 목록 Modal이 열린다(P1-2b)", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ documents: [] }), { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<EditorSidebar documents={DOCS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "삭제된 문서" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/editor/documents/deleted");
+    expect(await screen.findByText("삭제된 문서가 없습니다.")).toBeInTheDocument();
+
+    vi.unstubAllGlobals();
   });
 });
 

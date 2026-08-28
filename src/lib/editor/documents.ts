@@ -20,10 +20,18 @@ import {
 } from "./errors";
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
+import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { getTags } from "./tags";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
+export const DELETED_DOCUMENTS_PROPERTY_KEY = "deletedDocuments";
+
+export interface DeletedDocumentEntry {
+  pageId: string;
+  title: string;
+  deletedAt: string;
+}
 
 export interface DocumentSummary {
   pageId: string;
@@ -265,9 +273,48 @@ export async function updateDocument(input: UpdateDocumentInput) {
   return { pageId: updated.id, version: updated.version.number };
 }
 
+/**
+ * 삭제 직전 상태를 작성자 계정 폴더의 `deletedDocuments` property에 기록해, 나중에
+ * "삭제된 문서" 목록(P1-2b)에서 복구할 수 있게 남겨둔다. 이 함수 자체가 실패해도
+ * 삭제를 막지는 않는다 — 복구 기능이 못 쓰게 되는 것이지 삭제라는 원래 요청이 실패해서는
+ * 안 되기 때문이다.
+ */
+async function recordDeletedDocument(pageId: string, title: string): Promise<void> {
+  const authorProperty = await getPageProperty<{ actualAuthorEmail?: string }>(
+    pageId,
+    AUTHOR_PROPERTY_KEY
+  );
+  const authorEmail = authorProperty?.value?.actualAuthorEmail;
+  if (!authorEmail) {
+    return;
+  }
+
+  const folder =
+    (await findPersonalFolder(authorEmail)) ?? (await createPersonalFolder(authorEmail));
+  const existing = await getPageProperty<DeletedDocumentEntry[]>(
+    folder.accountFolderId,
+    DELETED_DOCUMENTS_PROPERTY_KEY
+  );
+  const entries = existing?.value ?? [];
+  const entry: DeletedDocumentEntry = {
+    pageId,
+    title,
+    deletedAt: new Date().toISOString(),
+  };
+  await upsertPageProperty(folder.accountFolderId, DELETED_DOCUMENTS_PROPERTY_KEY, [
+    ...entries,
+    entry,
+  ]);
+}
+
 /** 문서를 삭제한다(Confluence 휴지통으로 이동). 이후 목록·게시 조회에서 자동으로 제외된다. */
 export async function deleteDocument(pageId: string): Promise<void> {
-  await getPageOrThrow(pageId);
+  const page = await getPageOrThrow(pageId);
+  try {
+    await recordDeletedDocument(pageId, page.title);
+  } catch (error) {
+    console.error("[deleteDocument] 삭제된 문서 레지스트리 기록 실패:", error);
+  }
   await deletePage(pageId);
 }
 
