@@ -23,7 +23,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (P0-5b와 함께 커밋 예정) | |
+| `d12fa92` | fix: prevent Confluence page title collisions and make slugs structurally unique (P0-5b와 같은 커밋) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항

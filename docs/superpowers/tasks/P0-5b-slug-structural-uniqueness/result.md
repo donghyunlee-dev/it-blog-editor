@@ -25,7 +25,7 @@ P0-7과 공유하는 파일 변경(문서 title 구조)은 [P0-7-document-title-
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (커밋 전) | |
+| `d12fa92` | fix: prevent Confluence page title collisions and make slugs structurally unique |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
