@@ -37,16 +37,16 @@
 | 속성 | 타입 | 제약조건 | 설명 |
 |---|---|---|---|
 | pageId | string | Confluence 발급 | 문서 고유 ID |
-| title | string | 필수 | 문서 제목 |
+| title | string | `randomUUID()`로 생성 시 1회 발급, 이후 절대 변경하지 않음 | **표시용 제목이 아니다**(P0-7). Confluence는 Space 전체에서 페이지 title이 유일해야 하는데(부모가 달라도 예외 없음), 서로 다른 계정이 흔한 제목("회의록" 등)을 그대로 title로 쓰면 실제로 생성이 실패한다 — 그래서 내부 전용 고유키만 담고, 사용자가 보는 진짜 제목은 `sourceDocument.title`에 별도 저장한다. 게시 시 `publicSlug` 계산에도 재사용된다(아래 참고) |
 | body(storage format) | string(XHTML) | tiptapDocToStorageFormat() 산출물 | 렌더링용, 편집 원본이 아님 |
 | parentId | string | 같은 계정의 DraftFolder 또는 PublishedFolder 중 하나 | 게시 여부에 따라 이동(계정 폴더는 고정, 두 서브페이지 사이만 이동) |
 | restriction | Confluence Restriction | 초안=서비스 계정 제한, 게시=제한 없음 | 초안-게시 생명주기의 핵심 |
-| property: `sourceDocument` | `{ doc: JSONContent }` | 필수 | 편집 원본(TipTap/ProseMirror JSON 트리). 2차 UI/UX 설계(WYSIWYG 전환)에서 `sourceMarkdown`을 대체함 — Markdown이 아니라 에디터 고유 문서 트리를 그대로 저장 |
+| property: `sourceDocument` | `{ title: string; doc: JSONContent }` | 필수 | `title`은 사용자가 실제로 입력한 표시용 제목(P0-7 — Confluence page의 title과 분리됨). `doc`은 편집 원본(TipTap/ProseMirror JSON 트리) — 2차 UI/UX 설계(WYSIWYG 전환)에서 `sourceMarkdown`을 대체함 |
 | property: `authorMeta` | `{ actualAuthorEmail: string }` | 필수, 불변 | 실제 작성자 식별(Confluence 신원과 무관). 게시/게시취소 시 이 값으로 작성자의 AccountFolder를 찾는다 |
-| property: `publishMetadata` | `{ isPublished: boolean; publishedAt?: string; viewers: { [viewerId: string]: { slug: string; metaDescription: string } } }` | `isPublished=true`이면 `viewers`에 최소 1개 항목 필요 | 뷰어별로 slug·메타 설명을 따로 관리 |
+| property: `publishMetadata` | `{ isPublished: boolean; publishedAt?: string; viewers: { [viewerId: string]: { slug: string; metaDescription: string; publicSlug: string } } }` | `isPublished=true`이면 `viewers`에 최소 1개 항목 필요 | 뷰어별로 slug·메타 설명을 따로 관리. `slug`는 사용자가 입력한 값 그대로, `publicSlug`는 서버가 `${slug}-${page.title}`(위 내부 고유키)로 계산해 채운 실제 공개 URL 값이다 |
 | label(태그) | string[] | 자유 텍스트, 다중 허용 | Confluence 네이티브 라벨 기능 사용 |
 
-**slug 유니크 제약**: 동일 `viewerId` 내에서 slug는 유니크해야 한다(다른 뷰어끼리는 같은 slug를 써도 충돌 아님). 애플리케이션 레벨에서 `findPublishedPageBySlug`가 Space 전체 문서를 순회하며 검사한다(특정 폴더에 종속되지 않음, Confluence 자체에는 유니크 제약이 없음).
+**slug 유니크 제약(P0-5b, 2026-08-28 구조 변경)**: `publicSlug`는 문서마다 발급된 전역 유일 내부 고유키를 항상 포함하므로, 다른 문서의 `publicSlug`와 절대 같을 수 없다 — 애플리케이션이 Space 전체를 스캔해 중복을 검사할 필요가 구조적으로 없어졌다(예전의 `findPublishedPageBySlug`/`listAllSpacePages` 기반 스캔·TTL 캐시는 모두 제거됨). 뷰어는 공개 URL에서 `publicSlug`를 그대로 쓰고, 마지막 구분자(`-`) 뒤 고정 길이(36자) UUID만 떼어 그 값으로 페이지를 조회하면 검색 없이 바로 문서를 찾을 수 있다.
 
 ### 테이블 — Comment (Confluence Footer Comment + Content Property)
 이 프로젝트는 이 구조를 정의만 하고, 실제 생성/조회는 별도 Viewer 프로젝트가 자체 Confluence 자격증명으로 수행한다.
@@ -68,11 +68,13 @@ Confluence 상의 댓글 작성자(Confluence API 응답의 author 필드)는 �
 - Document 1 : N Comment
 
 ## 인덱스·제약조건
-- Confluence 자체는 커스텀 인덱스를 제공하지 않는다. 조회 성능이 필요한 경로(예: slug로 문서 찾기)는 애플리케이션에서 `listAllSpacePages` 페이지네이션을 순회하는 방식에 의존하며, Space 내 문서 수가 크게 늘어나면 성능 재검토가 필요하다.
-- `authorMeta.actualAuthorEmail`, `publishMetadata`는 한 페이지에 하나씩만 존재해야 한다(Confluence content property는 key당 1개 값).
+- Confluence 자체는 커스텀 인덱스를 제공하지 않는다. slug 조회(게시 시 중복 검사)는 더 이상 Space 전체를 스캔하지 않는다(P0-5b) — `publicSlug`에 항상 전역 유일한 내부 고유키가 포함되어 애초에 충돌이 불가능하기 때문이다.
+- `listDocuments()`(문서함 조회)는 계정 하나의 문서 범위 내에서 문서마다 `sourceDocument` property를 한 번씩 읽는다(표시 제목을 얻기 위해, P0-7). Space 전체가 아니라 계정 범위로 한정되어 있어 문서 수가 많이 늘어나도 다른 계정에 영향을 주지 않는다.
+- `authorMeta.actualAuthorEmail`, `publishMetadata`, `sourceDocument`는 한 페이지에 하나씩만 존재해야 한다(Confluence content property는 key당 1개 값).
 - 라벨(태그)은 Confluence가 자체적으로 페이지당 다중 허용을 지원하므로 별도 제약이 필요 없다.
 
 ## 마이그레이션·데이터 정책
 - 아직 실사용 데이터가 없으므로 기존 데이터 마이그레이션은 필요 없다.
+- P0-7(문서 title 구조 변경) 이전에 만들어진 문서는 `sourceDocument.title`이 없다 — `listDocuments()`/`getDocumentDetail()`은 이 경우 Confluence page의 실제 title(과거엔 표시 제목이었던 값)로 대체해 보여준다(하위 호환, 코드에 기본값 처리 있음). 다만 이런 문서를 수정 저장하면 그 시점부터 `sourceDocument.title`이 채워진다.
 - 관리자의 사전 수동 작업이 필요 없다 — 계정 폴더가 없는 사용자가 처음 접근하면 코드가 AccountFolder/DraftFolder/PublishedFolder 3개를 자동으로 만든다.
 - 개인정보 성격의 데이터는 사내 이메일뿐이며, 별도 마스킹·암호화 없이 Confluence의 접근 제어(Restriction)로 보호한다. 다만 AccountFolder 자체(이메일이 제목)는 의도적으로 제한을 걸지 않으므로 Space 구성원에게 노출된다는 점은 인지하고 있어야 한다(초안 "내용"은 여전히 보호됨). Confluence 서비스 계정 자격증명 자체는 이 문서가 아니라 [architecture.md](./architecture.md)의 보안 섹션에서 다룬다.

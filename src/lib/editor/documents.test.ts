@@ -58,15 +58,32 @@ function page(id: string, title: string, parentId: string): client.ConfluencePag
   };
 }
 
+/** sourceDocument property에서 title을 돌려주는 getPageProperty 스텁(P0-7 — listDocuments가
+ * Confluence page.title이 아니라 이 값을 표시 제목으로 쓴다). */
+function stubSourceTitles(titlesByPageId: Record<string, string>) {
+  return vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+    if (key !== "sourceDocument" || !(pageId in titlesByPageId)) {
+      return null;
+    }
+    return {
+      id: "prop-1",
+      key,
+      value: { title: titlesByPageId[pageId], doc: {} },
+      version: { number: 1 },
+    };
+  });
+}
+
 describe("listDocuments", () => {
   it("초안 폴더에만 문서가 있으면 초안 목록을 그대로 반환한다", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
       if (parentId === "draft-1") {
-        return [page("doc-1", "초안 문서", "draft-1")];
+        return [page("doc-1", "internal-key-1", "draft-1")];
       }
       return [];
     });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubSourceTitles({ "doc-1": "초안 문서" });
 
     const documents = await listDocuments("draft-1", "published-1");
 
@@ -84,14 +101,15 @@ describe("listDocuments", () => {
   it("게시 폴더에 있는 문서도 초안 문서와 함께 반환하며, 어느 서브폴더에서 나왔는지로 게시 여부를 판단한다", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
       if (parentId === "draft-1") {
-        return [page("doc-1", "초안 문서", "draft-1")];
+        return [page("doc-1", "internal-key-1", "draft-1")];
       }
       if (parentId === "published-1") {
-        return [page("doc-2", "게시된 문서", "published-1")];
+        return [page("doc-2", "internal-key-2", "published-1")];
       }
       return [];
     });
     vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubSourceTitles({ "doc-1": "초안 문서", "doc-2": "게시된 문서" });
 
     const documents = await listDocuments("draft-1", "published-1");
 
@@ -116,11 +134,12 @@ describe("listDocuments", () => {
   it("각 문서의 태그를 함께 반환한다(중복 조회 없음)", async () => {
     vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
       if (parentId === "published-1") {
-        return [page("doc-1", "문서1", "published-1")];
+        return [page("doc-1", "internal-key-1", "published-1")];
       }
       return [];
     });
     const tagsSpy = vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
+    stubSourceTitles({ "doc-1": "문서1" });
 
     const documents = await listDocuments("draft-1", "published-1");
 
@@ -135,6 +154,21 @@ describe("listDocuments", () => {
     ]);
     expect(tagsSpy).toHaveBeenCalledTimes(1);
     expect(tagsSpy).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("sourceDocument에 title이 없으면(예: 마이그레이션 이전 데이터) Confluence page title로 대체한다", async () => {
+    vi.spyOn(client, "listChildPages").mockImplementation(async (parentId) => {
+      if (parentId === "draft-1") {
+        return [page("doc-1", "레거시 제목", "draft-1")];
+      }
+      return [];
+    });
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+
+    const documents = await listDocuments("draft-1", "published-1");
+
+    expect(documents[0].title).toBe("레거시 제목");
   });
 });
 
@@ -179,6 +213,7 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
           return [];
         });
       vi.spyOn(freshTags, "getTags").mockResolvedValue([]);
+      vi.spyOn(freshClient, "getPageProperty").mockResolvedValue(null);
 
       // `/editor` 레이아웃과 `listTagSuggestions`는 각자 독립적으로 같은 두 문자열 값으로
       // 이 함수를 호출한다(공유 객체 참조가 없다). listDocuments가 두 폴더 ID를 원시값
@@ -264,13 +299,20 @@ describe("createDocument", () => {
       actualAuthorEmail: "user@s-food.com",
     });
 
+    // P0-7: Confluence 페이지의 실제 title은 사용자가 입력한 "제목"이 아니라
+    // randomUUID()로 만든 내부 고유키다 — Space 전체에서 유일해야 하는 Confluence의
+    // title 제약을 서로 다른 계정끼리 흔한 제목으로 충돌시키지 않기 위해서다.
     expect(client.createPage).toHaveBeenCalledWith({
       spaceId: "space-1",
       parentId: "folder-1",
-      title: "제목",
+      title: expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+      ),
       bodyValue: "<p>본문</p>",
     });
+    // 사용자가 실제로 입력한 제목은 sourceDocument property에 doc과 함께 저장된다.
     expect(upsertSpy).toHaveBeenCalledWith("doc-1", "sourceDocument", {
+      title: "제목",
       doc: SAMPLE_DOC,
     });
     expect(hideSpy).toHaveBeenCalledWith("doc-1");
@@ -333,11 +375,11 @@ describe("createDocument", () => {
 });
 
 describe("getDocumentDetail", () => {
-  it("sourceDocument property에서 편집 원본을 읽어온다", async () => {
+  it("sourceDocument property에서 편집 원본과 표시 제목을 읽어온다(P0-7 — Confluence page title은 내부 고유키일 뿐이라 쓰지 않는다)", async () => {
     vi.spyOn(client, "getPage").mockResolvedValue({
       id: "doc-1",
       status: "current",
-      title: "제목",
+      title: "internal-key-1",
       spaceId: "space-1",
       parentId: "folder-1",
       version: { number: 2, createdAt: "" },
@@ -345,7 +387,7 @@ describe("getDocumentDetail", () => {
     vi.spyOn(client, "getPageProperty").mockResolvedValue({
       id: "prop-1",
       key: "sourceDocument",
-      value: { doc: SAMPLE_DOC },
+      value: { title: "제목", doc: SAMPLE_DOC },
       version: { number: 1 },
     });
 
@@ -401,11 +443,17 @@ describe("updateDocument", () => {
 
     // P0-3: sourceDocument 저장 시점에도, 저장을 시작할 때 읽어 둔 속성 버전(5)을
     // 그대로 전달해 그 사이 다른 요청이 먼저 쓰지 않았는지 확인한다.
+    // P0-7: 사용자가 입력한 새 제목은 sourceDocument에만 반영한다.
     expect(upsertSpy).toHaveBeenCalledWith(
       "doc-1",
       "sourceDocument",
-      { doc: SAMPLE_DOC },
+      { title: "새 제목", doc: SAMPLE_DOC },
       { expectedVersion: 5 }
+    );
+    // P0-7: Confluence 페이지의 실제 title(내부 고유키)은 생성 이후 절대 바뀌지 않는다 —
+    // 기존 title("제목")을 그대로 다시 보내지, 사용자가 입력한 "새 제목"을 보내지 않는다.
+    expect(client.updatePage).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "제목" })
     );
     expect(result).toEqual({ pageId: "doc-1", version: 2 });
   });
@@ -475,7 +523,7 @@ describe("updateDocument", () => {
 describe("deleteDocument", () => {
   function stubPage() {
     vi.spyOn(client, "getPage").mockResolvedValue(
-      page("doc-1", "삭제될 문서", "draft-folder-1")
+      page("doc-1", "internal-key-1", "draft-folder-1")
     );
   }
 
@@ -497,6 +545,16 @@ describe("deleteDocument", () => {
           id: "prop-author",
           key,
           value: { actualAuthorEmail: "user@s-food.com" },
+          version: { number: 1 },
+        };
+      }
+      // P0-7: 실제 삭제 목록에 보여줄 표시 제목은 sourceDocument에서 읽는다(page.title은
+      // 내부 고유키일 뿐이다).
+      if (key === "sourceDocument" && pageId === "doc-1") {
+        return {
+          id: "prop-source",
+          key,
+          value: { title: "삭제될 문서", doc: {} },
           version: { number: 1 },
         };
       }

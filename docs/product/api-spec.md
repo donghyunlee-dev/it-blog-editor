@@ -14,7 +14,7 @@
   | UNAUTHORIZED | 401 | 로그인 필요 |
   | INVALID_REQUEST | 400 | 필수 값 누락 등 유효성 오류 |
   | NOT_FOUND | 404 | 대상 문서/리소스 없음 |
-  | CONFLICT | 409 | 버전 불일치, slug 중복 등 |
+  | CONFLICT | 409 | 버전 불일치 등(2026-08-28부터 slug 중복은 구조적으로 불가능해져 이 코드 대상에서 빠짐 — P0-5b) |
   | UPSTREAM_ERROR | 502 | Confluence 등 외부 연동 실패(Slack으로 이상 감지 알림 전송) |
 
 ## 엔드포인트 목록
@@ -135,6 +135,8 @@
 ```
 
 > ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 "초안"/"게시" 서브페이지 두 곳의 자식을 모두 조회해 합치며, `isPublished`는 별도 property 조회 없이 각 문서가 어느 서브페이지(초안/게시)에서 나왔는지로 바로 판단한다(물리적 위치가 유일한 근거). 라벨(태그)만 문서별로 추가 조회한다(문서 수가 개인 단위라 N+1 호출을 허용).
+>
+> **2026-08-28 갱신(P0-7)**: `title`은 이제 `sourceDocument` property에서 읽어온다(문서마다 추가 조회 1회, 태그 조회와 함께 병렬) — Confluence page의 실제 title이 더 이상 표시용 제목이 아니기 때문이다(아래 "새 문서 생성" 참고). API 요청/응답 형식 자체는 바뀌지 않았다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -149,6 +151,8 @@
 { "title": "문서 제목", "doc": { "type": "doc", "content": [] } }
 ```
 `doc`은 TipTap/ProseMirror JSON(`JSONContent`)이다. 화면 UI/UX 설계(2차)에서 `body`(Markdown 문자열) 필드를 대체했다.
+
+> **2026-08-28 갱신(P0-7)**: 요청 형식은 그대로지만, 서버가 이 `title`을 Confluence page의 실제 title로 쓰지 않는다 — 대신 `randomUUID()`로 만든 내부 고유키를 title로 쓰고, 요청받은 `title`은 `sourceDocument` property에 저장한다. Confluence는 Space 전체에서 페이지 title이 유일해야 해서, 서로 다른 계정이 같은 제목("회의록" 등)을 쓰면 그대로는 생성이 실패하기 때문이다.
 
 **Response Body (성공, 201)**
 ```json
@@ -232,8 +236,9 @@
 
 **Response Body (성공)**
 ```json
-{ "pageId": "111", "isPublished": true, "viewers": { "tech-blog": { "slug": "my-first-post", "metaDescription": "설명" } }, "publishedAt": "2026-08-21T00:00:00.000Z" }
+{ "pageId": "111", "isPublished": true, "viewers": { "tech-blog": { "slug": "my-first-post", "metaDescription": "설명", "publicSlug": "my-first-post-3f9a2b7e-1c2d-4e5f-8a9b-0c1d2e3f4a5b" } }, "publishedAt": "2026-08-21T00:00:00.000Z" }
 ```
+`publicSlug`는 서버가 계산해 채우는 값으로, 요청 바디에 보내지 않아도 되고 보내도 무시된다(항상 재계산됨). 형식은 `{slug}-{내부 고유키(UUID)}`이며, 이 내부 고유키는 문서마다 생성 시 한 번 발급되어 전역 유일이 보장되므로(P0-7) **다른 문서의 slug와 절대 겹치지 않는다** — 뷰어(Tech Blog 등)는 공개 URL에서 `publicSlug`를 그대로 쓰고, 조회 시 마지막 구분자(`-`) 뒤 고정 길이(36자) UUID만 떼어 그 값으로 페이지를 조회하면 검색 없이 바로 문서를 찾을 수 있다(2026-08-28, P0-5b — 예전에는 Space 전체를 스캔해 중복을 검사했다).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -241,7 +246,6 @@
 | 401 | UNAUTHORIZED | 로그인 필요 |
 | 400 | INVALID_REQUEST | 게시 시 뷰어별 slug/metaDescription 누락 또는 최소 하나의 뷰어 설정 필요 |
 | 404 | NOT_FOUND | 문서 없음 |
-| 409 | CONFLICT | 같은 뷰어 내에서 slug 중복 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 게시/게시취소 시 문서 페이지의 부모 폴더가 자동으로 변경되고(초안 ↔ 게시), Confluence 페이지 제한(Restriction) 적용/해제가 함께 일어난다.

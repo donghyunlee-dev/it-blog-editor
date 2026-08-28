@@ -3,7 +3,7 @@ import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as folder from "./folder";
 import { getPublishState, setPublishState } from "./publish";
-import { ConflictError, ValidationError } from "./errors";
+import { ValidationError } from "./errors";
 
 /** setPublishState는 실제 페이지 위치로 게시 여부를 판단하므로 getPage를 항상 조회한다. */
 function stubCurrentPage(parentId: string | null) {
@@ -79,26 +79,40 @@ describe("setPublishState", () => {
     ).rejects.toThrow(ValidationError);
   });
 
-  it("같은 뷰어에서 slug가 이미 쓰이고 있으면 ConflictError를 던진다", async () => {
+  it("내부 고유키(페이지 title)를 slug 뒤에 붙인 publicSlug를 계산해 저장한다(P0-5b/P0-7)", async () => {
     stubAuthorProperty(null);
-    stubCurrentPage("draft-1");
+    stubCurrentPage("draft-1"); // stubCurrentPage의 title이 곧 이 문서의 내부 고유키다.
     stubAccountFolder();
-    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue({
-      id: "other-doc",
+    vi.spyOn(client, "movePage").mockResolvedValue({
+      id: "doc-1",
       status: "current",
-      title: "다른 문서",
+      title: "제목",
       spaceId: "space-1",
-      parentId: null,
-      version: { number: 1, createdAt: "" },
+      parentId: "published-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(access, "revealPageToSpace").mockResolvedValue(undefined);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "publishMetadata",
+      value: {},
+      version: { number: 1 },
     });
 
-    await expect(
-      setPublishState({
-        pageId: "doc-1",
-        isPublished: true,
-        viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
+    const result = await setPublishState({
+      pageId: "doc-1",
+      isPublished: true,
+      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
+    });
+
+    expect(result.viewers["tech-blog"].publicSlug).toBe("my-post-제목");
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "doc-1",
+      "publishMetadata",
+      expect.objectContaining({
+        viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명", publicSlug: "my-post-제목" } },
       })
-    ).rejects.toThrow(ConflictError);
+    );
   });
 });
 
@@ -107,7 +121,6 @@ describe("setPublishState — 생명주기", () => {
     stubAuthorProperty(null);
     stubCurrentPage("draft-1");
     stubAccountFolder();
-    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
     const calls: string[] = [];
     const upsertSpy = vi
       .spyOn(client, "upsertPageProperty")
@@ -150,37 +163,6 @@ describe("setPublishState — 생명주기", () => {
     expect(calls).toEqual(["move", "reveal", "upsert"]);
   });
 
-  it("게시가 성공하면 slug 조회 캐시를 무효화한다(P0-5a) — 방금 쓴 slug를 스스로 놓치지 않기 위해서다", async () => {
-    stubAuthorProperty(null);
-    stubCurrentPage("draft-1");
-    stubAccountFolder();
-    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
-    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
-      id: "prop-1",
-      key: "publishMetadata",
-      value: { isPublished: true, viewers: {} },
-      version: { number: 1 },
-    });
-    vi.spyOn(client, "movePage").mockResolvedValue({
-      id: "doc-1",
-      status: "current",
-      title: "제목",
-      spaceId: "space-1",
-      parentId: "published-1",
-      version: { number: 2, createdAt: "" },
-    });
-    vi.spyOn(access, "revealPageToSpace").mockResolvedValue(undefined);
-    const invalidateSpy = vi.spyOn(client, "invalidateSlugIndexCache");
-
-    await setPublishState({
-      pageId: "doc-1",
-      isPublished: true,
-      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
-    });
-
-    expect(invalidateSpy).toHaveBeenCalled();
-  });
-
   it("이미 게시된 문서를 이동 없이 다시 저장하면 메타데이터만 갱신한다", async () => {
     // 게시됨 폴더에 이미 있는 문서의 slug/metaDescription만 바꿔 다시 저장하는 경우:
     // isPublished === true && isCurrentlyPublished === true 분기이므로
@@ -188,7 +170,6 @@ describe("setPublishState — 생명주기", () => {
     stubAuthorProperty(null);
     stubCurrentPage("published-1");
     stubAccountFolder();
-    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
     const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
       id: "prop-1",
       key: "publishMetadata",
@@ -287,7 +268,6 @@ describe("setPublishState — 생명주기", () => {
     stubAuthorProperty(null);
     stubCurrentPage("draft-1");
     stubAccountFolder();
-    vi.spyOn(client, "findPublishedPageBySlug").mockResolvedValue(null);
     const upsertSpy = vi.spyOn(client, "upsertPageProperty");
     vi.spyOn(client, "movePage").mockRejectedValue(new Error("Confluence 이동 실패"));
 

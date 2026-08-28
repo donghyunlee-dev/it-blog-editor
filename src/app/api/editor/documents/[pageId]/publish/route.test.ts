@@ -51,7 +51,9 @@ describe("PATCH /api/editor/documents/[pageId]/publish", () => {
     vi.mocked(setPublishState).mockResolvedValue({
       pageId: "doc-1",
       isPublished: true,
-      viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
+      viewers: {
+        "tech-blog": { slug: "my-post", metaDescription: "설명", publicSlug: "my-post-internal-key" },
+      },
       publishedAt: "2026-08-21T00:00:00.000Z",
     });
 
@@ -71,6 +73,8 @@ describe("PATCH /api/editor/documents/[pageId]/publish", () => {
       isPublished: true,
       viewers: { "tech-blog": { slug: "my-post", metaDescription: "설명" } },
     });
-    expect(body.viewers).toEqual({ "tech-blog": { slug: "my-post", metaDescription: "설명" } });
+    expect(body.viewers).toEqual({
+      "tech-blog": { slug: "my-post", metaDescription: "설명", publicSlug: "my-post-internal-key" },
+    });
   });
 });

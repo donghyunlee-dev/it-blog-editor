@@ -7,6 +7,9 @@ import { Button, FormField, Input, Modal, Switch, Textarea, useToast } from "@sf
 interface ViewerMetadata {
   slug: string;
   metaDescription: string;
+  /** 서버가 계산해 돌려주는 실제 공개 slug(`slug-내부고유키`, P0-7/P0-5b). 읽기 전용 —
+   * 폼이 직접 편집하거나 서버로 다시 보내지 않는다. */
+  publicSlug?: string;
 }
 
 export interface PublishFormInitial {
@@ -235,6 +238,14 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
               onBlur={handleFieldBlur}
               placeholder="예: my-first-post"
             />
+            {/* P0-7/P0-5b: 실제 공개 URL은 여기 입력한 값 그대로가 아니라 뒤에 내부
+                고유키가 덧붙는다(다른 사용자의 slug와 절대 겹치지 않게 하기 위해).
+                저장된 적이 있을 때만(publicSlug가 있을 때만) 실제 값을 보여준다. */}
+            {viewerFields[option.value].publicSlug && (
+              <p className="mt-1 text-xs text-muted">
+                실제 공개 경로: {viewerFields[option.value].publicSlug}
+              </p>
+            )}
           </FormField>
 
           <FormField label="메타 설명">
