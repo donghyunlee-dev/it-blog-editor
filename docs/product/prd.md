@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 43 / 67 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-3(`confluenceRequest` 재시도·지수 백오프) 완료, 실제 Confluence 인스턴스로 정상 경로 회귀 확인)
+> 전체 진행률: 44 / 67 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P0-4a(이미지 업로드 최대 파일 크기 10MB 제한) 완료, Issue #2 결정 반영 후 착수)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -193,7 +193,7 @@
 - [x] (완료, P0-1b) 자동 저장 도입 — [Issue #1](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/1)에서 결정(2026-08-27): 변경사항이 있을 때만, 1분마다 체크해서 저장, localStorage 임시 저장으로 Confluence 저장 실패에 대비. 기존 "저장은 수동 유지" 결정(2026-08-21 플랜)을 뒤집는다. 새 문서(mode="create")의 자동 저장과 태그 자동 저장은 범위 밖(제목·본문만 자동 저장, 태그는 수동 저장 유지). 2026-08-27 실사용 확인 중 풋터의 조용한 상태 표시만으로는 놓치기 쉽다는 피드백으로 성공 시에도 토스트를 띄우도록 갱신(진단용 콘솔 로그는 확인 후 제거). 산출물: `docs/superpowers/tasks/P0-1b-autosave/{task,plan,result,test}.md`, src/lib/editor/autosave-storage.ts, src/components/editor/DocumentEditor.tsx
 - [x] (완료, P0-2) 게시 설정 Modal의 "게시함" 스위치를 끌 때 `Modal` 확인 절차를 추가한다(문서 삭제와 동일한 안전장치). 게시 시작(켜기)·뷰어별 노출 토글·slug/메타 설명 저장은 기존처럼 확인 없이 즉시 저장된다 — 위험한 쪽(이미 공개된 문서의 순간 비공개 전환)만 막는다. 산출물: `docs/superpowers/tasks/P0-2-unpublish-confirm-modal/{task,plan,result,test}.md`, src/components/editor/PublishForm.tsx
 - [x] (완료, P0-3) `updateDocument`의 `sourceDocument` 속성 저장에도 페이지 본문과 동일한 버전 검사를 적용해 동시 편집 시 원고 유실을 막는다 — 저장 시작 시점에 속성 버전을 함께 읽어 두고, 실제 쓰기 직전 다시 확인해 그 사이 다른 요청이 먼저 썼으면 `ConflictError`를 던진다(완전한 원자적 트랜잭션은 Confluence Cloud API의 근본적 한계로 불가능 — "조용한 유실"을 "감지 가능한 오류"로 바꾸는 데까지가 이 계층에서 가능한 범위). 산출물: `docs/superpowers/tasks/P0-3-sourcedocument-version-guard/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts
-- [ ] 🔶 (P0-4a) 이미지 업로드 최대 파일 크기를 제한한다 — 상한 값은 [Issue #2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2)에서 결정.
+- [x] (완료, P0-4a) 이미지 업로드 최대 파일 크기를 제한한다 — [Issue #2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2)에서 10MB로 결정(추천안 그대로 채택). `registerImage`가 10MB 초과 시 `ValidationError`(400)를 던지고 Confluence 첨부파일 업로드를 호출하지 않는다. 클라이언트 사전 검사는 범위 밖(기존 MIME 타입 검사와 동일하게 서버 단일 검증 지점 유지). 산출물: `docs/superpowers/tasks/P0-4a-image-upload-size-limit/{task,plan,result,test}.md`, src/lib/editor/images.ts, src/lib/editor/images.test.ts
 - [x] (완료, P0-4b) 이미지 업로드 개수(붙여넣기/드래그앤드롭 1회 처리량, 문서당 누적)에 상한을 둔다 — 1회 처리량은 원래부터 파일 1개만 처리하고 있어 사실상 이미 제한돼 있었고, 문서당 누적 30장 상한을 드래그앤드롭·붙여넣기·슬래시 메뉴 세 진입점에 공통 적용했다(서버 측 강제는 범위 밖 — UX 가드레일이지 보안 경계가 아니라고 판단). 산출물: `docs/superpowers/tasks/P0-4b-image-upload-count-limit/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
 - [x] (완료, P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책) — Space 전체 slug 인덱스를 15초 TTL로 캐시하고, 이 프로세스가 직접 게시할 때는 즉시 무효화한다. 다른 프로세스가 TTL 안에 새로 게시한 slug는 못 볼 수 있다는 한계를 의도적으로 받아들였다(근본 해결은 P0-5b/Issue #3). 산출물: `docs/superpowers/tasks/P0-5a-slug-lookup-cache/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts
 - [ ] 🔶 (P0-5b) slug 조회를 구조적으로 해결한다(색인 구조 또는 Confluence CQL 검색 활용 여부) — 방식은 [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 결정.
