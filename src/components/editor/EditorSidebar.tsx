@@ -221,24 +221,6 @@ export function EditorSidebar({
             SFOOD IT Editor
           </span>
         </Link>
-        {/* P1-2b: 실수로 삭제한 문서를 다시 찾을 수 있는 진입점. */}
-        <button
-          type="button"
-          onClick={() => setDeletedDocsOpen(true)}
-          aria-label="삭제된 문서"
-          title="삭제된 문서"
-          className="shrink-0 rounded-btn p-1.5 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
-        >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path
-              d="M4 6h12M8 6V4.5A1.5 1.5 0 0 1 9.5 3h1A1.5 1.5 0 0 1 12 4.5V6m-6.5 0 .6 9.5A1.5 1.5 0 0 0 7.6 17h4.8a1.5 1.5 0 0 0 1.5-1.5L14.5 6"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
         {onCollapse && (
           <button
             type="button"
@@ -412,6 +394,42 @@ export function EditorSidebar({
           </Button>
         )}
       </nav>
+
+      {/*
+        문서 목록(nav)과 계정 정보 사이에 별도로 분리한 "문서 관련 기능" 영역이다
+        (2026-08-28, 사용자 요청 — "페이지 관련된 기능이 있으면 별도의 영역을
+        분리하는 게 좋겠어"). 지금은 "삭제된 문서" 하나뿐이지만, 문서 자체를
+        다루는(개별 문서 열기가 아닌) 기능이 늘어나면 이 자리에 계속 추가한다.
+      */}
+      <div className="border-t border-border p-2">
+        <button
+          type="button"
+          onClick={() => setDeletedDocsOpen(true)}
+          className="flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+        >
+          {/*
+            휴지통(삭제) 아이콘 대신 "되돌리기" 아이콘을 쓴다(2026-08-28, 사용자
+            요청 — 이 버튼은 삭제하는 동작이 아니라 삭제된 것을 복구하는 동작이라
+            휴지통 아이콘이 오해를 준다는 지적).
+          */}
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path
+              d="M4.5 8A6 6 0 1 1 6 13.5"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+            />
+            <path
+              d="M4.5 4v4h4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          삭제된 문서
+        </button>
+      </div>
 
       {onLogout && (
         // 예전에는 이메일 아래에 "로그아웃"이 풀폭 텍스트로 세로로 쌓여 있어 어색했고,

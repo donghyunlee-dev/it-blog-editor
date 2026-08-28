@@ -12,18 +12,40 @@
 | `npx tsc --noEmit` | 통과(아래 "발견된 문제와 조치" 참고) |
 | `npm run lint` | 통과 — 에러 0, 경고 2(기존 무관 경고: `postcss.config.js`/`tailwind.config.js`) |
 | `npm run build` | 통과 — `/api/editor/documents/deleted`, `/api/editor/documents/[pageId]/restore` 라우트가 목록에 등록됨을 확인 |
+| 위 전체(`npm test`/`npm run lint`/`npx tsc --noEmit`/`npm run build`), 아이콘·위치 변경 후 재실행 | 모두 통과(회귀 없음, 203/203 그대로 — 기존 테스트가 버튼을 접근성 이름 "삭제된 문서"로 찾아 위치·아이콘 변경에 영향받지 않음) |
 
 ## 수동 검증
-**실제 Confluence 인스턴스로 트래시/복구 흐름을 검증하지 못했다** — `result.md`의 "우려사항"
-참고. `movePage`(트래시된 페이지 대상)와 `getPageProperty`(트래시된 페이지의 `authorMeta`를
-읽지 않도록 설계를 좁혔지만, 계정 폴더 자체의 `deletedDocuments`/`authorMeta` 조회는 정상
-페이지 대상이라 기존 기능과 같은 신뢰 수준) 동작을 Atlassian 공식 문서 기준으로만 구현했다.
-이것이 이번 작업을 main에 직접 반영하지 않고 PR로 올리는 핵심 이유다 — 머지 전에 실제
-인스턴스에서 문서 삭제 → "삭제된 문서" Modal에서 복구 → 초안 목록에 다시 나타남까지 한 번
-확인하기를 권장한다.
 
-브라우저 UI 쪽(헤더 "삭제된 문서" 버튼 → Modal → 목록/복구)은 이 환경의 dev 서버 접속 제약으로
-직접 클릭 검증은 하지 못했다 — `userEvent.click`으로 재현하는 통합 테스트로 대체했다.
+### 실제 Confluence 인스턴스 검증 (2026-08-28, 사용자 승인)
+사용자가 "아무도 사용 안 하는 Confluence 스페이스라 사용해도 상관없다"고 승인해, 실제 인스턴스에
+임시 페이지를 만들어 이 기능의 핵심 가정을 직접 확인했다(스크립트:
+`confluence-spike.mjs`, 세션 스크래치패드에 임시 작성 후 실행 — 리포지토리에는 커밋하지 않음).
+절차: 페이지 생성 → 버전 2개 생성 → `DELETE`(트래시 이동) → `GET`(트래시 상태 조회) →
+`PUT status:"current"` + `parentId`(=`movePage`와 동일한 요청 형태, 복구 시도) → `GET`(복구
+후 재확인) → 정리(`DELETE` 후 `?purge=true`로 영구 삭제).
+
+결과:
+- `DELETE`로 트래시 이동 성공. 트래시 상태에서 `parentId`가 `null`이 됨을 실측으로 확인 —
+  "복구 시 원래 위치를 API로 복원할 수 없다"는, 이 작업이 처음부터 자체 레지스트리 방식을
+  택한 근거가 되는 가정이 맞았다.
+- `GET .../{id}?body-format=storage`가 트래시 상태에서도 본문을 포함해 정상 응답했다
+  (`status: "trashed"`).
+- `PUT`(`movePage`와 동일한 요청 바디: `status:"current"` + `parentId`)로 트래시된 페이지를
+  성공적으로 복구했다 — 재조회 결과 `status:"current"`, `parentId`가 지정한 값으로 복원됨을
+  확인.
+- (부수 발견) `DELETE` 호출이 한 번 500(Internal Server Error)을 반환했다 — 즉시 재시도하니
+  성공했다. 재현 빈도는 낮아 보이지만, 이미 백로그에 있는 P1-3(429/5xx 재시도·백오프) 항목의
+  필요성을 뒷받침하는 실제 사례로 남긴다.
+- 테스트 페이지는 트래시 이동 후 `?purge=true`로 영구 삭제해 스페이스에 흔적을 남기지 않았다.
+
+이로써 이 PR을 막던 핵심 불확실성(트래시된 페이지에 대한 `getPage`/`movePage` 동작)이
+실제로 해소됐다.
+
+### 브라우저 UI 수동 클릭 검증
+이 환경의 dev 서버는 AX Auth(사내 SSO) 로그인이 필요해 이 세션의 브라우저 도구로는 로그인
+상태를 재현할 수 없었다 — `userEvent.click`으로 재현하는 통합 테스트로 대체했다. 실제 로그인
+상태에서의 화면 확인(아이콘·위치 변경분 포함)은 이전 항목들과 마찬가지로 사용자가 직접 dev
+서버(`localhost:3100`)에서 확인하기로 했다 — 이 갱신 시점까지는 아직 확인 전이다.
 
 ## 발견된 문제와 조치
 - **원인 1**: `DeletedDocumentsModal.tsx`에서 실패 토스트에 `"error"` variant를 넘겼는데,
