@@ -30,9 +30,7 @@ export default async function EditorLayout({
     }
   }
 
-  const documents = folder
-    ? await listDocuments(folder.draftFolderId, folder.publishedFolderId)
-    : [];
+  const documents = folder ? await listDocuments(folder.accountFolderId) : [];
 
   return (
     // 각 하위 페이지(new/[pageId])가 이미 자기 <main>을 렌더링하므로,

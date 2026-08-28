@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 46 / 70 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P0-5b(slug 조회 구조 개선)·P0-7(문서 title 충돌 방지, 신규 발견) 완료. 두 항목 다 같은 설계(내부 고유키)로 함께 구현, 실제 Confluence 인스턴스로 직접 검증. 작업 중 우연히 발견한 별개 버그(P1-2b 복원 기능 관련)를 P1-10/P1-11로 신규 추가해 항목 수가 67→70으로 늘었다)
+> 전체 진행률: 47 / 71 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P0-8(게시 여부를 폴더 이동이 아니라 property로만 관리) 완료, 신규 추가 즉시 완료. P0-7 결정("Confluence는 아무도 안 봄") 직후 사용자 제안으로 착수해 이미 완료 표시됐던 Phase 1 "초안-게시 생명주기" 기능의 폴더 이동 메커니즘을 제거했다. 이 직전엔 P0-5b(slug 조회 구조 개선)·P0-7(문서 title 충돌 방지, 신규 발견)을 완료했다 — 셋 다 같은 흐름(내부 고유키 도입 → 슬러그 유일성 → 폴더 이동 불필요)으로 이어진 연쇄 리팩터다.)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -70,11 +70,11 @@
 ### 기능 — 초안-게시 생명주기 (숨김 ↔ 공개)
 - 설명: 문서는 항상 "초안" 또는 "게시됨" 상태다. 초안은 작성자 본인 외 누구에게도 보이지 않고, 게시하면 Space 구성원 전체에 공개된다.
 - 입력: 게시 여부(on/off)
-- 출력·동작: 문서 페이지의 parent를 같은 계정 폴더 내 "초안" ↔ "게시" 서브페이지 사이로 이동하고, Confluence 페이지 제한(Restriction)을 그에 맞춰 적용/해제한다. 제한 대상은 서비스 계정 자신(직원 개인 계정 매핑 없음).
-- 예외 상황: 페이지 이동/제한 API 실패 시 502 + Slack 알림. 스파이크로 사전 검증 필요(parentId 변경 지원 여부, restriction API 버전, 자기 자신 제한이 자기 API 호출을 막는지)
-- 데이터 저장 여부: 예 — data-spec.md의 "문서(페이지 위치·제한 상태)" 참고
+- 출력·동작: Confluence 페이지 제한(Restriction)을 게시 여부에 맞춰 적용/해제하고, `publishMetadata.isPublished`를 함께 기록한다. 제한 대상은 서비스 계정 자신(직원 개인 계정 매핑 없음). **2026-08-28 갱신(P0-8)**: 예전에는 계정 폴더 내 "초안"/"게시" 두 서브페이지 사이로 문서를 물리적으로 이동시키고 그 위치로 게시 여부를 판단했는데, "Confluence는 아무도 직접 열어보지 않는 DB일 뿐"이라는 결정(P0-7) 이후 폴더 이동이 있던 이유(사람이 트리를 탐색해 구분해본다는 전제) 자체가 사라져 제거했다 — 계정 폴더 하나에 모든 문서가 있고, 게시 여부는 오직 `publishMetadata`와 restriction으로만 판단한다.
+- 예외 상황: 제한 적용/해제 API 실패 시 502 + Slack 알림. restriction 변경을 메타데이터 기록보다 항상 먼저 해서, 메타데이터 기록이 실패해도 재시도가 안전하게 수렴한다(restriction 자체가 멱등 연산).
+- 데이터 저장 여부: 예 — data-spec.md의 "문서(제한 상태·게시 메타데이터)" 참고
 - API 필요 여부: 예 — 기존 `PATCH /api/editor/documents/{pageId}/publish`를 확장
-- 상태: 완료 — 산출물: src/lib/editor/folder.ts, src/lib/editor/publish.ts, src/lib/confluence/client.ts
+- 상태: 완료 — 산출물: src/lib/editor/folder.ts, src/lib/editor/publish.ts, src/lib/editor/documents.ts, src/lib/confluence/client.ts
 
 ### 기능 — 문서 태그 지정
 - 설명: 문서를 폴더가 아닌 다중 태그로 분류한다. 편집 화면에서는 칩(chip) UI로 입력하고(Enter/쉼표로 확정), 문서함에서 이미 쓰인 태그를 자동완성 후보로 보여준다. 문서함 사이드바에서는 태그로 필터링할 수 있다.
@@ -158,10 +158,10 @@
 
 ### Phase 1 — Confluence 콘텐츠 구조 개편 (완료)
 - [x] (완료) 스파이크 — 1~3: parentId 변경, Restriction API 버전, 자기 제한이 자기 API 호출 차단 여부 (2026-08-21 검증 완료) / 4: 제한 없는 계정 폴더 하위 제한 없는 "게시" 서브페이지가 형제 "초안"의 제한과 무관하게 독립적으로 유지되는지 (2026-08-25 검증 완료) — 산출물: docs/product/architecture.md, src/lib/confluence/client.ts
-- [x] (완료) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts
-- [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts (구조 변경과 무관해 그대로 유효)
-- [x] (완료) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: src/lib/editor/documents.ts, src/lib/editor/documents.test.ts
-- [x] (완료) `publish.ts` 개편 — 게시/게시취소 시 같은 계정 폴더 내 초안↔게시 서브페이지 이동 + 제한 토글로 변경 — 산출물: src/lib/editor/publish.ts, src/lib/editor/publish.test.ts
+- [x] (완료, 2026-08-28 P0-8로 대체됨) `folder.ts` 개편 — 계정 폴더 생성 시 "초안"(제한)/"게시"(제한 없음) 서브페이지 자동 생성, 관련 API 라우트·화면 응답 필드 갱신 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts. **2026-08-28 갱신**: Phase 4 P0-8에서 이 서브폴더 구조 자체를 제거했다(아래 Phase 4 체크리스트 참고) — 이 항목은 역사적 기록으로 남긴다.
+- [x] (완료) `confluence/client.ts`에 페이지 이동(movePage)·제한 적용/해제 함수 추가 — 산출물: src/lib/confluence/client.ts (구조 변경과 무관해 그대로 유효, movePage는 P1-2b 복구 기능에서 계속 쓰인다)
+- [x] (완료, 2026-08-28 P0-8로 일부 대체됨) `documents.ts` 개편 — "내 문서함" 목록이 초안+게시를 합쳐서 상태 뱃지로 보여주도록 변경 — 산출물: src/lib/editor/documents.ts, src/lib/editor/documents.test.ts. **2026-08-28 갱신**: 게시 여부 판단 방식이 "폴더 위치"에서 "publishMetadata property"로 바뀌었다(P0-8) — "초안+게시를 합쳐서 보여준다"는 동작 자체는 그대로 유지된다.
+- [x] (완료, 2026-08-28 P0-8로 대체됨) `publish.ts` 개편 — 게시/게시취소 시 같은 계정 폴더 내 초안↔게시 서브페이지 이동 + 제한 토글로 변경 — 산출물: src/lib/editor/publish.ts, src/lib/editor/publish.test.ts. **2026-08-28 갱신**: 서브페이지 이동 부분은 P0-8에서 제거됐다 — 제한 토글만 남았다.
 - [x] (완료) 태그(라벨) 추가/조회 연동 — 산출물: src/lib/editor/tags.ts, src/app/api/editor/documents/[pageId]/tags/route.ts (구조 변경과 무관해 그대로 유효)
 - [x] (완료) 댓글 저장 구조(`commenterMeta`) 문서화 반영 — 산출물: docs/product/data-spec.md
 
@@ -199,6 +199,7 @@
 - [x] (완료, P0-5b) slug 조회를 구조적으로 해결한다 — [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 CQL(Forge 앱 설치 필요해 불가로 판명) → 계정별 인덱스 순으로 논의하다, 최종적으로 대화(채팅)에서 사용자가 결정한 방향으로 확정: slug 뒤에 P0-7의 내부 고유키(전역 유일)를 붙인 `publicSlug`를 계산해 저장한다. 다른 문서와 겹칠 수 없는 구조라 Space 전체를 스캔해 중복을 검사할 필요 자체가 사라졌다 — P0-5a의 TTL 캐시(`findPublishedPageBySlug`/`buildSlugIndex`/`listAllSpacePages`)를 전부 제거했다. 이 저장소 밖의 Tech Blog Viewer는 공개 URL 형식 변경(`slug` → `slug-내부고유키`)에 맞춰 별도로 반영이 필요하다(범위 밖, 문서화만 함). 산출물: `docs/superpowers/tasks/P0-5b-slug-structural-uniqueness/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx
 - [x] (완료, P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다 — 분류되지 않은 오류(UPSTREAM_ERROR/502)만 대상이고, 도메인 에러 4종(의도된 사용자 메시지)과 Slack 알림(운영자 전용, 상세 유지)은 그대로 둔다. 산출물: `docs/superpowers/tasks/P0-6-sanitize-error-messages/{task,plan,result,test}.md`, src/lib/api-response.ts
 - [x] (완료, P0-7) Confluence 페이지 title이 Space 전체에서 유일해야 하는 제약 때문에 서로 다른 계정이 흔한 제목("회의록" 등)으로 문서를 만들면 실제로 생성이 실패하는 버그를 고쳤다 — 2026-08-28, P0-5b 논의 중 사용자가 제기한 질문("계정별로 동일한 제목을 입력하면 어떻게 되는가?")에서 발견된, 감사 리포트에는 없던 신규 항목. Confluence page의 실제 title을 문서 생성 시 발급한 `randomUUID()`(내부 고유키, 이후 불변)로 바꾸고, 사용자가 보는 진짜 제목은 `sourceDocument` property에 별도 저장한다("Confluence는 DB 역할, 페이지를 직접 열어보는 건 관리자만" — 사용자 결정). 이 내부 고유키는 P0-5b의 `publicSlug` 계산에도 재사용된다. 실제 인스턴스로 직접 검증: 같은 제목으로 서로 다른 부모 밑에 페이지를 만들면 400(`A page with this title already exists`)이 재현되고, `randomUUID()` 제목은 충돌 없이 통과함을 확인했다. 산출물: `docs/superpowers/tasks/P0-7-document-title-uniqueness/{task,plan,result,test}.md`, src/lib/editor/documents.ts
+- [x] (완료, P0-8) 게시 여부를 폴더 이동이 아니라 property만으로 관리하도록 단순화했다 — P0-7 직후 사용자가 "계정별 초안/게시 폴더를 나눠 이동시킬 필요가 있냐, property로 게시 여부만 관리하면 되지 않냐"고 제안해 착수. 기존 설계([2026-08-21 콘텐츠 구조 설계](../superpowers/specs/2026-08-21-confluence-content-structure-design.md))를 재검토한 결과 폴더 이동이 필요했던 세 이유(①사람이 Confluence 트리를 직접 탐색한다는 전제 ②`listDocuments()`가 위치로 게시 여부를 공짜로 판단 ③메타데이터 쓰기 실패에도 재시도가 안전하도록 위치를 진실로 삼음) 모두 이번 "Confluence는 아무도 안 본다" 결정 이후 사라졌거나(①), P0-7로 이미 무너졌거나(②, 문서마다 sourceDocument를 추가 조회하고 있어), restriction의 멱등성으로 대체 가능(③)하다고 판단했다. 계정 폴더 하위 "초안"/"게시" 서브폴더를 완전히 제거하고, 게시/게시취소는 이제 restriction 토글(먼저) + `publishMetadata.isPublished` 기록(나중)만으로 이뤄진다. 복구(P1-2b)도 계정 폴더 하나로만 이동하면 되고, 복구 시 `publishMetadata.isPublished`를 명시적으로 `false`로 되돌리도록 함께 고쳤다(안 하면 restriction은 비공개인데 표시는 "게시됨"인 자기모순 상태가 됨 — 새로 발견한 요구사항). 이미 완료 표시됐던 Phase 1 기능("초안-게시 생명주기")을 되돌리는 리팩터이지만, "개발 초기 단계에서 규칙을 바로잡아야 한다"는 사용자 판단에 따라 진행했다. 산출물: `docs/superpowers/tasks/P0-8-remove-draft-published-folder-move/{task,plan,result,test}.md`, src/lib/editor/folder.ts, src/lib/editor/documents.ts, src/lib/editor/publish.ts, src/lib/editor/deleted-documents.ts, src/lib/editor/tag-suggestions.ts, src/app/editor/layout.tsx, src/app/api/editor/documents/route.ts, src/app/api/editor/folder/route.ts
 
 **P1 — 실사용 확장 전 필요**
 - [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 🔶 본문 검색은 `listDocuments()`의 기존 N+1 조회 비용을 배로 늘리는 아키텍처 트레이드오프라 별도 결정 필요 — [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7). 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
@@ -224,7 +225,7 @@
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다.
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다.
 - [ ] (P1-9f) `SlashCommandExtension.ts` 테스트를 추가한다.
-- [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. `restoreDocument`/`findPersonalFolder`(`src/lib/editor/deleted-documents.ts`, `src/lib/editor/folder.ts`) 코드를 훑어봐도 원인이 바로 보이지 않아, 착수 시 실제 인스턴스로 삭제→복구 전체 플로우를 재현해 원인을 먼저 확정해야 한다.
+- [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. **2026-08-28 갱신(P0-8)**: "초안"/"게시" 서브폴더 구분 자체가 없어져 `restoreDocument`가 이제 계정 폴더 하나로만 이동하므로, "어느 서브폴더로 이동할지 잘못 고르는" 경로는 더 이상 존재하지 않는다 — 이 리팩터로 재현 경로가 사라진 것으로 보이지만, 원래 버그의 정확한 원인을 소급 확인하지는 않았다(범위 밖으로 명시). pageId `212959235` 자체(이미 최상위에 남아있는 문서)를 수동으로 정리하는 작업도 하지 않았다.
 - [ ] (P1-11) 게시 설정에 `slug: "/root"`처럼 슬래시가 포함된 값이 실제로 저장된 사례가 발견됐다(위 P1-10과 같은 문서, pageId `212959235`) — 현재 slug 검증(`publish.ts`의 `validateAndComposeViewers`)은 빈 값만 걸러내고 형식은 검증하지 않는다. P1-6c(slug 형식 검증)의 실제 필요성을 뒷받침하는 사례로 남긴다.
 
 **P2 — 다듬기**
