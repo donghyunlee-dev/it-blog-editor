@@ -23,34 +23,74 @@ export class ConfluenceApiError extends Error {
   }
 }
 
+// P1-3: 순간적인 레이트리밋(429)·5xx 장애를 흡수하기 위한 재시도. Confluence Cloud API에는
+// idempotency key가 없어 POST/PUT/DELETE를 재시도하면 실제로는 서버에 반영된 요청을 중복
+// 실행할 위험이 있다(예: 응답만 유실된 createPage) — 그래서 부작용이 없는 GET만 재시도한다.
+// (docs/superpowers/tasks/P1-3-confluence-retry-backoff/task.md 참고)
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 300;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableMethod(method: string | undefined): boolean {
+  return method === undefined || method.toUpperCase() === "GET";
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+function computeDelayMs(attempt: number, retryAfterHeader: string | null): number {
+  if (retryAfterHeader !== null) {
+    const seconds = Number(retryAfterHeader);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return seconds * 1000;
+    }
+  }
+  const jitter = Math.random() * 100;
+  return BASE_DELAY_MS * 2 ** attempt + jitter;
+}
+
 async function confluenceRequest<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
   const { baseUrl, email, apiToken } = getConfluenceConfig();
+  const canRetry = isRetryableMethod(init?.method);
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    ...init,
-    headers: {
-      Authorization: buildAuthHeader(email, apiToken),
-      Accept: "application/json",
-      ...init?.headers,
-    },
-  });
+  let attempt = 0;
+  for (;;) {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers: {
+        Authorization: buildAuthHeader(email, apiToken),
+        Accept: "application/json",
+        ...init?.headers,
+      },
+    });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new ConfluenceApiError(
-      response.status,
-      `Confluence API 호출 실패: ${response.status} ${response.statusText}${body ? ` - ${body}` : ""}`
-    );
+    if (!response.ok) {
+      if (canRetry && isRetryableStatus(response.status) && attempt < MAX_RETRIES) {
+        await sleep(computeDelayMs(attempt, response.headers.get("Retry-After")));
+        attempt += 1;
+        continue;
+      }
+
+      const body = await response.text().catch(() => "");
+      throw new ConfluenceApiError(
+        response.status,
+        `Confluence API 호출 실패: ${response.status} ${response.statusText}${body ? ` - ${body}` : ""}`
+      );
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
   }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json() as Promise<T>;
 }
 
 export interface ConfluenceUser {

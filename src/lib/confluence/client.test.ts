@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetSlugIndexCacheForTests, addLabels, clearPageRestrictions, findPublishedPageBySlug, getCurrentConfluenceUser, invalidateSlugIndexCache, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { __resetSlugIndexCacheForTests, addLabels, clearPageRestrictions, ConfluenceApiError, createPage, findPublishedPageBySlug, getCurrentConfluenceUser, invalidateSlugIndexCache, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -455,6 +455,107 @@ describe("upsertPageProperty", () => {
 
     const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
     expect(putCall).toBeUndefined();
+  });
+});
+
+describe("confluenceRequest 재시도(P1-3)", () => {
+  it("GET 요청이 500을 두 번 받은 뒤 성공하면 세 번째 시도의 값을 반환한다", async () => {
+    vi.useFakeTimers();
+    try {
+      let call = 0;
+      const fetchMock = vi.fn(async () => {
+        call += 1;
+        if (call < 3) {
+          return new Response("boom", { status: 500, statusText: "Internal Server Error" });
+        }
+        return new Response(JSON.stringify({ accountId: "acc-1" }), { status: 200 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const promise = getCurrentConfluenceUser();
+      await vi.runAllTimersAsync();
+      const user = await promise;
+
+      expect(user.accountId).toBe("acc-1");
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("계속 503이면 최대 재시도(3회)를 소진한 뒤 ConfluenceApiError를 던진다", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn(
+        async () => new Response("unavailable", { status: 503, statusText: "Service Unavailable" })
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const promise = getCurrentConfluenceUser();
+      const assertion = expect(promise).rejects.toThrow(ConfluenceApiError);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      // 최초 1회 + 재시도 3회 = 총 4회.
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("429 응답의 Retry-After 헤더(초) 값만큼 대기한 뒤에만 재시도한다", async () => {
+    vi.useFakeTimers();
+    try {
+      let call = 0;
+      const fetchMock = vi.fn(async () => {
+        call += 1;
+        if (call === 1) {
+          return new Response("rate limited", {
+            status: 429,
+            statusText: "Too Many Requests",
+            headers: { "Retry-After": "5" },
+          });
+        }
+        return new Response(JSON.stringify({ accountId: "acc-1" }), { status: 200 });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const promise = getCurrentConfluenceUser();
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(fetchMock).toHaveBeenCalledTimes(1); // 아직 Retry-After(5초)가 다 지나지 않음
+
+      await vi.advanceTimersByTimeAsync(1000);
+      const user = await promise;
+
+      expect(user.accountId).toBe("acc-1");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("POST 요청(createPage)은 5xx를 받아도 재시도하지 않고 즉시 던진다", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("boom", { status: 500, statusText: "Internal Server Error" })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createPage({ spaceId: "1", parentId: "2", title: "T", bodyValue: "<p></p>" })
+    ).rejects.toThrow(ConfluenceApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("GET 요청이 404를 받으면 재시도 없이 즉시 던진다(도메인 에러 구분에 영향 없음)", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response("not found", { status: 404, statusText: "Not Found" })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getCurrentConfluenceUser()).rejects.toThrow(ConfluenceApiError);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

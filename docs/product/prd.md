@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 42 / 67 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-2a(버전 이력 조회)·P1-2b(삭제된 문서 복구) 완료, 둘 다 실제 Confluence 인스턴스 검증 후 머지됨)
+> 전체 진행률: 43 / 67 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-3(`confluenceRequest` 재시도·지수 백오프) 완료, 실제 Confluence 인스턴스로 정상 경로 회귀 확인)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -205,7 +205,7 @@
 - [x] (완료, P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다 — 화면(사이드바) 쪽만 "더 보기" 버튼으로 30개씩 점진적으로 그린다. 서버 조회 범위(`listDocuments()`) 자체의 페이지네이션은 다루지 않았다 — 태그 자동완성(`tag-suggestions.ts`)이 같은 함수로 전체 목록을 필요로 해서 P0-5a/P1-1a와 같은 종류의 아키텍처 결정이 필요하다(`task.md` 참고, 별도 이슈 없이 알려진 위험으로 남김). 산출물: `docs/superpowers/tasks/P1-1c-document-list-pagination/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가했다 — 문서 편집 화면 헤더의 "이력" 버튼 → Modal. `GET /api/v2/pages/{id}/versions` 응답 형태는 처음엔 실제 인스턴스로 검증하지 못한 채 PR로 올렸으나, 2026-08-28 사용자 승인 하에 실제(미사용) Confluence 인스턴스로 직접 확인했다(`number`/`createdAt` 필드명 일치, 서버가 이미 최신순 반환 — `docs/superpowers/tasks/P1-2a-revision-history-view/test.md` 참고). [PR #8](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/8) 머지 완료. 산출물: `docs/superpowers/tasks/P1-2a-revision-history-view/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts, src/app/api/editor/documents/[pageId]/versions/route.ts, src/components/editor/VersionHistory.tsx, src/components/editor/DocumentEditor.tsx
 - [x] (완료, P1-2b) 삭제된 문서를 복구하는 기능을 추가했다 — 삭제 시 작성자 계정 폴더의 `deletedDocuments` property에 기록해두고(휴지통을 직접 질의하는 대신 P0-5a와 같은 "직접 기록해둔 상태만 신뢰" 패턴 재사용), 사이드바의 문서 목록과 계정 정보 사이에 별도로 분리한 "삭제된 문서" 영역에서 Modal을 열어 "초안"으로 되돌릴 수 있다. `movePage`가 트래시된 페이지를 대상으로도 동작하는지는 2026-08-28 사용자 승인 하에 실제(미사용) Confluence 인스턴스로 직접 검증했다(트래시 이동 시 `parentId`가 `null`이 되는 것·트래시 상태에서의 `GET`·`PUT status:"current"` 복구 모두 확인됨, 부수적으로 `DELETE`가 일시적 500을 반환한 사례도 발견 — P1-3의 필요성을 뒷받침). [PR #9](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/9) 머지 완료. 산출물: `docs/superpowers/tasks/P1-2b-restore-deleted-document/{task,plan,result,test}.md`, src/lib/editor/documents.ts, src/lib/editor/deleted-documents.ts, src/app/api/editor/documents/deleted/route.ts, src/app/api/editor/documents/[pageId]/restore/route.ts, src/components/editor/DeletedDocumentsModal.tsx, src/components/editor/EditorSidebar.tsx
-- [ ] (P1-3) `confluenceRequest`에 429/5xx 대상 재시도·지수 백오프를 추가한다.
+- [x] (완료, P1-3) `confluenceRequest`에 429/5xx 대상 재시도·지수 백오프를 추가한다 — 재시도는 GET(멱등) 요청에만 적용했다(Confluence Cloud API에 idempotency key가 없어, POST/PUT/DELETE를 재시도하면 실제로 반영된 요청을 중복 실행할 위험이 있어 제외). 최대 3회, 지수 백오프+jitter, 429의 `Retry-After` 헤더 우선 적용. P1-2b 검증 중 실제로 관측된 사례(`DELETE`가 한 번 500을 반환했다 재시도로 성공)가 이 항목의 필요성을 뒷받침했다. 산출물: `docs/superpowers/tasks/P1-3-confluence-retry-backoff/{task,plan,result,test}.md`, src/lib/confluence/client.ts
 - [ ] 🔶 (P1-4a) 구조화 로깅을 도입한다 — 라이브러리/전송 대상은 [Issue #4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4)에서 결정.
 - [ ] (P1-4b) Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다.
 - [ ] 🔶 (P1-5) 민감 API 엔드포인트(문서 생성, 이미지 업로드, 게시)에 레이트리밋을 추가한다 — 구현 방식(인메모리/외부 스토어)과 임계값은 [Issue #5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5)에서 결정.
