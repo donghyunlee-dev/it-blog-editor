@@ -17,7 +17,9 @@
 | `docs/superpowers/tasks/P1-3-confluence-retry-backoff/{task,plan,result,test}.md` | 이 작업의 task/plan/result/test 4파일 신규 작성 |
 
 ## 커밋 내역
-아직 커밋하지 않았다 — 사용자가 커밋을 명시적으로 요청하면 진행한다.
+| SHA | 메시지 |
+|-----|--------|
+| `93e4899` | fix: add retry with exponential backoff for 429/5xx on confluenceRequest |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
