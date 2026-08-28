@@ -27,7 +27,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (커밋 전) | |
+| `fd87870` | refactor: manage publish state via property only, drop draft/published folder move |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
