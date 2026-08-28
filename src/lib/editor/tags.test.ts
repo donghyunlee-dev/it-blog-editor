@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
+import { NotFoundError } from "./errors";
 import { getTags, setTags } from "./tags";
 
 beforeEach(() => {
@@ -16,6 +17,22 @@ describe("getTags", () => {
     const tags = await getTags("doc-1");
 
     expect(tags).toEqual(["React", "Backend"]);
+  });
+
+  it("문서가 삭제(휴지통 이동)됐으면(404) NotFoundError를 던진다", async () => {
+    vi.spyOn(client, "listLabels").mockRejectedValue(
+      new client.ConfluenceApiError(404, "Not Found")
+    );
+
+    await expect(getTags("doc-1")).rejects.toThrow(NotFoundError);
+  });
+
+  it("404가 아닌 오류는 그대로 전파한다", async () => {
+    vi.spyOn(client, "listLabels").mockRejectedValue(
+      new client.ConfluenceApiError(502, "Bad Gateway")
+    );
+
+    await expect(getTags("doc-1")).rejects.toThrow(client.ConfluenceApiError);
   });
 });
 
