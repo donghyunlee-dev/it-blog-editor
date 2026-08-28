@@ -8,6 +8,7 @@ import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
+import { VersionHistory } from "./VersionHistory";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import {
   clearAutosaveSnapshot,
@@ -101,6 +102,34 @@ function SaveIcon() {
       />
       <path d="M7 13.5h6v3.5H7v-3.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
       <path d="M7 3.5v3.5h5v-3.5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** 시계 반대 방향 화살표 + 시침 — "되돌아보기" 느낌을 주는, 버전 이력에 흔히 쓰이는 기호. */
+function HistoryIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M4 6a7 7 0 1 1-1.5 6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M2 3.5V6.5H5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 6.5v4l3 2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -206,6 +235,7 @@ export function DocumentEditor({
   const [status, setStatus] = useState<"idle" | "saving" | "deleting">("idle");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [versionHistoryModalOpen, setVersionHistoryModalOpen] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
     "idle" | "saving" | "saved" | "failed"
   >("idle");
@@ -545,7 +575,8 @@ export function DocumentEditor({
           예전엔 버튼마다 글자가 있었는데, "아이콘만 봐도 알 수 있다"는 피드백으로
           아이콘만 남겼다(2026-08-26). 순서도 설정→저장→삭제로 바꿨다 — 파괴적
           동작(삭제)이 맨 끝이라 저장과는 여전히 붙어 있어서, 구분선으로 물리적으로
-          갈라둔다(오클릭 방지, 이전 지적과 같은 이유).
+          갈라둔다(오클릭 방지, 이전 지적과 같은 이유). 이력(P1-2a)은 읽기 전용
+          조회라 위험도가 낮아 설정과 저장 사이에 끼워 넣는다(설정→이력→저장→삭제).
         */}
         <div className="flex items-center gap-2">
           {mode === "edit" && pageId && (
@@ -566,6 +597,20 @@ export function DocumentEditor({
               disabled={status !== "idle"}
             >
               <SettingsIcon />
+            </Button>
+          )}
+          {mode === "edit" && pageId && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              className="!px-2.5"
+              aria-label="이력"
+              title="이력"
+              onClick={() => setVersionHistoryModalOpen(true)}
+              disabled={status !== "idle"}
+            >
+              <HistoryIcon />
             </Button>
           )}
           {/*
@@ -723,6 +768,18 @@ export function DocumentEditor({
           size="lg"
         >
           <PublishForm pageId={pageId} initial={initialPublishState} />
+        </Modal>
+      )}
+
+      {mode === "edit" && pageId && (
+        // 읽기 전용 조회라 별도 footer(취소/확인 버튼)가 필요 없다 — 위쪽 ✕
+        // 버튼(Modal 기본 제공)으로만 닫는다.
+        <Modal
+          open={versionHistoryModalOpen}
+          onClose={() => setVersionHistoryModalOpen(false)}
+          title="이력"
+        >
+          <VersionHistory pageId={pageId} />
         </Modal>
       )}
     </form>

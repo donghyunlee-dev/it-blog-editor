@@ -7,6 +7,7 @@ import {
   getPage,
   getPageProperty,
   listChildPages,
+  listPageVersions,
   PropertyVersionConflictError,
   updatePage,
   upsertPageProperty,
@@ -268,4 +269,27 @@ export async function updateDocument(input: UpdateDocumentInput) {
 export async function deleteDocument(pageId: string): Promise<void> {
   await getPageOrThrow(pageId);
   await deletePage(pageId);
+}
+
+export interface DocumentVersion {
+  number: number;
+  createdAt: string;
+  /** 이 문서의 현재(최신) 버전인지 — 가장 높은 버전 번호를 기준으로 판단한다. */
+  isCurrent: boolean;
+}
+
+/**
+ * 문서의 버전 이력을 읽기 전용으로 조회한다(P1-2a). 되돌리기(restore) 등 쓰기 동작은
+ * 다루지 않는다 — docs/superpowers/tasks/P1-2a-revision-history-view/task.md 참고.
+ */
+export async function getDocumentVersionHistory(
+  pageId: string
+): Promise<DocumentVersion[]> {
+  const versions = await listPageVersions(pageId);
+  const maxNumber = Math.max(...versions.map((version) => version.number));
+  return versions.map((version) => ({
+    number: version.number,
+    createdAt: version.createdAt,
+    isCurrent: version.number === maxNumber,
+  }));
 }

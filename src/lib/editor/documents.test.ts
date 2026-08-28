@@ -6,6 +6,7 @@ import { ConflictError, UnauthorizedError, ValidationError } from "./errors";
 import {
   createDocument,
   getDocumentDetail,
+  getDocumentVersionHistory,
   listDocuments,
   requireDocumentOwner,
   updateDocument,
@@ -466,5 +467,23 @@ describe("updateDocument", () => {
         expectedVersion: 1,
       })
     ).rejects.toThrow(ValidationError);
+  });
+});
+
+describe("getDocumentVersionHistory", () => {
+  it("가장 높은 버전 번호에 isCurrent: true를 붙여 최신순으로 반환한다", async () => {
+    vi.spyOn(client, "listPageVersions").mockResolvedValue([
+      { number: 3, createdAt: "2026-08-27T00:00:00.000Z" },
+      { number: 2, createdAt: "2026-08-24T00:00:00.000Z" },
+      { number: 1, createdAt: "2026-08-20T00:00:00.000Z" },
+    ]);
+
+    const history = await getDocumentVersionHistory("doc-1");
+
+    expect(history).toEqual([
+      { number: 3, createdAt: "2026-08-27T00:00:00.000Z", isCurrent: true },
+      { number: 2, createdAt: "2026-08-24T00:00:00.000Z", isCurrent: false },
+      { number: 1, createdAt: "2026-08-20T00:00:00.000Z", isCurrent: false },
+    ]);
   });
 });
