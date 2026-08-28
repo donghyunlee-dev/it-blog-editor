@@ -514,9 +514,12 @@ export function DocumentEditor({
       // 삭제 자체가 이 문서를 없애버리므로, 편집 중이던 내용의 "저장 안 됨" 상태는
       // 더 이상 의미가 없다(P0-1a) — 방어적으로 정리한다.
       setDirty(false);
-      // 삭제된 문서가 사이드바 목록에서 즉시 사라지도록 새로고침한다.
-      router.refresh();
+      // 삭제된 문서가 사이드바 목록에서 즉시 사라지도록 새로고침한다. refresh를 push보다
+      // 먼저 부르면 아직 떠나지 않은 현재 라우트(/editor/[pageId], 방금 삭제된 그 문서)를
+      // 다시 서버에서 조회하게 되어 NotFoundError로 이어진다 — 위 handleSave의 mode==="create"
+      // 분기와 같은 이유로 push를 먼저 완료시키고 그 다음에 refresh한다.
       router.push("/editor");
+      router.refresh();
     } catch (err) {
       toast(
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.",
