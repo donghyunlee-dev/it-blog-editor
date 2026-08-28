@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
-import { ChipGroup, EmptyState, Tag } from "@sfood/ui";
+import { ChipGroup, EmptyState, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
@@ -125,6 +125,10 @@ export function EditorSidebar({
   // 피드백 — "탐색기에 문서가 많을 경우에 보기 안좋은 문제"). 제목 기준 클라이언트
   // 필터를 추가한다.
   const [query, setQuery] = useState("");
+  // P1-1b: 정렬 옵션. 기본값은 최신순 — listDocuments()가 반환하는 순서(초안 뒤에
+  // 게시 문서를 이어붙인, Confluence API가 준 순서)는 최신순도 제목순도 아니라서
+  // 문서가 늘어나면 원하는 문서를 찾기 어렵다는 지적(감사 리포트)에 대응한다.
+  const [sortBy, setSortBy] = useState<"updatedAt" | "title">("updatedAt");
 
   const allTags = useMemo(
     () => Array.from(new Set(documents.flatMap((document) => document.tags))),
@@ -146,7 +150,14 @@ export function EditorSidebar({
         document.title.toLowerCase().includes(q) ||
         document.tags.some((tag) => tag.toLowerCase().includes(q))
       );
-    });
+    })
+    // 필터(태그·검색어)를 먼저 적용한 뒤에만 정렬한다 — filter()가 매번 새 배열을
+    // 반환하므로 이 sort()가 documents prop 원본을 건드리지 않는다.
+    .sort((a, b) =>
+      sortBy === "title"
+        ? a.title.localeCompare(b.title, "ko")
+        : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
   return (
     // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
@@ -241,7 +252,7 @@ export function EditorSidebar({
       </div>
 
       {documents.length > 0 && (
-        <div className="border-b border-border p-3">
+        <div className="flex flex-col gap-2 border-b border-border p-3">
           <label className="sr-only" htmlFor="sidebar-doc-search">
             문서 제목·태그 검색
           </label>
@@ -252,6 +263,20 @@ export function EditorSidebar({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             className="w-full rounded-input border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
+          />
+          <label className="sr-only" htmlFor="sidebar-doc-sort">
+            문서 정렬
+          </label>
+          <Select
+            id="sidebar-doc-sort"
+            value={sortBy}
+            onChange={(event) =>
+              setSortBy(event.target.value as "updatedAt" | "title")
+            }
+            options={[
+              { value: "updatedAt", label: "최신순" },
+              { value: "title", label: "제목순" },
+            ]}
           />
         </div>
       )}

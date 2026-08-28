@@ -68,6 +68,24 @@ const DOCS: DocumentSummary[] = [
   },
 ];
 
+/** 정렬 테스트 전용 — 제목 순서(가나다)와 최신 수정 순서가 서로 반대가 되도록 만든다. */
+const SORT_DOCS: DocumentSummary[] = [
+  {
+    pageId: "old",
+    title: "가나다 문서(오래됨)",
+    updatedAt: "2020-01-01T00:00:00.000Z",
+    isPublished: false,
+    tags: [],
+  },
+  {
+    pageId: "new",
+    title: "마바사 문서(최근)",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    isPublished: false,
+    tags: [],
+  },
+];
+
 describe("EditorSidebar", () => {
   beforeEach(() => {
     push.mockClear();
@@ -174,6 +192,34 @@ describe("EditorSidebar", () => {
 
     expect(screen.getByText("문서B")).toBeInTheDocument();
     expect(screen.queryByText("문서A")).not.toBeInTheDocument();
+  });
+
+  it("기본값(최신순)은 최근 수정한 문서가 위에 온다(P1-1b)", () => {
+    render(<EditorSidebar documents={SORT_DOCS} />);
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    const items = within(nav).getAllByRole("listitem");
+
+    expect(items[0]).toHaveTextContent("마바사 문서(최근)");
+    expect(items[1]).toHaveTextContent("가나다 문서(오래됨)");
+  });
+
+  it("제목순으로 바꾸면 제목 오름차순으로 정렬된다(P1-1b)", async () => {
+    render(<EditorSidebar documents={SORT_DOCS} />);
+
+    await userEvent.selectOptions(screen.getByLabelText("문서 정렬"), "title");
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    const items = within(nav).getAllByRole("listitem");
+
+    expect(items[0]).toHaveTextContent("가나다 문서(오래됨)");
+    expect(items[1]).toHaveTextContent("마바사 문서(최근)");
+  });
+
+  it("문서가 없으면 정렬 드롭다운을 보여주지 않는다(P1-1b)", () => {
+    render(<EditorSidebar documents={[]} />);
+
+    expect(screen.queryByLabelText("문서 정렬")).not.toBeInTheDocument();
   });
 
   it("태그 필터와 검색어가 함께(AND) 적용된다(P1-1a)", async () => {
