@@ -31,5 +31,5 @@
 ### 주의사항
 - `react-hooks/set-state-in-effect` lint 에러를 하나 더 만났다(`VersionHistory.tsx`) — 이번엔 "데이터 가져오기"라는, React 문서가 useEffect의 정당한 용도로 직접 드는 사례라 억제 처리했다(오늘 나온 세 번째 종류의 케이스: ①SSR/CSR 2-pass, ②렌더 중 상태 조정으로 대체 가능한 경우, ③이번처럼 진짜 데이터 페칭).
 
-### 우려사항 (PR로 올리는 핵심 이유)
-- **`listPageVersions`의 Confluence API 가정을 실제 인스턴스로 검증하지 못했다.** `GET /api/v2/pages/{id}/versions`의 응답 필드명(`number`/`createdAt` 등)과 페이지네이션 방식(`_links.next`)은 기존 코드(`listAllSpacePages` 등)와 같은 패턴을 그대로 따랐지만, 이 엔드포인트 자체를 실제로 호출해본 적은 없다. 이 프로젝트가 Phase 1에서 중요한 Confluence API 가정마다 스파이크 검증을 거친 전례를 따라, **머지 전에 실제 Confluence 인스턴스로 한 번 확인하는 것을 권장한다.**
+### 우려사항 → 해소됨 (2026-08-28 갱신)
+- ~~`listPageVersions`의 Confluence API 가정을 실제 인스턴스로 검증하지 못했다.~~ 사용자 승인 하에 실제(미사용) Confluence 인스턴스에 임시 페이지를 만들어 직접 확인했다: `GET /api/v2/pages/{id}/versions`가 `results[].number`/`results[].createdAt`을 정확히 그 필드명으로 반환하고, 서버가 이미 최신순(내림차순)으로 정렬해 준다는 것도 확인했다(우리 코드는 서버 정렬에 기대지 않고 클라이언트에서 재정렬하므로 이 부분은 안전망이 이미 있었다). 다만 버전이 2개뿐인 테스트 페이지라 `_links.next` 커서를 통한 페이지네이션 자체는 실제로 여러 페이지에 걸쳐 확인하지는 못했다 — 이 프로젝트의 다른 모든 목록 엔드포인트가 같은 커서 패턴을 실제로 검증받아 쓰고 있다는 점에서 위험은 낮다고 판단한다. 자세한 절차와 응답 예시는 `test.md` 참고.

@@ -20,14 +20,36 @@
 | 널 바이트 스캔(Node 스크립트, 이번에 손댄 모든 파일) | 이상 없음 |
 
 ## 수동 검증
-**실제 Confluence 인스턴스로 검증하지 못했다** — 이 환경에는 접근 가능한 Confluence 인스턴스가
-없다. `listPageVersions`가 호출하는 `GET /api/v2/pages/{id}/versions`의 실제 응답 형태를
-Atlassian 공식 문서 기준으로만 구현했다. 이것이 이번 작업을 main에 직접 반영하지 않고 PR로
-올리는 핵심 이유다(`task.md`/`result.md` 참고) — 머지 전에 실제 인스턴스로 한 번 호출해
-필드명·페이지네이션 동작을 확인하기를 권장한다.
 
-브라우저 UI 쪽(헤더 "이력" 버튼 → Modal → 목록 표시)은 이 환경의 dev 서버 접속 제약으로
-직접 클릭 검증은 하지 못했다 — `userEvent.click`으로 재현하는 통합 테스트로 대체했다.
+### 실제 Confluence 인스턴스 검증 (2026-08-28, 사용자 승인)
+사용자가 "아무도 사용 안 하는 Confluence 스페이스라 사용해도 상관없다"고 승인해 직접 확인했다.
+절차: 임시 페이지 생성 → 본문 수정(버전 2 생성) → `GET /api/v2/pages/{id}/versions` 호출 →
+정리(트래시 이동 후 `?purge=true`로 영구 삭제, 스페이스에 흔적 남기지 않음).
+
+실제 응답(요약):
+```json
+{
+  "results": [
+    { "number": 2, "createdAt": "2026-08-28T05:16:13.979Z", "message": "", "authorId": "...", "page": { "id": "...", "title": "...", "body": {} } },
+    { "number": 1, "createdAt": "2026-08-28T05:16:13.122Z", "message": "", "authorId": "...", "page": { "id": "...", "title": "...", "body": {} } }
+  ],
+  "_links": { "base": "https://sfoodxproject.atlassian.net/wiki" }
+}
+```
+
+확인된 것:
+- `listPageVersions`가 기대하는 필드명(`number`/`createdAt`)이 실제 응답과 정확히 일치한다.
+- 서버가 이미 최신순(버전 2 → 1)으로 반환한다 — 우리 코드가 클라이언트에서 다시 정렬하는
+  안전장치는 여전히 유효하고 손해도 없다.
+- 버전이 2개뿐이라 `_links.next` 커서 페이지네이션은 실제로 여러 페이지에 걸쳐서는 확인하지
+  못했다(응답의 `_links`에 `base`만 있고 `next`는 없었다 — 더 가져올 페이지가 없을 때의 정상
+  동작으로 보인다). 이 프로젝트의 다른 목록 엔드포인트가 전부 검증된 같은 커서 패턴이라
+  위험은 낮다고 판단한다.
+
+### 브라우저 UI 수동 클릭 검증
+이 환경의 dev 서버는 AX Auth(사내 SSO) 로그인이 필요해 이 세션의 브라우저 도구로는 로그인
+상태를 재현할 수 없었다 — `userEvent.click`으로 재현하는 통합 테스트로 대체했다. 실제 로그인
+상태에서의 "이력" 버튼 → Modal 클릭 확인은 사용자가 직접 dev 서버에서 진행하기로 했다.
 
 ## 발견된 문제와 조치
 - **원인**: `VersionHistory.tsx`의 데이터 로딩 `useEffect`에서 `setState({status:"loading"})`
