@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
-import { setPublishState, type PublishViewerMetadata } from "@/lib/editor/publish";
+import { setPublishState, type PublishViewerInput } from "@/lib/editor/publish";
 import { requireDocumentOwner } from "@/lib/editor/documents";
 
 interface RouteContext {
@@ -16,7 +16,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
 
     const payload = (await request.json()) as {
       isPublished?: boolean;
-      viewers?: Record<string, PublishViewerMetadata>;
+      viewers?: Record<string, PublishViewerInput>;
     };
 
     const result = await setPublishState({

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { cache } from "react";
 import {
   ConfluenceApiError,
@@ -95,6 +96,12 @@ async function readAuthorEmail(pageId: string): Promise<string | null> {
  * 그대로 합치면 곧 그 계정 소유 문서 전체가 된다 — 더 이상 공유 게시됨 루트를 스캔해
  * authorMeta로 소유권을 필터링할 필요가 없다.
  *
+ * Confluence 페이지의 실제 title은 더 이상 표시용 제목이 아니다(P0-7 — Space 전체에서
+ * 유일해야 하는 Confluence 제약을 내부 고유키로 흡수하고, 사용자가 입력한 진짜 제목은
+ * `sourceDocument` property에 따로 저장한다). 그래서 문서마다 이 property를 한 번씩 더
+ * 읽는다 — 계정 하나가 가진 문서 수 범위 내의 비용이라 Space 전체를 스캔하던 기존
+ * slug 조회 문제(P0-5b)와는 성격이 다르다.
+ *
  * `/editor/[pageId]`가 로드될 때 `/editor` 레이아웃(사이드바용)과 `listTagSuggestions`가
  * 각각 독립적으로 이 함수를 (같은 폴더 쌍으로) 호출한다. React의 `cache()`로 감싸 같은
  * 요청(같은 서버 렌더 트리) 안에서는 동일 인자 호출이 중복 실행되지 않고 메모이즈되도록 한다
@@ -120,10 +127,16 @@ export const listDocuments = cache(async function listDocuments(
 
   return Promise.all(
     entries.map(async ({ page, isPublished }) => {
-      const tagList = await getTags(page.id);
+      const [tagList, sourceProperty] = await Promise.all([
+        getTags(page.id),
+        getPageProperty<{ title?: string; doc: JSONContent }>(
+          page.id,
+          SOURCE_DOCUMENT_PROPERTY_KEY
+        ),
+      ]);
       return {
         pageId: page.id,
-        title: page.title,
+        title: sourceProperty?.value?.title ?? page.title,
         updatedAt: page.version.createdAt,
         isPublished,
         tags: tagList,
@@ -150,20 +163,22 @@ export async function requireDocumentOwner(
 /**
  * 편집 화면에 필요한 문서 상세를 조회한다. Confluence 페이지의 body(storage format)는
  * 렌더링용 산출물이므로, 편집 원본은 별도 content property(sourceDocument)에서 가져온다.
+ * 제목도 마찬가지다(P0-7) — Confluence 페이지의 실제 title은 내부 고유키일 뿐이라
+ * 표시하지 않는다.
  */
 export async function getDocumentDetail(
   pageId: string
 ): Promise<DocumentDetail> {
   const page = await getPageOrThrow(pageId);
-  const sourceProperty = await getPageProperty<{ doc: JSONContent }>(
+  const sourceProperty = await getPageProperty<{ title?: string; doc: JSONContent }>(
     pageId,
     SOURCE_DOCUMENT_PROPERTY_KEY
   );
 
   return {
     pageId: page.id,
-    title: page.title,
-    doc: sourceProperty?.value.doc ?? { type: "doc", content: [] },
+    title: sourceProperty?.value?.title ?? "",
+    doc: sourceProperty?.value?.doc ?? { type: "doc", content: [] },
     version: page.version.number,
     updatedAt: page.version.createdAt,
   };
@@ -181,6 +196,16 @@ export interface CreateDocumentInput {
  * 항상 `hidePageFromOthers`로 작성자 본인 전용으로 제한하므로, 호출자는 반드시
  * `draftFolderId`(초안 서브폴더)를 넘겨야 한다 — "게시" 서브폴더로 만들면 제한이 걸린 게시
  * 문서가 생기는 모순된 상태가 된다.
+ *
+ * Confluence 페이지의 실제 title은 사용자가 입력한 제목이 아니라 `randomUUID()`로 만든
+ * 내부 고유키다(P0-7). Confluence는 Space 전체에서 페이지 title이 유일해야 하는데(부모가
+ * 달라도 예외 없음), 서로 다른 계정이 흔한 제목("회의록" 등)을 그대로 title로 쓰면 실제로
+ * 충돌해 생성이 실패한다(`A page with this title already exists`) — 이 오류는 분류되지
+ * 않은 오류로 처리돼 "일시적 오류, 다시 시도하라"는 잘못된 메시지가 뜨고 Slack에 불필요한
+ * 이상 감지 알림까지 울린다. 내부 고유키를 title로 쓰면 이 충돌이 구조적으로 불가능해진다.
+ * 사용자가 실제로 입력한 제목은 `sourceDocument` property에 `doc`과 함께 저장하고, 화면에는
+ * 항상 이 값만 보여준다(`getDocumentDetail`/`listDocuments` 참고). 이 내부 고유키는 게시
+ * 시 slug 유일성을 보장하는 데도 재사용된다(`publish.ts`의 `publicSlug` 참고, P0-5b).
  */
 export async function createDocument(input: CreateDocumentInput) {
   if (!input.title.trim() || isEmptyDoc(input.doc)) {
@@ -188,10 +213,11 @@ export async function createDocument(input: CreateDocumentInput) {
   }
 
   const space = await getConfiguredSpace();
+  const internalKey = randomUUID();
   const page = await createPage({
     spaceId: space.id,
     parentId: input.draftFolderId,
-    title: input.title,
+    title: internalKey,
     bodyValue: tiptapDocToStorageFormat(input.doc),
   });
 
@@ -200,6 +226,7 @@ export async function createDocument(input: CreateDocumentInput) {
       actualAuthorEmail: input.actualAuthorEmail,
     }),
     upsertPageProperty(page.id, SOURCE_DOCUMENT_PROPERTY_KEY, {
+      title: input.title,
       doc: input.doc,
     }),
     hidePageFromOthers(page.id),
@@ -236,7 +263,7 @@ export async function updateDocument(input: UpdateDocumentInput) {
 
   const [current, sourceProperty] = await Promise.all([
     getPageOrThrow(input.pageId),
-    getPageProperty<{ doc: JSONContent }>(
+    getPageProperty<{ title?: string; doc: JSONContent }>(
       input.pageId,
       SOURCE_DOCUMENT_PROPERTY_KEY
     ),
@@ -247,9 +274,12 @@ export async function updateDocument(input: UpdateDocumentInput) {
     );
   }
 
+  // Confluence 페이지의 실제 title(내부 고유키, P0-7)은 생성 이후 절대 바꾸지 않는다 —
+  // `current.title`을 그대로 다시 넘겨 변경 없이 유지한다. 사용자가 입력한 새 제목은
+  // sourceDocument property에만 반영한다.
   const updated = await updatePage({
     pageId: input.pageId,
-    title: input.title,
+    title: current.title,
     bodyValue: tiptapDocToStorageFormat(input.doc),
     nextVersion: current.version.number + 1,
   });
@@ -258,7 +288,7 @@ export async function updateDocument(input: UpdateDocumentInput) {
     await upsertPageProperty(
       input.pageId,
       SOURCE_DOCUMENT_PROPERTY_KEY,
-      { doc: input.doc },
+      { title: input.title, doc: input.doc },
       { expectedVersion: sourceProperty?.version.number ?? 0 }
     );
   } catch (error) {
@@ -311,7 +341,13 @@ async function recordDeletedDocument(pageId: string, title: string): Promise<voi
 export async function deleteDocument(pageId: string): Promise<void> {
   const page = await getPageOrThrow(pageId);
   try {
-    await recordDeletedDocument(pageId, page.title);
+    // page.title은 P0-7 이후 내부 고유키일 뿐이라 복구 목록에 보여줄 실제 제목은
+    // sourceDocument property에서 읽는다.
+    const sourceProperty = await getPageProperty<{ title?: string }>(
+      pageId,
+      SOURCE_DOCUMENT_PROPERTY_KEY
+    );
+    await recordDeletedDocument(pageId, sourceProperty?.value?.title ?? page.title);
   } catch (error) {
     console.error("[deleteDocument] 삭제된 문서 레지스트리 기록 실패:", error);
   }

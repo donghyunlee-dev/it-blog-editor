@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 44 / 67 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P0-4a(이미지 업로드 최대 파일 크기 10MB 제한) 완료, Issue #2 결정 반영 후 착수)
+> 전체 진행률: 46 / 70 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P0-5b(slug 조회 구조 개선)·P0-7(문서 title 충돌 방지, 신규 발견) 완료. 두 항목 다 같은 설계(내부 고유키)로 함께 구현, 실제 Confluence 인스턴스로 직접 검증. 작업 중 우연히 발견한 별개 버그(P1-2b 복원 기능 관련)를 P1-10/P1-11로 신규 추가해 항목 수가 67→70으로 늘었다)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -196,8 +196,9 @@
 - [x] (완료, P0-4a) 이미지 업로드 최대 파일 크기를 제한한다 — [Issue #2](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/2)에서 10MB로 결정(추천안 그대로 채택). `registerImage`가 10MB 초과 시 `ValidationError`(400)를 던지고 Confluence 첨부파일 업로드를 호출하지 않는다. 클라이언트 사전 검사는 범위 밖(기존 MIME 타입 검사와 동일하게 서버 단일 검증 지점 유지). 산출물: `docs/superpowers/tasks/P0-4a-image-upload-size-limit/{task,plan,result,test}.md`, src/lib/editor/images.ts, src/lib/editor/images.test.ts
 - [x] (완료, P0-4b) 이미지 업로드 개수(붙여넣기/드래그앤드롭 1회 처리량, 문서당 누적)에 상한을 둔다 — 1회 처리량은 원래부터 파일 1개만 처리하고 있어 사실상 이미 제한돼 있었고, 문서당 누적 30장 상한을 드래그앤드롭·붙여넣기·슬래시 메뉴 세 진입점에 공통 적용했다(서버 측 강제는 범위 밖 — UX 가드레일이지 보안 경계가 아니라고 판단). 산출물: `docs/superpowers/tasks/P0-4b-image-upload-count-limit/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
 - [x] (완료, P0-5a) `findPublishedPageBySlug` 반복 스캔 비용을 캐시로 완화한다(즉시 완화책) — Space 전체 slug 인덱스를 15초 TTL로 캐시하고, 이 프로세스가 직접 게시할 때는 즉시 무효화한다. 다른 프로세스가 TTL 안에 새로 게시한 slug는 못 볼 수 있다는 한계를 의도적으로 받아들였다(근본 해결은 P0-5b/Issue #3). 산출물: `docs/superpowers/tasks/P0-5a-slug-lookup-cache/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts
-- [ ] 🔶 (P0-5b) slug 조회를 구조적으로 해결한다(색인 구조 또는 Confluence CQL 검색 활용 여부) — 방식은 [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 결정.
+- [x] (완료, P0-5b) slug 조회를 구조적으로 해결한다 — [Issue #3](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/3)에서 CQL(Forge 앱 설치 필요해 불가로 판명) → 계정별 인덱스 순으로 논의하다, 최종적으로 대화(채팅)에서 사용자가 결정한 방향으로 확정: slug 뒤에 P0-7의 내부 고유키(전역 유일)를 붙인 `publicSlug`를 계산해 저장한다. 다른 문서와 겹칠 수 없는 구조라 Space 전체를 스캔해 중복을 검사할 필요 자체가 사라졌다 — P0-5a의 TTL 캐시(`findPublishedPageBySlug`/`buildSlugIndex`/`listAllSpacePages`)를 전부 제거했다. 이 저장소 밖의 Tech Blog Viewer는 공개 URL 형식 변경(`slug` → `slug-내부고유키`)에 맞춰 별도로 반영이 필요하다(범위 밖, 문서화만 함). 산출물: `docs/superpowers/tasks/P0-5b-slug-structural-uniqueness/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx
 - [x] (완료, P0-6) `toErrorResponse`가 클라이언트에 내려보내는 오류 메시지를 일반화하고, 원문 상세는 서버 로그에만 남긴다 — 분류되지 않은 오류(UPSTREAM_ERROR/502)만 대상이고, 도메인 에러 4종(의도된 사용자 메시지)과 Slack 알림(운영자 전용, 상세 유지)은 그대로 둔다. 산출물: `docs/superpowers/tasks/P0-6-sanitize-error-messages/{task,plan,result,test}.md`, src/lib/api-response.ts
+- [x] (완료, P0-7) Confluence 페이지 title이 Space 전체에서 유일해야 하는 제약 때문에 서로 다른 계정이 흔한 제목("회의록" 등)으로 문서를 만들면 실제로 생성이 실패하는 버그를 고쳤다 — 2026-08-28, P0-5b 논의 중 사용자가 제기한 질문("계정별로 동일한 제목을 입력하면 어떻게 되는가?")에서 발견된, 감사 리포트에는 없던 신규 항목. Confluence page의 실제 title을 문서 생성 시 발급한 `randomUUID()`(내부 고유키, 이후 불변)로 바꾸고, 사용자가 보는 진짜 제목은 `sourceDocument` property에 별도 저장한다("Confluence는 DB 역할, 페이지를 직접 열어보는 건 관리자만" — 사용자 결정). 이 내부 고유키는 P0-5b의 `publicSlug` 계산에도 재사용된다. 실제 인스턴스로 직접 검증: 같은 제목으로 서로 다른 부모 밑에 페이지를 만들면 400(`A page with this title already exists`)이 재현되고, `randomUUID()` 제목은 충돌 없이 통과함을 확인했다. 산출물: `docs/superpowers/tasks/P0-7-document-title-uniqueness/{task,plan,result,test}.md`, src/lib/editor/documents.ts
 
 **P1 — 실사용 확장 전 필요**
 - [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 🔶 본문 검색은 `listDocuments()`의 기존 N+1 조회 비용을 배로 늘리는 아키텍처 트레이드오프라 별도 결정 필요 — [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7). 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
@@ -223,6 +224,8 @@
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다.
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다.
 - [ ] (P1-9f) `SlashCommandExtension.ts` 테스트를 추가한다.
+- [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. `restoreDocument`/`findPersonalFolder`(`src/lib/editor/deleted-documents.ts`, `src/lib/editor/folder.ts`) 코드를 훑어봐도 원인이 바로 보이지 않아, 착수 시 실제 인스턴스로 삭제→복구 전체 플로우를 재현해 원인을 먼저 확정해야 한다.
+- [ ] (P1-11) 게시 설정에 `slug: "/root"`처럼 슬래시가 포함된 값이 실제로 저장된 사례가 발견됐다(위 P1-10과 같은 문서, pageId `212959235`) — 현재 slug 검증(`publish.ts`의 `validateAndComposeViewers`)은 빈 값만 걸러내고 형식은 검증하지 않는다. P1-6c(slug 형식 검증)의 실제 필요성을 뒷받침하는 사례로 남긴다.
 
 **P2 — 다듬기**
 - [ ] (P2-1a) 슬래시 메뉴에 `role`/`aria-selected` 등 ARIA를 보강한다.
