@@ -18,7 +18,7 @@ Issue #2는 구현 완료 코멘트와 함께 닫았다.
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (커밋 전) | |
+| `dec98bd` | fix: enforce 10MB max size on image uploads |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
