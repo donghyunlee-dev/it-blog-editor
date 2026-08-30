@@ -20,6 +20,7 @@ Confluence(P1-3)와 달리 GET/POST를 구분하지 않고 재시도한다 — S
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
+| `1b69a4a` | fix: add retry with exponential backoff to Slack webhook alerts |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
