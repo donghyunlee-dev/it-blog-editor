@@ -85,12 +85,22 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
    * 인자로 받아 그대로 전송한다 — React state는 비동기라, 방금 setState한 값을
    * 클로저 밖(같은 이벤트 핸들러 안)에서 바로 읽으면 갱신 전 값을 읽을 수 있다.
    * 호출부가 "다음에 반영될 값"을 직접 계산해 넘기게 해서 이 문제를 피한다.
+   *
+   * 스위치(게시함/뷰어 노출)는 낙관적으로 먼저 바꾼 뒤 저장을 시도하는데, 실패하면
+   * 그 낙관적 변경을 되돌려야 한다 — 안 그러면 서버는 거부(예: slug/metaDescription
+   * 누락 400)했는데 화면은 계속 "켜짐"으로 남아 실제 상태와 어긋난다(2026-08-28,
+   * 실사용 확인 중 발견한 버그). 되돌릴 값이 있는 호출부만 `onFailureRollback`을
+   * 넘긴다 — 자유 텍스트 입력(slug/메타 설명)은 실패해도 사용자가 방금 입력한
+   * 값을 지우지 않는다(따로 되돌리지 않는 게 나은 UX라고 판단).
    */
-  async function persist(next: {
-    isPublished: boolean;
-    enabledViewers: string[];
-    viewerFields: Record<string, ViewerMetadata>;
-  }) {
+  async function persist(
+    next: {
+      isPublished: boolean;
+      enabledViewers: string[];
+      viewerFields: Record<string, ViewerMetadata>;
+    },
+    onFailureRollback?: () => void
+  ) {
     setSaveState("saving");
     const viewers: Record<string, ViewerMetadata> = {};
     for (const viewerId of next.enabledViewers) {
@@ -114,6 +124,7 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
       router.refresh();
     } catch (err) {
       setSaveState("idle");
+      onFailureRollback?.();
       toast(
         err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.",
         "danger"
@@ -133,14 +144,19 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
       setUnpublishConfirmOpen(true);
       return;
     }
+    const previous = isPublished;
     setIsPublished(next);
-    void persist({ isPublished: next, enabledViewers, viewerFields });
+    void persist({ isPublished: next, enabledViewers, viewerFields }, () =>
+      setIsPublished(previous)
+    );
   }
 
   function confirmUnpublish() {
     setUnpublishConfirmOpen(false);
     setIsPublished(false);
-    void persist({ isPublished: false, enabledViewers, viewerFields });
+    void persist({ isPublished: false, enabledViewers, viewerFields }, () =>
+      setIsPublished(true)
+    );
   }
 
   function cancelUnpublish() {
@@ -148,13 +164,16 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
   }
 
   function handleViewerToggle(viewerId: string, enabled: boolean) {
+    const previous = enabledViewers;
     const next = enabled
       ? enabledViewers.includes(viewerId)
         ? enabledViewers
         : [...enabledViewers, viewerId]
       : enabledViewers.filter((value) => value !== viewerId);
     setEnabledViewers(next);
-    void persist({ isPublished, enabledViewers: next, viewerFields });
+    void persist({ isPublished, enabledViewers: next, viewerFields }, () =>
+      setEnabledViewers(previous)
+    );
   }
 
   function updateViewerField(

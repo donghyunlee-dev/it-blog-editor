@@ -88,11 +88,11 @@
 ### 기능 — 게시 메타데이터의 뷰어별 확장
 - 설명: 게시 시 slug·메타 설명을 뷰어(예: Tech Blog)별로 따로 관리할 수 있게 한다. 게시 설정 화면에는 뷰어마다 카드가 하나씩 있고, 뷰어가 늘어나도 화면 구조를 다시 설계하지 않아도 된다.
 - 입력: 뷰어 ID, slug, 메타 설명
-- 출력·동작: `publishMetadata.viewers[viewerId] = { slug, metaDescription }` 구조로 저장. slug 중복 체크는 뷰어별로 분리
-- 예외 상황: 게시 시 slug/metaDescription 누락 → 400, slug 중복(같은 뷰어 내) → 409
+- 출력·동작: `publishMetadata.viewers[viewerId] = { slug, metaDescription, publicSlug }` 구조로 저장(`publicSlug`는 2026-08-28 P0-5b에서 추가 — 서버가 `slug`에 문서별 전역 유일 내부 고유키를 붙여 계산한 실제 공개 URL 값)
+- 예외 상황: 게시 시 slug/metaDescription 누락 → 400. **2026-08-28 갱신(P0-5b)**: slug 중복(409)은 더 이상 발생하지 않는다 — `publicSlug`가 구조적으로 항상 유일하다.
 - 데이터 저장 여부: 예
 - API 필요 여부: 예 — 기존 게시 설정 API의 요청/응답 스키마 변경
-- 상태: 완료 — `targetViewers: string[]` 구조에서 마이그레이션 완료. 산출물: src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx
+- 상태: 완료 — `targetViewers: string[]` 구조에서 마이그레이션 완료. **2026-08-28 갱신**: `PublishForm.tsx`의 "게시함"/"뷰어 노출" 스위치가 저장 실패 시(예: slug/metaDescription 누락 400) 낙관적으로 바꾼 화면 상태를 되돌리지 않던 버그를 실사용 확인 중 발견해 수정 — 실패하면 이전 상태로 롤백한다. 산출물: src/lib/editor/publish.ts, src/components/editor/PublishForm.tsx, src/components/editor/PublishForm.test.tsx
 
 ### 기능 — 댓글 저장 구조 (데이터 구조만 정의, API/화면은 범위 밖)
 - 설명: Tech Blog 독자가 게시된 문서에 댓글을 남길 수 있도록, Confluence에 저장되는 데이터 구조를 정의한다. 실제 댓글 작성/조회 API와 화면은 별도 Viewer 프로젝트가 자체 Confluence 자격증명으로 구현한다.

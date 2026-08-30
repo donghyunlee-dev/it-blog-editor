@@ -245,6 +245,60 @@ describe("PublishForm", () => {
     );
   });
 
+  it("게시함 스위치를 켰다가 저장이 실패하면(예: slug/메타 설명 누락) 스위치를 다시 꺼진 상태로 되돌린다", async () => {
+    // 2026-08-28, 실사용 확인 중 발견한 버그: 낙관적으로 먼저 켜놓고 실패해도
+    // 되돌리지 않아 서버는 거부했는데 화면은 "켜짐"으로 남아있었다.
+    stubFetch(
+      jsonResponse(
+        {
+          error: {
+            code: "INVALID_REQUEST",
+            message: "뷰어(tech-blog)의 slug와 metaDescription은 필수입니다.",
+          },
+        },
+        400
+      )
+    );
+
+    renderForm(
+      <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "게시함" }));
+
+    expect(
+      await screen.findByText("뷰어(tech-blog)의 slug와 metaDescription은 필수입니다.")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "게시함" })).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
+  });
+
+  it("뷰어 노출 스위치를 껐다가 저장이 실패하면 다시 켜진 상태로 되돌린다", async () => {
+    stubFetch(jsonResponse({ error: { code: "INVALID_REQUEST", message: "저장 실패" } }, 400));
+
+    renderForm(
+      <PublishForm
+        pageId="doc-1"
+        initial={{
+          isPublished: true,
+          viewers: {
+            "tech-blog": { slug: "saved-post", metaDescription: "저장된 설명" },
+          },
+        }}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("switch", { name: "Tech Blog 노출" }));
+
+    expect(await screen.findByText("저장 실패")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: "Tech Blog 노출" })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
   it("아직 게시되지 않은 문서에서 게시함 스위치를 켤 때는 확인 절차 없이 즉시 저장한다(P0-2)", async () => {
     const fetchMock = stubFetch(jsonResponse({ isPublished: true }));
 
