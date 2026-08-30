@@ -1,0 +1,35 @@
+# P1-4b: Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다 — 구현 결과 보고서
+
+## 구현 내용
+`src/lib/notifications/slack.ts`의 `sendSlackAlert`에 P1-3(`confluenceRequest`)와 같은 정책의 재시도 루프를 추가했다.
+
+- 429 또는 5xx 응답, 그리고 `fetch` 자체가 던지는 네트워크 오류(타임아웃 등)에 대해 최대 3회까지 지수 백오프(+jitter)로 재시도한다.
+- 429 응답에 `Retry-After` 헤더가 있으면 그 값을 지수 백오프 계산값 대신 우선 사용한다.
+- 429/5xx가 아닌 4xx(예: 400 잘못된 payload)는 재시도해도 절대 성공할 수 없으므로 즉시 실패 처리한다.
+- 재시도를 모두 소진하면 기존과 동일한 형태의 예외(`Slack 알림 전송 실패: ...`)를 던진다 — 유일한 호출부인 `notifyUpstreamFailure`(`api-response.ts`, P1-4a에서 `logger.error`로 교체됨)는 수정하지 않았다. 그 함수의 기존 "실패하면 구조화 로그만 남기고 넘어간다" 동작 자체가 이 항목이 말하는 "폴백"이다.
+
+Confluence(P1-3)와 달리 GET/POST를 구분하지 않고 재시도한다 — Slack 알림이 중복 전송되는 최악의 경우도 데이터 유실보다 훨씬 가벼운 트레이드오프라고 판단했다(`task.md` 참고).
+
+## 파일 변경 내역
+| 파일 | 변경 사항 |
+|------|---------|
+| `src/lib/notifications/slack.ts` | 재시도 루프(`MAX_RETRIES=3`, 지수 백오프+jitter, `Retry-After` 우선, 네트워크 오류도 재시도 대상) 추가 |
+| `src/lib/notifications/slack.test.ts` | 신규 — 이 파일의 첫 단위 테스트(6건: 정상 전송, 5xx 재시도 후 성공, 재시도 소진, `Retry-After` 준수, 4xx 즉시 실패, 네트워크 오류 재시도) |
+| `docs/product/prd.md` | P1-4b 체크리스트 완료 표시 |
+
+## 커밋 내역
+| SHA | 메시지 |
+|-----|--------|
+| `1b69a4a` | fix: add retry with exponential backoff to Slack webhook alerts |
+
+## 자체 검토 (Self-Review)
+### 긍정 사항
+- P1-3에서 이미 검증한 재시도 정책을 그대로 재사용해, 새 설계를 처음부터 다시 고민할 필요가 없었다.
+- Confluence 재시도(P1-3)와 달리 여기서는 멱등성 걱정 없이 모든 메서드를 재시도 대상으로 둘 수 있다는 점을 `task.md`에 근거와 함께 명시했다 — 나중에 이 판단을 다시 검토할 사람이 "왜 여기는 GET 제한이 없지?"라고 헷갈리지 않게 했다.
+- 그동안 테스트가 전혀 없던 `slack.ts`에 처음으로 단위 테스트를 붙였다.
+
+### 주의사항
+- 재시도 총 소요 시간은 지수 백오프만으로는 약 2.1초(+jitter)로 짧지만, Slack이 `Retry-After`로 큰 값을 보내면 `notifyUpstreamFailure` 호출부(즉 `toErrorResponse`, 결국 API 응답 자체)가 그만큼 지연된다 — Slack 알림은 응답을 만든 뒤 별도로 `await`하는 게 아니라 응답 생성 경로 안에서 기다리므로, 사용자가 502 응답을 받기까지의 시간이 늘어날 수 있다. 상한(cap)을 두지 않았다 — 실사용에서 문제가 되면 후속 조치로 추가할 수 있다(P1-3의 result.md에도 같은 주의사항이 기록돼 있다).
+
+### 우려사항
+- 없음.
