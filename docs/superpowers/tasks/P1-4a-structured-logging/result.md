@@ -25,6 +25,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
+| `0fe1ee0` | feat: add structured JSON logging, replace ad-hoc console.error calls |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
