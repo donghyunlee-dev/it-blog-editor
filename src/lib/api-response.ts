@@ -6,6 +6,7 @@ import {
   ValidationError,
 } from "@/lib/editor/errors";
 import { sendSlackAlert } from "@/lib/notifications/slack";
+import { logger, serializeError } from "@/lib/logger";
 
 function errorBody(code: string, message: string) {
   return { error: { code, message } };
@@ -20,7 +21,7 @@ async function notifyUpstreamFailure(message: string) {
   try {
     await sendSlackAlert(`Confluence 연동 실패: ${message}`);
   } catch (slackError) {
-    console.error("Slack 알림 전송 실패:", slackError);
+    logger.error("Slack 알림 전송 실패", { error: serializeError(slackError) });
   }
 }
 
@@ -53,8 +54,9 @@ export async function toErrorResponse(error: unknown): Promise<NextResponse> {
   const detail = error instanceof Error ? error.message : "알 수 없는 오류";
   // 분류되지 않은 오류(주로 ConfluenceApiError)는 Confluence 응답 본문 같은 내부 정보를
   // 그대로 담고 있을 수 있어(client.ts 참고) 클라이언트에는 절대 원문을 노출하지 않는다
-  // (P0-6). 원인 파악은 서버 로그와 Slack 알림(운영자 전용 채널)으로만 한다.
-  console.error("[toErrorResponse] 분류되지 않은 오류:", detail);
+  // (P0-6). 원인 파악은 서버 로그와 Slack 알림(운영자 전용 채널)으로만 한다. 로그에는
+  // message만이 아니라 원본 error 전체(ConfluenceApiError.status 등 포함)를 남긴다.
+  logger.error("[toErrorResponse] 분류되지 않은 오류", { error: serializeError(error) });
   await notifyUpstreamFailure(detail);
   return NextResponse.json(
     errorBody(

@@ -1,5 +1,6 @@
 import { listDocuments } from "./documents";
 import { findPersonalFolder } from "./folder";
+import { logger, serializeError } from "@/lib/logger";
 
 /**
  * 작성자가 이전에 사용한 태그를 중복 없이 돌려준다(`TagInput` 자동완성용).
@@ -29,7 +30,7 @@ export async function listTagSuggestions(email: string): Promise<string[]> {
       (a, b) => a.localeCompare(b)
     );
   } catch (error) {
-    console.error("태그 자동완성 목록 조회 실패:", error);
+    logger.error("태그 자동완성 목록 조회 실패", { email, error: serializeError(error) });
     return [];
   }
 }

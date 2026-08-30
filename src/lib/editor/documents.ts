@@ -24,6 +24,7 @@ import { hidePageFromOthers } from "./access";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { getTags } from "./tags";
 import type { PublishMetadata } from "./publish";
+import { logger, serializeError } from "@/lib/logger";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
@@ -340,7 +341,10 @@ export async function deleteDocument(pageId: string): Promise<void> {
     );
     await recordDeletedDocument(pageId, sourceProperty?.value?.title ?? page.title);
   } catch (error) {
-    console.error("[deleteDocument] 삭제된 문서 레지스트리 기록 실패:", error);
+    logger.error("[deleteDocument] 삭제된 문서 레지스트리 기록 실패", {
+      pageId,
+      error: serializeError(error),
+    });
   }
   await deletePage(pageId);
 }
