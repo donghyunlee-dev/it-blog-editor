@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 52 / 71 항목 완료 (최근 갱신: 2026-08-31 — Phase 4 P1-6c(slug 형식 검증) 완료. publicSlug가 뷰어 공개 URL 경로 세그먼트로 쓰인다는 점에서 착안해 표준 kebab-case 규칙(소문자 영숫자+하이픈)을 채택, P1-11에서 실제 발견된 위반 사례("/root")를 회귀 테스트로 고정)
+> 전체 진행률: 53 / 71 항목 완료 (최근 갱신: 2026-08-31 — Phase 4 P1-7a(표 행/열 추가·삭제 컨트롤) 완료. TipTap 표준 커맨드만 노출, 실제 TipTap/ProseMirror 렌더링을 그대로 통과시키는 컴포넌트 테스트로 실제 DOM 행/열 변화까지 확인. 그 과정에서 prosemirror-tables의 `can()`이 "마지막 행/열 삭제" 경계를 검사하지 않는 라이브러리 한계를 소스로 직접 확인해 문서화)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -214,7 +214,7 @@
 - [x] (완료, P1-6a) 문서 제목 길이 상한을 서버에서 검증한다 — 200자 초과 시 `ValidationError`(400). P0-7 이후 Confluence page의 실제 title이 내부 고유키(UUID)로 바뀌어 이 상한은 더 이상 Confluence의 title 길이 제약을 피하기 위한 값이 아니라(사용자 제목은 `sourceDocument` property에 저장), 순수 UX 가드레일이라 GitHub Issue 없이 값을 직접 정했다. 산출물: `docs/superpowers/tasks/P1-6a-document-title-length-limit/{task,plan,result,test}.md`, src/lib/editor/documents.ts
 - [x] (완료, P1-6b) 태그 형식·길이·개수 상한을 서버에서 검증한다 — 개수 20개, 길이 50자 상한(P1-6a와 같은 근거로 GitHub Issue 없이 직접 정함), 금지 문자(`:`, `?`, `@`, [Confluence 공식 문서](https://support.atlassian.com/confluence-cloud/docs/use-labels-to-organize-your-content/)로 확인)는 사전 차단하고, 그 외 Confluence의 400 거부는 `ValidationError`로 변환한다. 함께 `TagInput.tsx` 디자인을 다듬었다(placeholder를 "예: React, Backend"로, 입력 영역을 테두리+배경으로 강조 — 사용자 요청). 산출물: `docs/superpowers/tasks/P1-6b-tag-format-length-count-limit/{task,plan,result,test}.md`, src/lib/editor/tags.ts, src/components/editor/TagInput.tsx
 - [x] (완료, P1-6c) slug 형식(허용 문자)을 서버에서 검증한다 — `publish.ts`의 `validateAndComposeViewers`에 표준 kebab-case 규칙(소문자 영숫자와 하이픈만, 하이픈으로 시작/끝·연속 불가)을 추가했다. slug는 그대로 `publicSlug`(P0-5b)로 조합돼 뷰어 공개 URL의 경로 세그먼트가 되므로 서비스 정책이 아닌 URL 라우팅 안전성 문제로 판단해 GitHub Issue 없이 직접 정했다(P0-4b/P1-6a/P1-6b와 같은 근거). P1-11에서 실제 인스턴스에 발견된 `"/root"`(슬래시 포함) 사례를 회귀 테스트로 그대로 재현해 이제는 거부됨을 확인했다. slug 최대 길이 상한과 클라이언트 사전 안내는 범위 밖으로 남겼다. 산출물: `docs/superpowers/tasks/P1-6c-slug-format-validation/{task,plan,result,test}.md`, src/lib/editor/publish.ts
-- [ ] (P1-7a) 표에 행/열 추가·삭제 컨트롤을 추가한다.
+- [x] (완료, P1-7a) 표에 행/열 추가·삭제 컨트롤을 추가한다 — `RichTextEditor.tsx`의 `TableControls`에 TipTap `@tiptap/extension-table`이 이미 제공하는 표준 커맨드(`addRowBefore`/`addRowAfter`/`deleteRow`/`addColumnBefore`/`addColumnAfter`/`deleteColumn`)를 그대로 노출하는 버튼 6개를 추가했다(기존 "셀 병합"/"셀 분할"과 같은 스타일). "표가 문서 첫 노드일 때 기본 선택이 첫 셀 안으로 들어간다"는 사실을 실측해 별도 클릭 시뮬레이션 없이 실제 TipTap 렌더링으로 행/열 개수 변화까지 검증하는 테스트를 새로 추가했다 — 이 과정에서 prosemirror-tables의 `can()`이 "마지막 한 행/열 삭제" 경계를 검사하지 않는 라이브러리 자체의 한계를 소스 코드로 확인해(그 경계에서 버튼은 계속 활성 상태이지만 클릭해도 안전하게 무시됨) 있지도 않은 비활성화 동작을 구현했다고 잘못 보고하지 않고 그대로 문서화했다. 표 컬럼 리사이즈(P1-7b), 표 삭제·헤더 토글은 범위 밖. AX Auth 로그인 제약으로 실제 로그인 화면에서의 육안 확인은 하지 못했다. 산출물: `docs/superpowers/tasks/P1-7a-table-row-column-controls/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
 - [ ] (P1-7b) 표 컬럼 리사이즈를 활성화한다.
 - [ ] (P1-7c) 코드블록에 문법 강조를 추가한다.
 - [ ] (P1-7d) Word/Google Docs 붙여넣기 서식을 정제하는 로직을 추가한다.
