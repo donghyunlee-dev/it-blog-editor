@@ -360,7 +360,69 @@ function TableControls({ editor }: { editor: Editor | null }) {
   if (!editor || !editor.isActive("table")) return null;
 
   return (
-    <div className="flex gap-1 border border-border bg-surface p-1">
+    <div className="flex flex-wrap gap-1 border border-border bg-surface p-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().addRowBefore()}
+        onClick={() => editor.chain().focus().addRowBefore().run()}
+        aria-label="행 추가(위)"
+      >
+        행 추가(위)
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().addRowAfter()}
+        onClick={() => editor.chain().focus().addRowAfter().run()}
+        aria-label="행 추가(아래)"
+      >
+        행 추가(아래)
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().deleteRow()}
+        onClick={() => editor.chain().focus().deleteRow().run()}
+        aria-label="행 삭제"
+      >
+        행 삭제
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().addColumnBefore()}
+        onClick={() => editor.chain().focus().addColumnBefore().run()}
+        aria-label="열 추가(왼쪽)"
+      >
+        열 추가(왼쪽)
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().addColumnAfter()}
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+        aria-label="열 추가(오른쪽)"
+      >
+        열 추가(오른쪽)
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={!editor.can().deleteColumn()}
+        onClick={() => editor.chain().focus().deleteColumn().run()}
+        aria-label="열 삭제"
+      >
+        열 삭제
+      </Button>
+      {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
+      <div className="mx-0.5 my-0.5 w-px bg-border" aria-hidden="true" />
       <Button
         type="button"
         variant="ghost"

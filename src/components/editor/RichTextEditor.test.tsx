@@ -52,8 +52,156 @@ function firePaste(container: HTMLElement, file: File) {
   target.dispatchEvent(event);
 }
 
+/**
+ * 표가 문서의 맨 첫 노드일 때, TipTap이 초기화 시 기본 선택(`Selection.atStart`)을
+ * 문서 시작 지점의 유효한 위치로 잡는데, 그게 곧 첫 셀 안이다 — 그래서 별도의 클릭/선택
+ * 시뮬레이션 없이도 렌더링 직후 `editor.isActive("table")`이 참이 되어 TableControls가
+ * 보인다(실측 확인됨). 표 뒤에 별도 문단이 있는 문서는 이 전제가 깨지므로 "표 밖" 회귀
+ * 테스트에 쓴다.
+ */
+function tableFirstDoc(rows = 2, cols = 2): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "table",
+        content: Array.from({ length: rows }, (_, r) => ({
+          type: "tableRow",
+          content: Array.from({ length: cols }, (_, c) => ({
+            type: "tableCell",
+            content: [{ type: "paragraph", content: [{ type: "text", text: `r${r}c${c}` }] }],
+          })),
+        })),
+      },
+    ],
+  };
+}
+
+function tableRowCount(container: HTMLElement): number {
+  return container.querySelectorAll(".ProseMirror table tr").length;
+}
+
+function tableColumnCount(container: HTMLElement): number {
+  return container.querySelectorAll(".ProseMirror table tr")[0]?.children.length ?? 0;
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
+});
+
+describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
+  it("커서가 표 밖에 있으면 표 컨트롤이 보이지 않는다", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "본문" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(screen.queryByLabelText("행 추가(아래)")).not.toBeInTheDocument();
+    expect(container.querySelector("table")).not.toBeInTheDocument();
+  });
+
+  it("커서가 표 안에 있으면 행/열 추가·삭제 버튼이 모두 보인다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    for (const label of ["행 추가(위)", "행 추가(아래)", "행 삭제", "열 추가(왼쪽)", "열 추가(오른쪽)", "열 삭제"]) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+  });
+
+  it("행 추가(아래)를 클릭하면 표에 행이 하나 늘어난다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(2, 2)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    expect(tableRowCount(container)).toBe(2);
+
+    screen.getByLabelText("행 추가(아래)").click();
+
+    await waitFor(() => expect(tableRowCount(container)).toBe(3));
+  });
+
+  it("행 삭제를 클릭하면 표의 행이 하나 줄어든다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(2, 2)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    screen.getByLabelText("행 삭제").click();
+
+    await waitFor(() => expect(tableRowCount(container)).toBe(1));
+  });
+
+  it("열 추가(오른쪽)를 클릭하면 표에 열이 하나 늘어난다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(2, 2)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    expect(tableColumnCount(container)).toBe(2);
+
+    screen.getByLabelText("열 추가(오른쪽)").click();
+
+    await waitFor(() => expect(tableColumnCount(container)).toBe(3));
+  });
+
+  it("열 삭제를 클릭하면 표의 열이 하나 줄어든다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(2, 2)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    screen.getByLabelText("열 삭제").click();
+
+    await waitFor(() => expect(tableColumnCount(container)).toBe(1));
+  });
+
+  /**
+   * TipTap이 감싸는 prosemirror-tables의 deleteRow/deleteColumn은 `editor.can()`(dispatch
+   * 없이 호출)에서는 "표 안에 있는지"만 확인할 뿐 "마지막 한 행/열인지"는 검사하지 않는다
+   * (node_modules/prosemirror-tables/dist/index.cjs 확인 — 그 경계 검사는 `if (dispatch)`
+   * 블록 안에만 있어 `can()` 호출(dispatch=undefined) 경로를 타지 않는다). 그래서 이
+   * 프로젝트의 다른 표 버튼과 달리 이 경계에서는 버튼이 비활성화되지 않는다 — 대신 실제
+   * 클릭 시 라이브러리가 트랜잭션 자체를 디스패치하지 않아 조용히 아무 일도 일어나지
+   * 않는다(표가 깨지거나 빈 표가 되지 않음). 이 실제 동작을 그대로 회귀 테스트로 고정한다.
+   */
+  it("행이 1개뿐일 때 행 삭제를 클릭해도 표가 그대로 유지된다(라이브러리가 마지막 행 삭제를 조용히 막음)", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(1, 2)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    screen.getByLabelText("행 삭제").click();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(tableRowCount(container)).toBe(1);
+  });
+
+  it("열이 1개뿐일 때 열 삭제를 클릭해도 표가 그대로 유지된다(라이브러리가 마지막 열 삭제를 조용히 막음)", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc(2, 1)} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    screen.getByLabelText("열 삭제").click();
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(tableColumnCount(container)).toBe(1);
+  });
 });
 
 describe("RichTextEditor 이미지 개수 상한(P0-4b)", () => {
