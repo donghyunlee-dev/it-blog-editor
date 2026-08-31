@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 49 / 71 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-4b(Slack 웹훅 전송 재시도) 완료. P1-3과 같은 재시도 정책을 재사용, `sendSlackAlert`에 첫 단위 테스트 추가)
+> 전체 진행률: 50 / 71 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-6a(문서 제목 길이 상한 200자) 완료. P0-7 이후 Confluence title 제약과 무관해진 순수 UX 가드레일로 성격이 바뀌어 GitHub Issue 없이 값을 직접 정했다)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -211,7 +211,7 @@
 - [x] (완료, P1-4a) 구조화 로깅을 도입한다 — [Issue #4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4)에서 "Slack만 유지, 별도 도구 도입 안 함"으로 결정. `src/lib/logger.ts`에 `logger.info/warn/error`를 추가해 JSON 한 줄(`{level, message, timestamp, context?}`)로 남기고, 기존 산발적인 `console.error` 4곳(`api-response.ts` 2곳, `documents.ts`, `tag-suggestions.ts`)을 교체했다(pageId/email 등 맥락 포함). `serializeError`로 `Error`의 message/stack/커스텀 속성(`ConfluenceApiError.status` 등)까지 온전히 직렬화한다 — 그 과정에서 `toErrorResponse`가 기존엔 `error.message`만 로그에 남기던 정보 손실도 함께 고쳤다. Slack 알림 로직 자체는 바꾸지 않았다. 산출물: `docs/superpowers/tasks/P1-4a-structured-logging/{task,plan,result,test}.md`, src/lib/logger.ts, src/lib/logger.test.ts, src/lib/api-response.ts, src/lib/editor/documents.ts, src/lib/editor/tag-suggestions.ts
 - [x] (완료, P1-4b) Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다 — `sendSlackAlert`에 P1-3(`confluenceRequest`)와 같은 정책(최대 3회 지수 백오프+jitter, 429의 `Retry-After` 우선, 429/5xx가 아닌 4xx는 즉시 실패)을 적용했다. Confluence와 달리 GET/POST 구분 없이 재시도한다 — 중복 알림 정도의 부작용이라 데이터 유실 위험이 없다고 판단했다. 재시도 소진 시 예외를 던지는 기존 동작은 유지해, 호출부(`notifyUpstreamFailure`)의 "실패하면 구조화 로그만 남기고 넘어간다"는 기존 폴백을 그대로 활용한다. 산출물: `docs/superpowers/tasks/P1-4b-slack-webhook-retry/{task,plan,result,test}.md`, src/lib/notifications/slack.ts, src/lib/notifications/slack.test.ts
 - [ ] 🔶 (P1-5) 민감 API 엔드포인트(문서 생성, 이미지 업로드, 게시)에 레이트리밋을 추가한다 — 구현 방식(인메모리/외부 스토어)과 임계값은 [Issue #5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5)에서 결정.
-- [ ] (P1-6a) 문서 제목 길이 상한을 서버에서 검증한다.
+- [x] (완료, P1-6a) 문서 제목 길이 상한을 서버에서 검증한다 — 200자 초과 시 `ValidationError`(400). P0-7 이후 Confluence page의 실제 title이 내부 고유키(UUID)로 바뀌어 이 상한은 더 이상 Confluence의 title 길이 제약을 피하기 위한 값이 아니라(사용자 제목은 `sourceDocument` property에 저장), 순수 UX 가드레일이라 GitHub Issue 없이 값을 직접 정했다. 산출물: `docs/superpowers/tasks/P1-6a-document-title-length-limit/{task,plan,result,test}.md`, src/lib/editor/documents.ts
 - [ ] (P1-6b) 태그 형식·길이·개수 상한을 서버에서 검증한다.
 - [ ] (P1-6c) slug 형식(허용 문자)을 서버에서 검증한다.
 - [ ] (P1-7a) 표에 행/열 추가·삭제 컨트롤을 추가한다.

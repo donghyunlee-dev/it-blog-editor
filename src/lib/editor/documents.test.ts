@@ -347,6 +347,49 @@ describe("createDocument", () => {
     ).rejects.toThrow(ValidationError);
   });
 
+  it("제목이 200자를 초과하면 ValidationError를 던진다(P1-6a)", async () => {
+    await expect(
+      createDocument({
+        accountFolderId: "folder-1",
+        title: "가".repeat(201),
+        doc: SAMPLE_DOC,
+        actualAuthorEmail: "user@s-food.com",
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("제목이 정확히 200자(경계값)면 정상 통과한다(P1-6a)", async () => {
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "createPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "authorMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+
+    const result = await createDocument({
+      accountFolderId: "folder-1",
+      title: "가".repeat(200),
+      doc: SAMPLE_DOC,
+      actualAuthorEmail: "user@s-food.com",
+    });
+
+    expect(result).toEqual({ pageId: "doc-1", version: 1 });
+  });
+
   it("텍스트 없이 이미지만 있어도 유효한 본문으로 통과한다", async () => {
     vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
       id: "space-1",
@@ -523,6 +566,57 @@ describe("updateDocument", () => {
         expectedVersion: 1,
       })
     ).rejects.toThrow(ValidationError);
+  });
+
+  it("제목이 200자를 초과하면 ValidationError를 던진다(P1-6a)", async () => {
+    await expect(
+      updateDocument({
+        pageId: "doc-1",
+        title: "가".repeat(201),
+        doc: SAMPLE_DOC,
+        expectedVersion: 1,
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("제목이 정확히 200자(경계값)면 정상 통과한다(P1-6a)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: { doc: {} },
+      version: { number: 5 },
+    });
+    vi.spyOn(client, "updatePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sourceDocument",
+      value: {},
+      version: { number: 6 },
+    });
+
+    const result = await updateDocument({
+      pageId: "doc-1",
+      title: "가".repeat(200),
+      doc: SAMPLE_DOC,
+      expectedVersion: 1,
+    });
+
+    expect(result).toEqual({ pageId: "doc-1", version: 2 });
   });
 });
 

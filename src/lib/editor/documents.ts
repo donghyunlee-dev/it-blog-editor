@@ -28,6 +28,10 @@ import { logger, serializeError } from "@/lib/logger";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
+// P1-6a: Confluence page title은 이제 내부 고유키(UUID)라 이 값이 Confluence의 title
+// 길이 제약과는 무관하다(P0-7) — 순수하게 화면 레이아웃·데이터 남용 방지를 위한
+// 상식적인 상한이다.
+const MAX_TITLE_LENGTH = 200;
 const PUBLISH_PROPERTY_KEY = "publishMetadata";
 export const DELETED_DOCUMENTS_PROPERTY_KEY = "deletedDocuments";
 
@@ -203,6 +207,9 @@ export async function createDocument(input: CreateDocumentInput) {
   if (!input.title.trim() || isEmptyDoc(input.doc)) {
     throw new ValidationError("제목 또는 본문이 누락되었습니다.");
   }
+  if (input.title.length > MAX_TITLE_LENGTH) {
+    throw new ValidationError(`제목은 ${MAX_TITLE_LENGTH}자를 초과할 수 없습니다.`);
+  }
 
   const space = await getConfiguredSpace();
   const internalKey = randomUUID();
@@ -251,6 +258,9 @@ export interface UpdateDocumentInput {
 export async function updateDocument(input: UpdateDocumentInput) {
   if (!input.title.trim() || isEmptyDoc(input.doc)) {
     throw new ValidationError("제목 또는 본문이 누락되었습니다.");
+  }
+  if (input.title.length > MAX_TITLE_LENGTH) {
+    throw new ValidationError(`제목은 ${MAX_TITLE_LENGTH}자를 초과할 수 없습니다.`);
   }
 
   const [current, sourceProperty] = await Promise.all([
