@@ -34,9 +34,13 @@
 - **조치 2**: `EditorBubbleMenu`(굵게/기울임 등)가 이미 쓰고 있는 `@tiptap/react/menus`의 `BubbleMenu`로 `TableControls`를 바꿔, 커서가 표 안에 있을 때 표 바로 옆에 뜨는 플로팅 툴바로 전환했다. `shouldShow={({ editor }) => editor.isActive("table")}`로 직접 판단해, 텍스트 버블 메뉴의 기본 동작(선택 영역이 비어있지 않을 때만 표시)과 달리 커서만 놓아도 표시되게 했다.
 - **재검증 결과 2**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(`BubbleMenu`로 감싸도 RTL의 `screen` 쿼리는 포털된 콘텐츠를 포함해 `document.body` 전체를 본다) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit` 통과. AX Auth 로그인 제약으로 실제 화면에서의 재확인은 이번에도 사용자에게 요청한다.
 
+- **원인 3 (2026-08-31, 2차 실사용 확인)**: "텍스트로만 툴바가 구성되어 있어서 가로 사이즈가 커서 불편하고, 클릭할 때마다 나와서 사용이 불편해. Confluence처럼 특정 위치의 컴포넌트를 클릭하면 나오거나 상단에 고정해서 나오거나 했으면 좋겠어. 아이콘을 활용해서 좀 더 직관적이게 보이면서 툴바의 사이즈를 줄였으면 좋겠어. 디자인적으로도 굉장히 퀄리티가 낮아." `BubbleMenu`가 캐럿 근처에 매번 떠서 편집을 방해했고, 텍스트 라벨 8개가 가로로 길게 늘어서 있었다.
+- **조치 3**: `TableControls`를 `sticky top-14`(헤더 바로 아래 고정) 아이콘 툴바로 재설계했다. 텍스트 라벨을 전부 손으로 그린 아이콘(+ `Tooltip`)으로 바꾸고, 표시·비활성화 판단을 `useEditorState`로 리액티브하게 옮겼다. 아이콘 형태는 코드 작성과 별도로 이 세션의 시각화 도구로 미리 렌더링해 눈으로 한 번 확인했다(제목 `table_toolbar_icons`).
+- **재검증 결과 3**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(아이콘으로 바뀌어도 `aria-label`은 그대로 유지해 `getByLabelText` 쿼리가 안 깨짐) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과.
+
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`, 갱신된 버전)을 모두 만족함
-- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — `BubbleMenu` 수정 후 재확인 요청
+- [x] 수용 기준(`task.md`, 2026-08-31 2차 갱신 버전)을 모두 만족함
+- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — 아이콘/`sticky` 재설계 후 재확인 요청

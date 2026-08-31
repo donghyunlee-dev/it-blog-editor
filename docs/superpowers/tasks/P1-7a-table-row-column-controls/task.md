@@ -16,3 +16,10 @@
 - 표 컬럼 리사이즈 활성화(P1-7b) — 별도 PRD 항목.
 - 표 자체를 삭제하는 컨트롤(`deleteTable`) — PRD 항목이 "행/열"만 명시하고 있어 범위 밖으로 둔다. 필요해지면 별도로 추가한다.
 - 헤더 행/열 토글(`toggleHeaderRow`/`toggleHeaderColumn`) — 범위 밖.
+
+## 추가 수용 기준 (2026-08-31, 실사용 확인 2차 — UI/UX 재설계)
+PR #20을 사용자가 두 차례 실제로 테스트하며 UI가 두 번 바뀌었다. 최종 형태 기준 수용 기준을 아래로 갱신한다.
+
+- [ ] 컨트롤은 텍스트 버튼이 아니라 아이콘 버튼(+ 각 버튼에 `Tooltip`으로 라벨 노출)으로 구성해 가로 폭을 줄인다. `@sfood/ui`의 `Icon`이 `search`/`comment` 두 개만 제공해(대응 요소 없음) `Icon`이 실제 쓰는 것과 동일한 스타일(`viewBox 0 0 24 24`, `stroke=currentColor`, `strokeWidth=2`, round cap/join)로 직접 그린다 — 새 아이콘 라이브러리를 추가하지 않는다.
+- [ ] 컨트롤은 캐럿을 따라다니는 플로팅 팝업(`BubbleMenu`)이 아니라, `DocumentEditor.tsx`의 기존 `sticky top-0` 헤더 선례를 재사용해 헤더 바로 아래(`sticky top-14`)에 고정된 바 형태로 노출한다.
+- [ ] 표시 여부·각 버튼의 비활성화 상태는 `editor.isActive`/`editor.can()`을 렌더 시점에 그냥 읽는 대신 `useEditorState`(TipTap v3 권장 리액티브 훅)로 구독해, 문서 내용이 바뀌지 않는 순수 커서 이동에도 정확히 갱신되게 한다.

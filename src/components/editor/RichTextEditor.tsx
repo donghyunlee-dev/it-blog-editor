@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Node, type Editor } from "@tiptap/core";
-import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
+import { EditorContent, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -12,7 +12,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
 import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Popover, useToast } from "@sfood/ui";
+import { Button, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -357,109 +357,220 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
 }
 
 /**
- * 원래는(P0~P1-6까지) 에디터 콘텐츠 위쪽에 고정된 정적 블록이었다 — 문서 맨 위에서만
- * 표를 다루는 짧은 문서에선 문제가 없었지만, 실사용 확인(2026-08-31) 결과 표가 문서
- * 중간·아래쪽에 있으면 컨트롤이 화면 상단에 그대로 남아 스크롤 밖으로 벗어나 "표를
- * 만들 수는 있는데 컨트롤이 안 보인다"는 문제가 있었다. `EditorBubbleMenu`와 같은
- * `BubbleMenu`(플로팅 UI, 선택 위치를 자동으로 따라다님)로 바꿔 커서가 표 안에 있을 때
- * 표 바로 위/아래에 뜨도록 고쳤다 — `shouldShow`로 "표 안에 커서가 있는가"만 직접
- * 판단하므로(텍스트 버블 메뉴의 기본 동작인 "선택 영역이 비어있지 않을 때만 표시"를
- * 따르지 않음), 텍스트를 선택하지 않고 커서만 놓아도 표시된다.
+ * `@sfood/ui`의 `Icon` 컴포넌트는 `search`/`comment` 두 개만 제공해 표 조작에 쓸 아이콘이
+ * 없다(node_modules/@sfood/ui/dist/index.d.ts 확인) — design.md 선례(로그인 화면의 자체
+ * 제작 SVG `BrandPanelArt`)를 따라, `@sfood/ui`의 `Icon`이 실제로 쓰는 것과 똑같은 스타일
+ * (`viewBox 0 0 24 24`, `stroke="currentColor"`, `strokeWidth={2}`, round cap/join, 크기
+ * `h-4 w-4` = `@sfood/ui`의 `sm`)로 직접 그려 시각적으로 통일감 있게 맞춘다. 새 아이콘
+ * 라이브러리를 추가하지 않는다.
+ */
+function TableIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+// 4개의 "삽입" 아이콘은 모두 같은 문법(화살표가 새로 생길 선을 향해 뻗는다)을 공유해,
+// 하나를 이해하면 나머지 방향도 바로 유추할 수 있게 했다. 병합/분할은 칸이 모였다/갈라진다는
+// 느낌을 안쪽/바깥쪽 화살표로 대비시켰다. 삭제는 방향성이 의미 없어 범용 휴지통 아이콘
+// 하나를 행/열 삭제 둘 다에 재사용한다(그룹 위치 + 툴팁으로 구분).
+const RowInsertBeforeIcon = () => (
+  <TableIcon>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="12" y1="10" x2="12" y2="18" />
+    <polyline points="8 14 12 10 16 14" />
+  </TableIcon>
+);
+const RowInsertAfterIcon = () => (
+  <TableIcon>
+    <line x1="4" y1="18" x2="20" y2="18" />
+    <line x1="12" y1="6" x2="12" y2="14" />
+    <polyline points="8 10 12 14 16 10" />
+  </TableIcon>
+);
+const ColumnInsertBeforeIcon = () => (
+  <TableIcon>
+    <line x1="6" y1="4" x2="6" y2="20" />
+    <line x1="10" y1="12" x2="18" y2="12" />
+    <polyline points="14 8 10 12 14 16" />
+  </TableIcon>
+);
+const ColumnInsertAfterIcon = () => (
+  <TableIcon>
+    <line x1="18" y1="4" x2="18" y2="20" />
+    <line x1="6" y1="12" x2="14" y2="12" />
+    <polyline points="10 8 14 12 10 16" />
+  </TableIcon>
+);
+const TrashIcon = () => (
+  <TableIcon>
+    <polyline points="4 7 20 7" />
+    <path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
+    <path d="M19 7l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7" />
+  </TableIcon>
+);
+const MergeCellsIcon = () => (
+  <TableIcon>
+    <rect x="3" y="5" width="7" height="14" rx="1" />
+    <rect x="14" y="5" width="7" height="14" rx="1" />
+    <polyline points="9 9 12 12 9 15" />
+    <polyline points="15 9 12 12 15 15" />
+  </TableIcon>
+);
+const SplitCellsIcon = () => (
+  <TableIcon>
+    <rect x="3" y="5" width="18" height="14" rx="1" />
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <polyline points="9 9 6 12 9 15" />
+    <polyline points="15 9 18 12 15 15" />
+  </TableIcon>
+);
+
+function TableToolbarButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip content={label}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={label}
+      >
+        {children}
+      </Button>
+    </Tooltip>
+  );
+}
+
+/**
+ * 2026-08-31 사용자 실사용 확인 두 차례를 거쳐 현재 형태로 정착했다.
+ *
+ * 1차(정적 블록 → BubbleMenu): 원래 에디터 콘텐츠 위쪽에 고정된 정적 블록이라 표가 문서
+ * 중간·아래쪽에 있으면 스크롤 밖으로 벗어나 안 보였다. `EditorBubbleMenu`와 같은
+ * `BubbleMenu`(선택 위치를 따라다니는 플로팅 UI)로 바꿔 이 문제는 고쳤다.
+ *
+ * 2차(BubbleMenu → sticky 고정 바 + 아이콘): 그런데 이번엔 "커서를 옮길 때마다 바로 옆에
+ * 툴바가 튀어나와 방해된다"는 피드백과 "텍스트 버튼이라 가로로 너무 길고 디자인 품질이
+ * 낮다"는 피드백을 함께 받았다. 사용자가 제시한 두 대안(① 특정 위치 클릭 시 노출 ② 상단에
+ * 고정) 중, ①(Confluence처럼 행/열 손잡이를 hover/click하면 뜨는 방식)은 ProseMirror
+ * 데코레이션으로 표 grip UI를 새로 구현해야 해 리스크가 큰 반면, ②는 이 파일이 속한
+ * `DocumentEditor.tsx`에 이미 검증된 선례(`sticky top-0` 헤더, "EditorShell의
+ * overflow-y-auto 영역을 기준으로 스크롤해도 계속 보인다")가 있어 훨씬 안전하게 재사용할
+ * 수 있었다 — ②를 택했다. 헤더(`h-14`) 바로 아래에 `sticky top-14`로 붙여, 캐럿을 따라
+ * 화면 여기저기로 튀지 않고 항상 같은 자리에 나타나게 했다. 텍스트 라벨은 전부 아이콘(+
+ * `Tooltip`)으로 바꿔 가로 폭을 크게 줄였다.
+ *
+ * 이 과정에서 `editor.isActive("table")`/`editor.can()`을 렌더 시점에 그냥 읽기만 하면
+ * (TipTap v3는 `shouldRerenderOnTransaction` 기본값이 `false`라 선택만 바뀌고 문서 내용은
+ * 안 바뀌는 전환에는 컴포넌트가 리렌더되지 않는다) 다른 셀로 커서만 옮겨도 컨트롤 표시·버튼
+ * 비활성화 상태가 갱신되지 않는 잠재적 버그가 있었다는 것도 확인했다 — 공식 문서가 권장하는
+ * `useEditorState`(선택자 결과가 바뀔 때만, 그 즉시 리렌더)로 옮겨 이 문제도 함께 없앴다.
  */
 function TableControls({ editor }: { editor: Editor | null }) {
-  if (!editor) return null;
+  const tableState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) =>
+      currentEditor
+        ? {
+            isActive: currentEditor.isActive("table"),
+            canAddRowBefore: currentEditor.can().addRowBefore(),
+            canAddRowAfter: currentEditor.can().addRowAfter(),
+            canDeleteRow: currentEditor.can().deleteRow(),
+            canAddColumnBefore: currentEditor.can().addColumnBefore(),
+            canAddColumnAfter: currentEditor.can().addColumnAfter(),
+            canDeleteColumn: currentEditor.can().deleteColumn(),
+            canMergeCells: currentEditor.can().mergeCells(),
+            canSplitCell: currentEditor.can().splitCell(),
+          }
+        : null,
+  });
+
+  if (!editor || !tableState?.isActive) return null;
 
   return (
-    <BubbleMenu
-      editor={editor}
-      shouldShow={({ editor: currentEditor }) => currentEditor.isActive("table")}
-      options={{ placement: "top" }}
-    >
-      <div className="flex flex-wrap gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().addRowBefore()}
-          onClick={() => editor.chain().focus().addRowBefore().run()}
-          aria-label="행 추가(위)"
-        >
-          행 추가(위)
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().addRowAfter()}
-          onClick={() => editor.chain().focus().addRowAfter().run()}
-          aria-label="행 추가(아래)"
-        >
-          행 추가(아래)
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().deleteRow()}
-          onClick={() => editor.chain().focus().deleteRow().run()}
-          aria-label="행 삭제"
-        >
-          행 삭제
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().addColumnBefore()}
-          onClick={() => editor.chain().focus().addColumnBefore().run()}
-          aria-label="열 추가(왼쪽)"
-        >
-          열 추가(왼쪽)
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().addColumnAfter()}
-          onClick={() => editor.chain().focus().addColumnAfter().run()}
-          aria-label="열 추가(오른쪽)"
-        >
-          열 추가(오른쪽)
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().deleteColumn()}
-          onClick={() => editor.chain().focus().deleteColumn().run()}
-          aria-label="열 삭제"
-        >
-          열 삭제
-        </Button>
-        {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
-        <div className="mx-0.5 my-0.5 w-px bg-border" aria-hidden="true" />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().mergeCells()}
-          onClick={() => editor.chain().focus().mergeCells().run()}
-          aria-label="셀 병합"
-        >
-          셀 병합
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!editor.can().splitCell()}
-          onClick={() => editor.chain().focus().splitCell().run()}
-          aria-label="셀 분할"
-        >
-          셀 분할
-        </Button>
-      </div>
-    </BubbleMenu>
+    <div className="sticky top-14 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-surface px-2 py-1.5 shadow-sm">
+      <TableToolbarButton
+        label="행 추가(위)"
+        disabled={!tableState.canAddRowBefore}
+        onClick={() => editor.chain().focus().addRowBefore().run()}
+      >
+        <RowInsertBeforeIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="행 추가(아래)"
+        disabled={!tableState.canAddRowAfter}
+        onClick={() => editor.chain().focus().addRowAfter().run()}
+      >
+        <RowInsertAfterIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="행 삭제"
+        disabled={!tableState.canDeleteRow}
+        onClick={() => editor.chain().focus().deleteRow().run()}
+      >
+        <TrashIcon />
+      </TableToolbarButton>
+      {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
+      <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <TableToolbarButton
+        label="열 추가(왼쪽)"
+        disabled={!tableState.canAddColumnBefore}
+        onClick={() => editor.chain().focus().addColumnBefore().run()}
+      >
+        <ColumnInsertBeforeIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="열 추가(오른쪽)"
+        disabled={!tableState.canAddColumnAfter}
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+      >
+        <ColumnInsertAfterIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="열 삭제"
+        disabled={!tableState.canDeleteColumn}
+        onClick={() => editor.chain().focus().deleteColumn().run()}
+      >
+        <TrashIcon />
+      </TableToolbarButton>
+      <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <TableToolbarButton
+        label="셀 병합"
+        disabled={!tableState.canMergeCells}
+        onClick={() => editor.chain().focus().mergeCells().run()}
+      >
+        <MergeCellsIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="셀 분할"
+        disabled={!tableState.canSplitCell}
+        onClick={() => editor.chain().focus().splitCell().run()}
+      >
+        <SplitCellsIcon />
+      </TableToolbarButton>
+    </div>
   );
 }
 
