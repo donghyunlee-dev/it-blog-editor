@@ -18,7 +18,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (result.md 작성 후 커밋 예정) | |
+| `50e3544` | fix: validate slug format (kebab-case) on the server |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
