@@ -28,7 +28,7 @@
 |-----|--------|
 | `b1be07d` | feat: add table row/column insert-delete controls |
 | `181a660` | docs: record P1-7a commit SHA in result.md |
-| (아래 참고) | fix: turn TableControls into a floating BubbleMenu (사용자 실사용 확인 후 수정) |
+| `29c92a8` | fix: turn TableControls into a floating BubbleMenu (사용자 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
