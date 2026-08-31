@@ -76,6 +76,52 @@ describe("setPublishState", () => {
   });
 });
 
+describe("setPublishState — slug 형식 검증(P1-6c)", () => {
+  it.each([
+    ["/root", "슬래시가 섞인 값(P1-11에서 실제로 발견된 사례)"],
+    ["My-Post", "대문자"],
+    ["my_post", "언더스코어"],
+    ["my post", "공백"],
+    ["-my-post", "하이픈으로 시작"],
+    ["my-post-", "하이픈으로 끝남"],
+    ["my--post", "하이픈 연속"],
+  ])("%s(%s)는 ValidationError로 거부한다", async (slug) => {
+    stubPublishProperty(null);
+    stubCurrentPage();
+
+    await expect(
+      setPublishState({
+        pageId: "doc-1",
+        isPublished: true,
+        viewers: { "tech-blog": { slug, metaDescription: "설명" } },
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it.each(["my-post", "a", "react-19-review"])(
+    "%s처럼 kebab-case 규칙을 만족하는 slug는 정상 처리된다",
+    async (slug) => {
+      stubPublishProperty(null);
+      stubCurrentPage();
+      vi.spyOn(access, "revealPageToSpace").mockResolvedValue(undefined);
+      vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+        id: "prop-1",
+        key: "publishMetadata",
+        value: {},
+        version: { number: 1 },
+      });
+
+      const result = await setPublishState({
+        pageId: "doc-1",
+        isPublished: true,
+        viewers: { "tech-blog": { slug, metaDescription: "설명" } },
+      });
+
+      expect(result.viewers["tech-blog"].slug).toBe(slug);
+    }
+  );
+});
+
 describe("setPublishState — 생명주기(P0-8: 폴더 이동 없이 restriction 토글만으로 관리)", () => {
   it("게시 시 제한을 해제한 뒤 메타데이터를 쓴다(제한 해제가 먼저)", async () => {
     stubPublishProperty(null);

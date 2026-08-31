@@ -9,6 +9,14 @@ import { NotFoundError, ValidationError } from "./errors";
 
 const PUBLISH_PROPERTY_KEY = "publishMetadata";
 
+// P1-6c: slug는 그대로 publicSlug에 조합돼 뷰어의 공개 URL 경로 세그먼트 하나로 쓰인다
+// (아래 publicSlug 주석 참고). GitHub·Notion 등에서 쓰는 표준 kebab-case slug 관례(소문자
+// 영숫자와 하이픈만, 하이픈으로 시작/끝 불가, 하이픈 연속 불가)를 그대로 채택했다 — 서비스
+// 정책이 아니라 "경로 세그먼트 하나로 안전해야 한다"는 기술적 제약이라 GitHub Issue 없이
+// 직접 정한다(P0-4b/P1-6a/P1-6b와 같은 근거). 실제로 슬래시가 섞인 값("/root")이 저장된
+// 사례(P1-11)가 이 검증의 필요성을 뒷받침했다.
+const SLUG_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 /** 클라이언트(PublishForm)가 보내는 뷰어별 입력값 — 아직 공개 slug가 계산되기 전이다. */
 export interface PublishViewerInput {
   slug: string;
@@ -75,6 +83,11 @@ function validateAndComposeViewers(
   for (const [viewerId, meta] of Object.entries(nextViewers)) {
     if (!meta.slug || !meta.metaDescription) {
       throw new ValidationError(`뷰어(${viewerId})의 slug와 metaDescription은 필수입니다.`);
+    }
+    if (!SLUG_PATTERN.test(meta.slug)) {
+      throw new ValidationError(
+        `뷰어(${viewerId})의 slug 형식이 올바르지 않습니다. 소문자 영숫자와 하이픈(-)만 사용할 수 있습니다.`
+      );
     }
     composed[viewerId] = {
       slug: meta.slug,
