@@ -24,6 +24,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
+| `2e660c0` | fix: validate tag format/length/count on the server, emphasize TagInput design |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
