@@ -35,7 +35,7 @@
 | `181a660` | docs: record P1-7a commit SHA in result.md |
 | `29c92a8` | fix: turn TableControls into a floating BubbleMenu (1차 실사용 확인 후 수정) |
 | `0f24a11` | docs: record BubbleMenu fix commit SHA in result.md |
-| (아래 참고) | redesign: sticky icon toolbar with useEditorState (2차 실사용 확인 후 UI/UX 재설계) |
+| `4b26bd8` | redesign: sticky icon toolbar for table controls with useEditorState (2차 실사용 확인 후 UI/UX 재설계) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
