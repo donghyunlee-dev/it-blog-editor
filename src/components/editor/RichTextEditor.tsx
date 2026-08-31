@@ -356,94 +356,110 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
   );
 }
 
+/**
+ * 원래는(P0~P1-6까지) 에디터 콘텐츠 위쪽에 고정된 정적 블록이었다 — 문서 맨 위에서만
+ * 표를 다루는 짧은 문서에선 문제가 없었지만, 실사용 확인(2026-08-31) 결과 표가 문서
+ * 중간·아래쪽에 있으면 컨트롤이 화면 상단에 그대로 남아 스크롤 밖으로 벗어나 "표를
+ * 만들 수는 있는데 컨트롤이 안 보인다"는 문제가 있었다. `EditorBubbleMenu`와 같은
+ * `BubbleMenu`(플로팅 UI, 선택 위치를 자동으로 따라다님)로 바꿔 커서가 표 안에 있을 때
+ * 표 바로 위/아래에 뜨도록 고쳤다 — `shouldShow`로 "표 안에 커서가 있는가"만 직접
+ * 판단하므로(텍스트 버블 메뉴의 기본 동작인 "선택 영역이 비어있지 않을 때만 표시"를
+ * 따르지 않음), 텍스트를 선택하지 않고 커서만 놓아도 표시된다.
+ */
 function TableControls({ editor }: { editor: Editor | null }) {
-  if (!editor || !editor.isActive("table")) return null;
+  if (!editor) return null;
 
   return (
-    <div className="flex flex-wrap gap-1 border border-border bg-surface p-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addRowBefore()}
-        onClick={() => editor.chain().focus().addRowBefore().run()}
-        aria-label="행 추가(위)"
-      >
-        행 추가(위)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addRowAfter()}
-        onClick={() => editor.chain().focus().addRowAfter().run()}
-        aria-label="행 추가(아래)"
-      >
-        행 추가(아래)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().deleteRow()}
-        onClick={() => editor.chain().focus().deleteRow().run()}
-        aria-label="행 삭제"
-      >
-        행 삭제
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addColumnBefore()}
-        onClick={() => editor.chain().focus().addColumnBefore().run()}
-        aria-label="열 추가(왼쪽)"
-      >
-        열 추가(왼쪽)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addColumnAfter()}
-        onClick={() => editor.chain().focus().addColumnAfter().run()}
-        aria-label="열 추가(오른쪽)"
-      >
-        열 추가(오른쪽)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().deleteColumn()}
-        onClick={() => editor.chain().focus().deleteColumn().run()}
-        aria-label="열 삭제"
-      >
-        열 삭제
-      </Button>
-      {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
-      <div className="mx-0.5 my-0.5 w-px bg-border" aria-hidden="true" />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().mergeCells()}
-        onClick={() => editor.chain().focus().mergeCells().run()}
-        aria-label="셀 병합"
-      >
-        셀 병합
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().splitCell()}
-        onClick={() => editor.chain().focus().splitCell().run()}
-        aria-label="셀 분할"
-      >
-        셀 분할
-      </Button>
-    </div>
+    <BubbleMenu
+      editor={editor}
+      shouldShow={({ editor: currentEditor }) => currentEditor.isActive("table")}
+      options={{ placement: "top" }}
+    >
+      <div className="flex flex-wrap gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().addRowBefore()}
+          onClick={() => editor.chain().focus().addRowBefore().run()}
+          aria-label="행 추가(위)"
+        >
+          행 추가(위)
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().addRowAfter()}
+          onClick={() => editor.chain().focus().addRowAfter().run()}
+          aria-label="행 추가(아래)"
+        >
+          행 추가(아래)
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().deleteRow()}
+          onClick={() => editor.chain().focus().deleteRow().run()}
+          aria-label="행 삭제"
+        >
+          행 삭제
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().addColumnBefore()}
+          onClick={() => editor.chain().focus().addColumnBefore().run()}
+          aria-label="열 추가(왼쪽)"
+        >
+          열 추가(왼쪽)
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().addColumnAfter()}
+          onClick={() => editor.chain().focus().addColumnAfter().run()}
+          aria-label="열 추가(오른쪽)"
+        >
+          열 추가(오른쪽)
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().deleteColumn()}
+          onClick={() => editor.chain().focus().deleteColumn().run()}
+          aria-label="열 삭제"
+        >
+          열 삭제
+        </Button>
+        {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
+        <div className="mx-0.5 my-0.5 w-px bg-border" aria-hidden="true" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().mergeCells()}
+          onClick={() => editor.chain().focus().mergeCells().run()}
+          aria-label="셀 병합"
+        >
+          셀 병합
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={!editor.can().splitCell()}
+          onClick={() => editor.chain().focus().splitCell().run()}
+          aria-label="셀 분할"
+        >
+          셀 분할
+        </Button>
+      </div>
+    </BubbleMenu>
   );
 }
 

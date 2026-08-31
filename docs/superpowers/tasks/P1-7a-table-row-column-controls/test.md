@@ -26,13 +26,17 @@
 이 테스트는 mock이 아니라 실제 TipTap 확장·ProseMirror 상태 전이를 그대로 통과시키므로, "버튼이 올바른 커맨드를 호출하는가"뿐 아니라 "그 결과 실제 문서 구조가 의도대로 바뀌는가"까지 검증한다 — 브라우저 육안 확인에 근접한 신뢰도라고 판단했지만, 실제 앱 셸(헤더·툴바 레이아웃 등)과 함께 렌더링됐을 때의 시각적 배치는 확인하지 못했다.
 
 ## 발견된 문제와 조치
-- **원인**: 처음엔 "1행/1열짜리 표에서 삭제 버튼이 비활성화된다"를 수용 기준으로 잡고 테스트를 작성했는데, 실제로 실행해보니 실패했다 — `editor.can().deleteRow()`가 마지막 행에서도 `true`를 반환했다.
-- **조치**: `node_modules/prosemirror-tables/dist/index.cjs`의 `deleteRow`/`deleteColumn` 구현을 직접 읽어, "마지막 행/열" 검사가 `if (dispatch)` 블록 안에만 있어 `can()`(dispatch 없이 호출) 경로에서는 검사되지 않는 라이브러리 자체의 동작임을 확인했다. 잘못된 수용 기준(존재하지 않는 비활성화 동작)을 "클릭해도 표가 안전하게 유지된다"는, 실제로 검증 가능한 기준으로 바꿔 `task.md`/`result.md`/테스트를 모두 갱신했다.
-- **재검증 결과**: 갱신한 기준으로 `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11 통과.
+- **원인 1**: 처음엔 "1행/1열짜리 표에서 삭제 버튼이 비활성화된다"를 수용 기준으로 잡고 테스트를 작성했는데, 실제로 실행해보니 실패했다 — `editor.can().deleteRow()`가 마지막 행에서도 `true`를 반환했다.
+- **조치 1**: `node_modules/prosemirror-tables/dist/index.cjs`의 `deleteRow`/`deleteColumn` 구현을 직접 읽어, "마지막 행/열" 검사가 `if (dispatch)` 블록 안에만 있어 `can()`(dispatch 없이 호출) 경로에서는 검사되지 않는 라이브러리 자체의 동작임을 확인했다. 잘못된 수용 기준(존재하지 않는 비활성화 동작)을 "클릭해도 표가 안전하게 유지된다"는, 실제로 검증 가능한 기준으로 바꿔 `task.md`/`result.md`/테스트를 모두 갱신했다.
+- **재검증 결과 1**: 갱신한 기준으로 `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11 통과.
+
+- **원인 2 (2026-08-31, PR #20을 실제로 테스트한 사용자 보고)**: "표 생성까지만 되고 툴이 보인다거나 다른 기능은 확인이 안 된다." `TableControls`가 (이번 작업 전, "셀 병합"/"셀 분할" 시절부터) 에디터 콘텐츠 위쪽에 고정된 정적 `<div>`였던 것이 원인이었다 — 표가 문서 중간·아래쪽에 있으면 컨트롤이 화면 상단에 그대로 남아 스크롤 밖으로 벗어나 사실상 안 보였다. 컴포넌트 테스트(`happy-dom`)는 스크롤·레이아웃을 재현하지 않아 이 문제를 잡아내지 못했다 — 이번에도 "화면 배치 문제는 실제 브라우저에서만 드러난다"는 이 프로젝트의 반복된 교훈(P0-1b 토스트, TagInput 디자인 등)과 같은 종류다.
+- **조치 2**: `EditorBubbleMenu`(굵게/기울임 등)가 이미 쓰고 있는 `@tiptap/react/menus`의 `BubbleMenu`로 `TableControls`를 바꿔, 커서가 표 안에 있을 때 표 바로 옆에 뜨는 플로팅 툴바로 전환했다. `shouldShow={({ editor }) => editor.isActive("table")}`로 직접 판단해, 텍스트 버블 메뉴의 기본 동작(선택 영역이 비어있지 않을 때만 표시)과 달리 커서만 놓아도 표시되게 했다.
+- **재검증 결과 2**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(`BubbleMenu`로 감싸도 RTL의 `screen` 쿼리는 포털된 콘텐츠를 포함해 `document.body` 전체를 본다) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit` 통과. AX Auth 로그인 제약으로 실제 화면에서의 재확인은 이번에도 사용자에게 요청한다.
 
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`, 갱신된 버전)을 모두 만족함 — PRD 갱신 가능
-- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — 사용자 확인 요청
+- [x] 수용 기준(`task.md`, 갱신된 버전)을 모두 만족함
+- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — `BubbleMenu` 수정 후 재확인 요청
