@@ -15,6 +15,7 @@ P0-7 이후 Confluence page의 실제 title은 내부 고유키(UUID)라 이 상
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
+| `dfc67d2` | fix: enforce 200-char max length on document titles |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
