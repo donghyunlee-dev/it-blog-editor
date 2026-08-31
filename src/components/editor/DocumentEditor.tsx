@@ -661,7 +661,8 @@ export function DocumentEditor({
       */}
       <div className="mx-auto flex max-w-[820px] flex-col px-6 py-10">
         {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
-            Confluence 페이지 제목으로 그대로 쓰이므로 본문과 분리해서 관리한다.
+            sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
+            실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).
             <input>은 원래 한 줄이라 제목이 길면 안 잘리고 가로 스크롤이 생겼다
             (2026-08-26, 사용자 피드백 — "긴 경우 wordwrap 해서 내려서 보이게").
             <input>은 애초에 여러 줄을 표시할 수 없는 요소라 <textarea>로 바꾸고,

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
-import { NotFoundError } from "./errors";
+import { NotFoundError, ValidationError } from "./errors";
 import { getTags, setTags } from "./tags";
 
 beforeEach(() => {
@@ -74,5 +74,69 @@ describe("setTags", () => {
     await setTags("doc-1", ["React"]);
 
     expect(addSpy).toHaveBeenCalledWith("doc-1", ["React"]);
+  });
+
+  describe("검증(P1-6b)", () => {
+    it("태그가 20개를 초과하면 ValidationError를 던지고 Confluence를 호출하지 않는다", async () => {
+      const listSpy = vi.spyOn(client, "listLabels");
+
+      await expect(
+        setTags("doc-1", Array.from({ length: 21 }, (_, i) => `tag-${i}`))
+      ).rejects.toThrow(ValidationError);
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("정확히 20개(경계값)는 통과한다", async () => {
+      vi.spyOn(client, "listLabels").mockResolvedValue([]);
+      vi.spyOn(client, "addLabels").mockResolvedValue(undefined);
+      vi.spyOn(client, "removeLabel").mockResolvedValue(undefined);
+
+      await expect(
+        setTags("doc-1", Array.from({ length: 20 }, (_, i) => `tag-${i}`))
+      ).resolves.not.toThrow();
+    });
+
+    it("태그 하나가 50자를 초과하면 ValidationError를 던진다", async () => {
+      await expect(setTags("doc-1", ["a".repeat(51)])).rejects.toThrow(ValidationError);
+    });
+
+    it("정확히 50자(경계값)는 통과한다", async () => {
+      vi.spyOn(client, "listLabels").mockResolvedValue([]);
+      vi.spyOn(client, "addLabels").mockResolvedValue(undefined);
+      vi.spyOn(client, "removeLabel").mockResolvedValue(undefined);
+
+      await expect(setTags("doc-1", ["a".repeat(50)])).resolves.not.toThrow();
+    });
+
+    it("빈 문자열이나 공백만 있는 태그는 ValidationError를 던진다", async () => {
+      await expect(setTags("doc-1", ["React", "   "])).rejects.toThrow(ValidationError);
+    });
+
+    it("금지된 특수문자(:, ?, @)가 포함되면 ValidationError를 던지고 Confluence를 호출하지 않는다", async () => {
+      const listSpy = vi.spyOn(client, "listLabels");
+
+      await expect(setTags("doc-1", ["foo:bar"])).rejects.toThrow(ValidationError);
+      await expect(setTags("doc-1", ["foo?bar"])).rejects.toThrow(ValidationError);
+      await expect(setTags("doc-1", ["foo@bar"])).rejects.toThrow(ValidationError);
+      expect(listSpy).not.toHaveBeenCalled();
+    });
+
+    it("사전 검사를 통과했는데도 Confluence가 400을 반환하면 ValidationError로 바꿔서 던진다", async () => {
+      vi.spyOn(client, "listLabels").mockResolvedValue([]);
+      vi.spyOn(client, "addLabels").mockRejectedValue(
+        new client.ConfluenceApiError(400, "Bad Request")
+      );
+
+      await expect(setTags("doc-1", ["React"])).rejects.toThrow(ValidationError);
+    });
+
+    it("Confluence가 400이 아닌 다른 오류를 반환하면 그대로 전파한다", async () => {
+      vi.spyOn(client, "listLabels").mockResolvedValue([]);
+      vi.spyOn(client, "addLabels").mockRejectedValue(
+        new client.ConfluenceApiError(502, "Bad Gateway")
+      );
+
+      await expect(setTags("doc-1", ["React"])).rejects.toThrow(client.ConfluenceApiError);
+    });
   });
 });

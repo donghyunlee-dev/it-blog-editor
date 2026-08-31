@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 50 / 71 항목 완료 (최근 갱신: 2026-08-28 — Phase 4 P1-6a(문서 제목 길이 상한 200자) 완료. P0-7 이후 Confluence title 제약과 무관해진 순수 UX 가드레일로 성격이 바뀌어 GitHub Issue 없이 값을 직접 정했다)
+> 전체 진행률: 51 / 71 항목 완료 (최근 갱신: 2026-08-31 — Phase 4 P1-6b(태그 형식·길이·개수 검증) 완료. Confluence 라벨 금지 문자는 공식 문서로 확인, 개수/길이 상한은 직접 정함. 사용자 요청으로 TagInput 디자인도 함께 개선(샘플 placeholder, 입력 영역 강조))
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -77,10 +77,10 @@
 - 상태: 완료 — 산출물: src/lib/editor/folder.ts, src/lib/editor/publish.ts, src/lib/editor/documents.ts, src/lib/confluence/client.ts
 
 ### 기능 — 문서 태그 지정
-- 설명: 문서를 폴더가 아닌 다중 태그로 분류한다. 편집 화면에서는 칩(chip) UI로 입력하고(Enter/쉼표로 확정), 문서함에서 이미 쓰인 태그를 자동완성 후보로 보여준다. 문서함 사이드바에서는 태그로 필터링할 수 있다.
-- 입력: 태그 목록(자유 텍스트, 다중)
+- 설명: 문서를 폴더가 아닌 다중 태그로 분류한다. 편집 화면에서는 테두리+배경으로 구획된 칩(chip) UI 영역에 입력하고(Enter/쉼표로 확정, placeholder "예: React, Backend"), 문서함에서 이미 쓰인 태그를 자동완성 후보로 보여준다. 문서함 사이드바에서는 태그로 필터링할 수 있다.
+- 입력: 태그 목록(자유 텍스트, 다중, 문서당 최대 20개·태그당 최대 50자)
 - 출력·동작: Confluence 네이티브 페이지 라벨로 저장/조회
-- 예외 상황: 없음(자유 입력, 사전 정의 카테고리 없음)
+- 예외 상황: 개수(20개)·길이(50자) 초과, 빈 값, 금지 문자(`:`, `?`, `@`) 포함 시 400(`ValidationError`) — 2026-08-31(P1-6b) 추가. 그 외 Confluence가 형식 문제로 거부하면(우리가 사전에 걸러내지 못한 규칙) 502 대신 400으로 변환한다.
 - 데이터 저장 여부: 예 — Confluence 페이지 라벨
 - API 필요 여부: 예 — 신규 엔드포인트 필요(라벨 추가/조회)
 - 상태: 완료 — 산출물: src/lib/editor/tags.ts, src/lib/editor/tag-suggestions.ts, src/app/api/editor/documents/[pageId]/tags/route.ts, src/components/editor/TagInput.tsx
@@ -212,7 +212,7 @@
 - [x] (완료, P1-4b) Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다 — `sendSlackAlert`에 P1-3(`confluenceRequest`)와 같은 정책(최대 3회 지수 백오프+jitter, 429의 `Retry-After` 우선, 429/5xx가 아닌 4xx는 즉시 실패)을 적용했다. Confluence와 달리 GET/POST 구분 없이 재시도한다 — 중복 알림 정도의 부작용이라 데이터 유실 위험이 없다고 판단했다. 재시도 소진 시 예외를 던지는 기존 동작은 유지해, 호출부(`notifyUpstreamFailure`)의 "실패하면 구조화 로그만 남기고 넘어간다"는 기존 폴백을 그대로 활용한다. 산출물: `docs/superpowers/tasks/P1-4b-slack-webhook-retry/{task,plan,result,test}.md`, src/lib/notifications/slack.ts, src/lib/notifications/slack.test.ts
 - [ ] 🔶 (P1-5) 민감 API 엔드포인트(문서 생성, 이미지 업로드, 게시)에 레이트리밋을 추가한다 — 구현 방식(인메모리/외부 스토어)과 임계값은 [Issue #5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5)에서 결정.
 - [x] (완료, P1-6a) 문서 제목 길이 상한을 서버에서 검증한다 — 200자 초과 시 `ValidationError`(400). P0-7 이후 Confluence page의 실제 title이 내부 고유키(UUID)로 바뀌어 이 상한은 더 이상 Confluence의 title 길이 제약을 피하기 위한 값이 아니라(사용자 제목은 `sourceDocument` property에 저장), 순수 UX 가드레일이라 GitHub Issue 없이 값을 직접 정했다. 산출물: `docs/superpowers/tasks/P1-6a-document-title-length-limit/{task,plan,result,test}.md`, src/lib/editor/documents.ts
-- [ ] (P1-6b) 태그 형식·길이·개수 상한을 서버에서 검증한다.
+- [x] (완료, P1-6b) 태그 형식·길이·개수 상한을 서버에서 검증한다 — 개수 20개, 길이 50자 상한(P1-6a와 같은 근거로 GitHub Issue 없이 직접 정함), 금지 문자(`:`, `?`, `@`, [Confluence 공식 문서](https://support.atlassian.com/confluence-cloud/docs/use-labels-to-organize-your-content/)로 확인)는 사전 차단하고, 그 외 Confluence의 400 거부는 `ValidationError`로 변환한다. 함께 `TagInput.tsx` 디자인을 다듬었다(placeholder를 "예: React, Backend"로, 입력 영역을 테두리+배경으로 강조 — 사용자 요청). 산출물: `docs/superpowers/tasks/P1-6b-tag-format-length-count-limit/{task,plan,result,test}.md`, src/lib/editor/tags.ts, src/components/editor/TagInput.tsx
 - [ ] (P1-6c) slug 형식(허용 문자)을 서버에서 검증한다.
 - [ ] (P1-7a) 표에 행/열 추가·삭제 컨트롤을 추가한다.
 - [ ] (P1-7b) 표 컬럼 리사이즈를 활성화한다.
