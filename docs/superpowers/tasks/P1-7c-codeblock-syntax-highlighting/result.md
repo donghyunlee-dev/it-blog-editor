@@ -20,7 +20,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (result.md 작성 후 커밋 예정) | |
+| `99e8fd5` | feat: add syntax highlighting to code blocks |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
