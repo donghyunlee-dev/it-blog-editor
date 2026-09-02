@@ -13,7 +13,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (커밋 예정) | test: folder/route.ts GET/POST 테스트 추가 (P1-9d) |
+| `dd12348` | test: folder/route.ts GET/POST 테스트 추가 (P1-9d) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
