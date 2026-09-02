@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ToastProvider } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
@@ -369,5 +369,83 @@ describe("RichTextEditor 붙여넣기 서식 정제(P1-7d)", () => {
     // 없어야 하고, 텍스트 내용만 그대로 살아있어야 한다.
     expect(container.querySelector(".ProseMirror [style]")).toBeNull();
     expect(container.textContent).toContain("외부 텍스트");
+  });
+});
+
+/**
+ * 이미지가 문서의 유일한(첫) 노드면 ProseMirror의 초기 선택(`Selection.atStart`)이 텍스트
+ * 위치를 찾지 못해 그 이미지 자체를 선택하는 NodeSelection이 된다(tableFirstDoc과 동일한
+ * 이유 — 별도의 클릭 시뮬레이션 없이도 렌더링 직후 이미지가 선택된 상태로 시작한다).
+ */
+function imageFirstDoc(alt?: string): JSONContent {
+  return {
+    type: "doc",
+    content: [
+      { type: "image", attrs: { src: "https://example.com/photo.png", filename: "photo.png", alt: alt ?? null } },
+    ],
+  };
+}
+
+describe("RichTextEditor 이미지 대체 텍스트(alt) 입력(P1-8)", () => {
+  it("이미지가 선택되지 않은 상태에서는 alt 입력 UI가 보이지 않는다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "본문" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(screen.queryByLabelText("이미지 대체 텍스트(alt)")).not.toBeInTheDocument();
+  });
+
+  it("이미지가 선택되면 alt 입력 UI가 뜨고, 서식 버블 메뉴는 뜨지 않는다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    // `@tiptap/extension-bubble-menu`의 기본 shouldShow는 `view.hasFocus()`를 요구한다
+    // (실사용에서는 이미지를 클릭하는 행위 자체가 NodeSelection 생성과 에디터 포커스를
+    // 동시에 만든다). jsdom은 렌더링만으로 자동 포커스하지 않으므로 명시적으로 포커스한다.
+    (container.querySelector(".ProseMirror") as HTMLElement).focus();
+
+    await waitFor(() => expect(screen.getByLabelText("이미지 대체 텍스트(alt)")).toBeInTheDocument());
+    expect(screen.queryByLabelText("굵게")).not.toBeInTheDocument();
+  });
+
+  it("기존 alt 값이 있으면 입력창 초기값으로 채워진다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageFirstDoc("기존 설명")} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    (container.querySelector(".ProseMirror") as HTMLElement).focus();
+
+    const input = await screen.findByLabelText("이미지 대체 텍스트(alt)");
+    expect(input).toHaveValue("기존 설명");
+  });
+
+  it("alt 텍스트를 입력하고 적용하면 이미지 노드 속성과 렌더링된 img alt에 반영된다", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageFirstDoc()} onChange={onChange} />
+      </ToastProvider>
+    );
+
+    (container.querySelector(".ProseMirror") as HTMLElement).focus();
+
+    const input = await screen.findByLabelText("이미지 대체 텍스트(alt)");
+    fireEvent.change(input, { target: { value: "회의실 사진" } });
+    fireEvent.click(screen.getByRole("button", { name: "적용" }));
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror img")).toHaveAttribute("alt", "회의실 사진"));
+
+    const lastCall = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    expect(lastCall.content?.[0]?.attrs?.alt).toBe("회의실 사진");
   });
 });
