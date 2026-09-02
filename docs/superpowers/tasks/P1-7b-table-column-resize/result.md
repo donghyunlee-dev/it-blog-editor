@@ -27,7 +27,7 @@
 |-----|--------|
 | `7790753` | feat: enable table column resize |
 | `7b125ad` | docs: record P1-7b commit SHA in result.md |
-| (아래 참고) | fix: anchor column-resize-handle to its own cell (사용자 실사용 확인 후 수정) |
+| `cd8a09f` | fix: anchor column-resize-handle to its own cell (사용자 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
