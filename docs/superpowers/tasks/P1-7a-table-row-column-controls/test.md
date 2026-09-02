@@ -3,8 +3,8 @@
 ## 자동화 테스트
 | 커맨드 | 결과 |
 |---|---|
-| `npx vitest run src/components/editor/RichTextEditor.test.tsx` | 통과 (11/11, 신규 8건) |
-| `npm test`(전체) | 통과 (262/262) |
+| `npx vitest run src/components/editor/RichTextEditor.test.tsx` | 통과 (12/12, 신규 9건 — 3차 재설계에서 다중 표 시나리오 1건 추가) |
+| `npm test`(전체) | 통과 (263/263) |
 | `npx tsc --noEmit` | 통과 |
 | `npm run lint` | 통과 — 에러 0, 경고 2(기존 무관 경고) |
 | `npm run build` | 통과 |
@@ -26,13 +26,25 @@
 이 테스트는 mock이 아니라 실제 TipTap 확장·ProseMirror 상태 전이를 그대로 통과시키므로, "버튼이 올바른 커맨드를 호출하는가"뿐 아니라 "그 결과 실제 문서 구조가 의도대로 바뀌는가"까지 검증한다 — 브라우저 육안 확인에 근접한 신뢰도라고 판단했지만, 실제 앱 셸(헤더·툴바 레이아웃 등)과 함께 렌더링됐을 때의 시각적 배치는 확인하지 못했다.
 
 ## 발견된 문제와 조치
-- **원인**: 처음엔 "1행/1열짜리 표에서 삭제 버튼이 비활성화된다"를 수용 기준으로 잡고 테스트를 작성했는데, 실제로 실행해보니 실패했다 — `editor.can().deleteRow()`가 마지막 행에서도 `true`를 반환했다.
-- **조치**: `node_modules/prosemirror-tables/dist/index.cjs`의 `deleteRow`/`deleteColumn` 구현을 직접 읽어, "마지막 행/열" 검사가 `if (dispatch)` 블록 안에만 있어 `can()`(dispatch 없이 호출) 경로에서는 검사되지 않는 라이브러리 자체의 동작임을 확인했다. 잘못된 수용 기준(존재하지 않는 비활성화 동작)을 "클릭해도 표가 안전하게 유지된다"는, 실제로 검증 가능한 기준으로 바꿔 `task.md`/`result.md`/테스트를 모두 갱신했다.
-- **재검증 결과**: 갱신한 기준으로 `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11 통과.
+- **원인 1**: 처음엔 "1행/1열짜리 표에서 삭제 버튼이 비활성화된다"를 수용 기준으로 잡고 테스트를 작성했는데, 실제로 실행해보니 실패했다 — `editor.can().deleteRow()`가 마지막 행에서도 `true`를 반환했다.
+- **조치 1**: `node_modules/prosemirror-tables/dist/index.cjs`의 `deleteRow`/`deleteColumn` 구현을 직접 읽어, "마지막 행/열" 검사가 `if (dispatch)` 블록 안에만 있어 `can()`(dispatch 없이 호출) 경로에서는 검사되지 않는 라이브러리 자체의 동작임을 확인했다. 잘못된 수용 기준(존재하지 않는 비활성화 동작)을 "클릭해도 표가 안전하게 유지된다"는, 실제로 검증 가능한 기준으로 바꿔 `task.md`/`result.md`/테스트를 모두 갱신했다.
+- **재검증 결과 1**: 갱신한 기준으로 `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11 통과.
+
+- **원인 2 (2026-08-31, PR #20을 실제로 테스트한 사용자 보고)**: "표 생성까지만 되고 툴이 보인다거나 다른 기능은 확인이 안 된다." `TableControls`가 (이번 작업 전, "셀 병합"/"셀 분할" 시절부터) 에디터 콘텐츠 위쪽에 고정된 정적 `<div>`였던 것이 원인이었다 — 표가 문서 중간·아래쪽에 있으면 컨트롤이 화면 상단에 그대로 남아 스크롤 밖으로 벗어나 사실상 안 보였다. 컴포넌트 테스트(`happy-dom`)는 스크롤·레이아웃을 재현하지 않아 이 문제를 잡아내지 못했다 — 이번에도 "화면 배치 문제는 실제 브라우저에서만 드러난다"는 이 프로젝트의 반복된 교훈(P0-1b 토스트, TagInput 디자인 등)과 같은 종류다.
+- **조치 2**: `EditorBubbleMenu`(굵게/기울임 등)가 이미 쓰고 있는 `@tiptap/react/menus`의 `BubbleMenu`로 `TableControls`를 바꿔, 커서가 표 안에 있을 때 표 바로 옆에 뜨는 플로팅 툴바로 전환했다. `shouldShow={({ editor }) => editor.isActive("table")}`로 직접 판단해, 텍스트 버블 메뉴의 기본 동작(선택 영역이 비어있지 않을 때만 표시)과 달리 커서만 놓아도 표시되게 했다.
+- **재검증 결과 2**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(`BubbleMenu`로 감싸도 RTL의 `screen` 쿼리는 포털된 콘텐츠를 포함해 `document.body` 전체를 본다) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit` 통과. AX Auth 로그인 제약으로 실제 화면에서의 재확인은 이번에도 사용자에게 요청한다.
+
+- **원인 3 (2026-08-31, 2차 실사용 확인)**: "텍스트로만 툴바가 구성되어 있어서 가로 사이즈가 커서 불편하고, 클릭할 때마다 나와서 사용이 불편해. Confluence처럼 특정 위치의 컴포넌트를 클릭하면 나오거나 상단에 고정해서 나오거나 했으면 좋겠어. 아이콘을 활용해서 좀 더 직관적이게 보이면서 툴바의 사이즈를 줄였으면 좋겠어. 디자인적으로도 굉장히 퀄리티가 낮아." `BubbleMenu`가 캐럿 근처에 매번 떠서 편집을 방해했고, 텍스트 라벨 8개가 가로로 길게 늘어서 있었다.
+- **조치 3**: `TableControls`를 `sticky top-14`(헤더 바로 아래 고정) 아이콘 툴바로 재설계했다. 텍스트 라벨을 전부 손으로 그린 아이콘(+ `Tooltip`)으로 바꾸고, 표시·비활성화 판단을 `useEditorState`로 리액티브하게 옮겼다. 아이콘 형태는 코드 작성과 별도로 이 세션의 시각화 도구로 미리 렌더링해 눈으로 한 번 확인했다(제목 `table_toolbar_icons`).
+- **재검증 결과 3**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(아이콘으로 바뀌어도 `aria-label`은 그대로 유지해 `getByLabelText` 쿼리가 안 깨짐) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과.
+
+- **원인 4 (2026-09-01, 3차 실사용 확인)**: "툴바가 상단에 고정하는 게 수정된 버전이 맞아? 테이블 상단이나 하단으로 툴바를 고정시킬 수 있는지 검토해봐." 확인해보니 `sticky top-14`는 문서 전체 스크롤 영역 기준이라 표가 스크롤로 멀리 내려가면 툴바가 화면 맨 위에 남아 표와 시각적으로 분리되는, 사실상 맞는 지적이었다. 사용자에게 "표 상단 고정 vs 표 하단 고정 vs 현재 유지" 세 옵션을 제시했고, 표 상단 고정을 추천했으며 사용자가 승인했다.
+- **조치 4**: TipTap의 `Table` 확장이 `resizable: false`일 때 실제로 쓰는 `TableView` 클래스를 `StickyTableView`로 상속해, `.tableWrapper`의 `<table>` 앞에 툴바 슬롯을 끼워 넣고 `ReactRenderer`로 기존 `TableToolbar`를 마운트했다. "커서가 이 표 안에 있는가"는 선택 범위가 `[getPos(), getPos()+node.nodeSize)` 안에 있는지로 직접 계산해(표가 여러 개일 때 `isActive("table")`로는 구분 불가), `editor`의 `selectionUpdate`/`transaction` 이벤트마다 갱신한다.
+- **재검증 결과 4**: 기존 8건 모두 변경 없이 통과 + 신규 시나리오("문서에 표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다") 1건 추가, 총 12/12 통과 — `npx vitest run src/components/editor/RichTextEditor.test.tsx`. `npm test`(전체) 263/263, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과. dev 서버를 재시작해 재확인한 결과 컴파일 에러 없음, 이후 서버 로그에서 사용자가 실제 계정으로 `GET /editor/212959235`(200) → `PUT /api/editor/documents/212959235`(200)까지 정상 완료한 것을 확인했다 — 이 변경과 관련된 서버 에러는 없었다.
 
 ## 검증 중 새로 발견한 결정 사항
-없음.
+없음. (3차 재설계의 "표 상단 vs 하단" 선택은 `AskUserQuestion`으로 대화 중 바로 확인해 GitHub Issue를 거치지 않았다 — 순수 UI 배치 취향이라 즉시 결정 가능한 사안으로 판단했다.)
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`, 갱신된 버전)을 모두 만족함 — PRD 갱신 가능
-- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — 사용자 확인 요청
+- [x] 수용 기준(`task.md`, 2026-09-01 3차 갱신 버전)을 모두 만족함
+- [ ] 🔶 실제 화면에서 스크롤하며 "툴바가 표에만 고정되는지" 육안 확인, 그리고 표 편집 핵심 동작(셀 드래그 선택, 방향키 이동)에 회귀가 없는지는 NodeView 도입으로 리스크가 더 커진 부분이라 각별히 재확인 요청

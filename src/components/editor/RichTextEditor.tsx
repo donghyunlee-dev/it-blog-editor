@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Node, type Editor } from "@tiptap/core";
-import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
+import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { EditorContent, ReactRenderer, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -10,9 +10,9 @@ import StarterKit from "@tiptap/starter-kit";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Popover, useToast } from "@sfood/ui";
+import { Button, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -356,96 +356,301 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
   );
 }
 
-function TableControls({ editor }: { editor: Editor | null }) {
-  if (!editor || !editor.isActive("table")) return null;
+/**
+ * `@sfood/ui`의 `Icon` 컴포넌트는 `search`/`comment` 두 개만 제공해 표 조작에 쓸 아이콘이
+ * 없다(node_modules/@sfood/ui/dist/index.d.ts 확인) — design.md 선례(로그인 화면의 자체
+ * 제작 SVG `BrandPanelArt`)를 따라, `@sfood/ui`의 `Icon`이 실제로 쓰는 것과 똑같은 스타일
+ * (`viewBox 0 0 24 24`, `stroke="currentColor"`, `strokeWidth={2}`, round cap/join, 크기
+ * `h-4 w-4` = `@sfood/ui`의 `sm`)로 직접 그려 시각적으로 통일감 있게 맞춘다. 새 아이콘
+ * 라이브러리를 추가하지 않는다.
+ */
+function TableIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  );
+}
+
+// 4개의 "삽입" 아이콘은 모두 같은 문법(화살표가 새로 생길 선을 향해 뻗는다)을 공유해,
+// 하나를 이해하면 나머지 방향도 바로 유추할 수 있게 했다. 병합/분할은 칸이 모였다/갈라진다는
+// 느낌을 안쪽/바깥쪽 화살표로 대비시켰다. 삭제는 방향성이 의미 없어 범용 휴지통 아이콘
+// 하나를 행/열 삭제 둘 다에 재사용한다(그룹 위치 + 툴팁으로 구분).
+const RowInsertBeforeIcon = () => (
+  <TableIcon>
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="12" y1="10" x2="12" y2="18" />
+    <polyline points="8 14 12 10 16 14" />
+  </TableIcon>
+);
+const RowInsertAfterIcon = () => (
+  <TableIcon>
+    <line x1="4" y1="18" x2="20" y2="18" />
+    <line x1="12" y1="6" x2="12" y2="14" />
+    <polyline points="8 10 12 14 16 10" />
+  </TableIcon>
+);
+const ColumnInsertBeforeIcon = () => (
+  <TableIcon>
+    <line x1="6" y1="4" x2="6" y2="20" />
+    <line x1="10" y1="12" x2="18" y2="12" />
+    <polyline points="14 8 10 12 14 16" />
+  </TableIcon>
+);
+const ColumnInsertAfterIcon = () => (
+  <TableIcon>
+    <line x1="18" y1="4" x2="18" y2="20" />
+    <line x1="6" y1="12" x2="14" y2="12" />
+    <polyline points="10 8 14 12 10 16" />
+  </TableIcon>
+);
+const TrashIcon = () => (
+  <TableIcon>
+    <polyline points="4 7 20 7" />
+    <path d="M6 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2" />
+    <path d="M19 7l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7" />
+  </TableIcon>
+);
+const MergeCellsIcon = () => (
+  <TableIcon>
+    <rect x="3" y="5" width="7" height="14" rx="1" />
+    <rect x="14" y="5" width="7" height="14" rx="1" />
+    <polyline points="9 9 12 12 9 15" />
+    <polyline points="15 9 12 12 15 15" />
+  </TableIcon>
+);
+const SplitCellsIcon = () => (
+  <TableIcon>
+    <rect x="3" y="5" width="18" height="14" rx="1" />
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <polyline points="9 9 6 12 9 15" />
+    <polyline points="15 9 18 12 15 15" />
+  </TableIcon>
+);
+
+function TableToolbarButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Tooltip content={label}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={label}
+      >
+        {children}
+      </Button>
+    </Tooltip>
+  );
+}
+
+/**
+ * P1-7a 3차 재설계(2026-09-01, 표 자체의 상단에 고정): 2차 버전(`sticky top-14`)은
+ * "문서 헤더 바로 아래"에 고정될 뿐 표 자체와는 무관한 위치였다 — 표가 스크롤로 한참
+ * 내려가면 툴바는 화면 맨 위에 그대로 남아 표와 시각적으로 분리돼 보인다는 지적을
+ * 받았다. "표 자체의 상단에" 고정하려면 sticky의 고정 범위(constraint)가 그 표를 감싸는
+ * 컨테이너여야 하는데, 일반 React 트리에서는 표 하나하나를 감싸는 지점에 손댈 수 없다
+ * (TipTap이 `table` 노드를 스키마 기반으로 직접 렌더링하기 때문) — 그래서 표 노드
+ * 렌더링 자체를 커스터마이즈하는 TipTap NodeView가 필요하다.
+ *
+ * 표의 실제 DOM 구조(`.tableWrapper > table > colgroup + tbody`)와 셀 선택·컬럼 너비
+ * 관리는 prosemirror-tables가 아주 세밀하게 의존하는 부분이라(`ignoreMutation`,
+ * `updateColumns` 등) 직접 재구현하지 않는다 — TipTap이 기본 제공하는 `TableView`
+ * 클래스(`Table`의 `resizable: false`일 때 실제로 쓰이는 바로 그 클래스, 이 프로젝트
+ * 설정과 일치함)를 그대로 상속해 딱 필요한 것만 더한다: `.tableWrapper`의 `<table>` 앞에
+ * 툴바 슬롯 하나를 끼워 넣고, `ReactRenderer`(TipTap이 NodeView 밖에서 React UI를
+ * 마운트할 때 쓰라고 공식 제공하는 저수준 API — 내부적으로 `EditorContent`가 관리하는
+ * React 트리에 포털로 얹혀, 별도 React 루트를 만들지 않는다)로 `TableToolbar`를 그
+ * 슬롯에 마운트한다. 이 슬롯은 `contentDOM`(=tbody) 밖에 있어 `TableView`가 이미
+ * 구현해 둔 `ignoreMutation`("wrapper 안·content 밖 변경은 무시")이 그대로 보호해
+ * 준다 — 별도 방어 코드가 필요 없다.
+ *
+ * "지금 커서가 이 표 안에 있는가"는 선택 범위가 이 표 노드의 [pos, pos+nodeSize) 안에
+ * 완전히 들어있는지로 직접 계산한다 — `editor.isActive("table")`은 문서에 표가 여러 개일
+ * 때 "어떤" 표인지 구분하지 못해 쓸 수 없다(한 문서에 표가 하나뿐이던 이전 버전에서는
+ * 문제가 안 됐다). `editor`의 `selectionUpdate`/`transaction` 이벤트마다 다시 계산해,
+ * 값이 실제로 바뀔 때만 `ReactRenderer.updateProps`를 호출한다(모든 키 입력마다 불필요한
+ * 리렌더를 피한다 — 문서에 표가 여러 개면 그 개수만큼 리스너가 따로 붙기 때문에 더 중요).
+ */
+function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
+  const tableState = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) =>
+      currentEditor
+        ? {
+            canAddRowBefore: currentEditor.can().addRowBefore(),
+            canAddRowAfter: currentEditor.can().addRowAfter(),
+            canDeleteRow: currentEditor.can().deleteRow(),
+            canAddColumnBefore: currentEditor.can().addColumnBefore(),
+            canAddColumnAfter: currentEditor.can().addColumnAfter(),
+            canDeleteColumn: currentEditor.can().deleteColumn(),
+            canMergeCells: currentEditor.can().mergeCells(),
+            canSplitCell: currentEditor.can().splitCell(),
+          }
+        : null,
+  });
+
+  if (!active || !tableState) return null;
 
   return (
-    <div className="flex flex-wrap gap-1 border border-border bg-surface p-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addRowBefore()}
+    <div className="sticky top-14 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-surface px-2 py-1.5 shadow-sm">
+      <TableToolbarButton
+        label="행 추가(위)"
+        disabled={!tableState.canAddRowBefore}
         onClick={() => editor.chain().focus().addRowBefore().run()}
-        aria-label="행 추가(위)"
       >
-        행 추가(위)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addRowAfter()}
+        <RowInsertBeforeIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="행 추가(아래)"
+        disabled={!tableState.canAddRowAfter}
         onClick={() => editor.chain().focus().addRowAfter().run()}
-        aria-label="행 추가(아래)"
       >
-        행 추가(아래)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().deleteRow()}
+        <RowInsertAfterIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="행 삭제"
+        disabled={!tableState.canDeleteRow}
         onClick={() => editor.chain().focus().deleteRow().run()}
-        aria-label="행 삭제"
       >
-        행 삭제
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addColumnBefore()}
-        onClick={() => editor.chain().focus().addColumnBefore().run()}
-        aria-label="열 추가(왼쪽)"
-      >
-        열 추가(왼쪽)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().addColumnAfter()}
-        onClick={() => editor.chain().focus().addColumnAfter().run()}
-        aria-label="열 추가(오른쪽)"
-      >
-        열 추가(오른쪽)
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().deleteColumn()}
-        onClick={() => editor.chain().focus().deleteColumn().run()}
-        aria-label="열 삭제"
-      >
-        열 삭제
-      </Button>
+        <TrashIcon />
+      </TableToolbarButton>
       {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
-      <div className="mx-0.5 my-0.5 w-px bg-border" aria-hidden="true" />
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().mergeCells()}
+      <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <TableToolbarButton
+        label="열 추가(왼쪽)"
+        disabled={!tableState.canAddColumnBefore}
+        onClick={() => editor.chain().focus().addColumnBefore().run()}
+      >
+        <ColumnInsertBeforeIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="열 추가(오른쪽)"
+        disabled={!tableState.canAddColumnAfter}
+        onClick={() => editor.chain().focus().addColumnAfter().run()}
+      >
+        <ColumnInsertAfterIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="열 삭제"
+        disabled={!tableState.canDeleteColumn}
+        onClick={() => editor.chain().focus().deleteColumn().run()}
+      >
+        <TrashIcon />
+      </TableToolbarButton>
+      <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <TableToolbarButton
+        label="셀 병합"
+        disabled={!tableState.canMergeCells}
         onClick={() => editor.chain().focus().mergeCells().run()}
-        aria-label="셀 병합"
       >
-        셀 병합
-      </Button>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        disabled={!editor.can().splitCell()}
+        <MergeCellsIcon />
+      </TableToolbarButton>
+      <TableToolbarButton
+        label="셀 분할"
+        disabled={!tableState.canSplitCell}
         onClick={() => editor.chain().focus().splitCell().run()}
-        aria-label="셀 분할"
       >
-        셀 분할
-      </Button>
+        <SplitCellsIcon />
+      </TableToolbarButton>
     </div>
   );
 }
+
+class StickyTableView extends TableView {
+  private toolbarSlot: HTMLDivElement;
+  private renderer: ReactRenderer<unknown, { editor: Editor; active: boolean }>;
+  private tvEditor: Editor;
+  private getPos: () => number | undefined;
+  private lastActive = false;
+  private handleEditorUpdate = () => this.syncActive();
+
+  constructor(
+    node: ProseMirrorNode,
+    cellMinWidth: number,
+    view: EditorView,
+    HTMLAttributes: Record<string, unknown>,
+    editor: Editor,
+    getPos: () => number | undefined
+  ) {
+    super(node, cellMinWidth, view, HTMLAttributes);
+    this.tvEditor = editor;
+    this.getPos = getPos;
+
+    // contentDOM(tbody) 밖, <table> 앞에 슬롯을 끼워 넣는다 — TableView.ignoreMutation이
+    // 이미 "wrapper 안·content 밖"을 편집 대상에서 제외해 주므로 여기 마운트되는 React
+    // UI는 ProseMirror에게 문서 변경으로 오인되지 않는다.
+    this.toolbarSlot = document.createElement("div");
+    this.dom.insertBefore(this.toolbarSlot, this.table);
+
+    this.renderer = new ReactRenderer(TableToolbar, {
+      editor,
+      props: { editor, active: false },
+    });
+    this.toolbarSlot.appendChild(this.renderer.element);
+
+    editor.on("selectionUpdate", this.handleEditorUpdate);
+    editor.on("transaction", this.handleEditorUpdate);
+    this.syncActive();
+  }
+
+  private syncActive() {
+    const pos = this.getPos();
+    const { from, to } = this.tvEditor.state.selection;
+    const active = typeof pos === "number" && from >= pos && to <= pos + this.node.nodeSize;
+    if (active === this.lastActive) return;
+    this.lastActive = active;
+    this.renderer.updateProps({ active });
+  }
+
+  update(node: ProseMirrorNode) {
+    const updated = super.update(node);
+    if (updated) this.syncActive();
+    return updated;
+  }
+
+  destroy() {
+    this.tvEditor.off("selectionUpdate", this.handleEditorUpdate);
+    this.tvEditor.off("transaction", this.handleEditorUpdate);
+    this.renderer.destroy();
+  }
+}
+
+const TableWithToolbar = Table.extend({
+  addNodeView() {
+    return ({ node, view, HTMLAttributes, getPos }) => {
+      const mergedAttributes = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes);
+      return new StickyTableView(
+        node,
+        this.options.cellMinWidth,
+        view,
+        mergedAttributes,
+        this.editor,
+        getPos
+      );
+    };
+  },
+});
 
 export interface RichTextEditorProps {
   content: JSONContent;
@@ -473,7 +678,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       Highlight.configure({ multicolor: true }),
       AttachmentImage,
       Panel,
-      Table.configure({ resizable: false }),
+      TableWithToolbar.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
@@ -561,7 +766,6 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
   return (
     <>
       {editor && <EditorBubbleMenu editor={editor} />}
-      {editor && <TableControls editor={editor} />}
       {/*
         2026-08-25에는 prose-sm(본문 14px)으로 낮췄었다 — 그런데 그 저해상도 노트북
         문제의 실제 원인은 헤더의 버튼/링크/태그류(px 낭비가 큰 UI 크롬)였지 본문
