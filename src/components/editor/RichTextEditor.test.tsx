@@ -281,3 +281,35 @@ describe("RichTextEditor 이미지 개수 상한(P0-4b)", () => {
     expect(uploadSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("RichTextEditor 코드블록 문법 강조(P1-7c)", () => {
+  /**
+   * language 속성을 지정하지 않아도 lowlight가 내용을 보고 자동으로 언어를 추정해
+   * 강조한다(CodeBlockLowlight의 실제 동작, node_modules 확인) — 그래서 language 없이도
+   * 최소 하나의 hljs-* 토큰 span이 나오는지만 확인한다. 정확히 어떤 토큰으로 분류되는지
+   * (예: "const"가 keyword로 분류되는지)는 lowlight/highlight.js 내부 언어 추정 로직에
+   * 달려 있어 이 프로젝트가 검증할 대상이 아니다 — "강조 자체가 동작하는가"만 확인한다.
+   */
+  it("코드블록 안의 코드에 문법 강조 토큰(hljs-*)이 붙는다", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              {
+                type: "codeBlock",
+                content: [{ type: "text", text: "const x = 1;\nconsole.log(x);" }],
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const codeEl = container.querySelector("pre code");
+    expect(codeEl).toBeInTheDocument();
+    expect(codeEl?.querySelector('[class^="hljs-"]')).not.toBeNull();
+  });
+});

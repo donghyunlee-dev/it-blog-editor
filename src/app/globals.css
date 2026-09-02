@@ -306,6 +306,74 @@ body {
 }
 
 /*
+ * P1-7c(코드블록 문법 강조): lowlight(highlight.js 기반)가 코드 안의 토큰마다
+ * `hljs-*` 클래스를 붙인 <span>으로 감싼다. 기성 하이라이트 테마(예: github/atom-one)를
+ * 그대로 가져오면 하드코딩된 hex 색상이 섞여 들어와 이 프로젝트 규칙(커스텀 색상은
+ * CSS Variables로만 참조)과 어긋난다 — 대신 이미 있는 시맨틱 토큰(brand/success/warning/
+ * danger/info/secondary/muted)에 토큰 종류를 의미상 매핑해서 다크/라이트 테마가 바뀌어도
+ * 자동으로 따라가게 한다. 표준 highlight.js 테마들의 일반적인 역할 배정(키워드=강조색,
+ * 문자열=success, 주석=muted 등)을 그대로 따랐다.
+ */
+.hljs-comment,
+.hljs-quote {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta {
+  color: var(--color-brand);
+}
+
+.hljs-string,
+.hljs-doctag,
+.hljs-regexp,
+.hljs-addition {
+  color: var(--color-success);
+}
+
+.hljs-number {
+  color: var(--color-warning);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-type,
+.hljs-built_in,
+.hljs-builtin-name {
+  color: var(--color-info);
+}
+
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+  color: var(--color-secondary);
+}
+
+.hljs-deletion {
+  color: var(--color-danger);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: 700;
+}
+
+/*
  * 다크 배경(#030712에 가까움)에서는 --color-brand 자체만으로도 대비 약 4.91:1로
  * 이미 AA를 통과한다 — 오히려 더 짙은 brand-hover를 쓰면 다크 배경에서 대비가
  * 약 3.06:1로 나빠진다. 그래서 링크색은 라이트/다크에서 서로 다른 브랜드 톤을

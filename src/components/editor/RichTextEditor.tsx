@@ -11,6 +11,8 @@ import StarterKit from "@tiptap/starter-kit";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
+import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
+import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Button, Popover, Tooltip, useToast } from "@sfood/ui";
@@ -699,6 +701,12 @@ export interface RichTextEditorProps {
   pageId?: string;
 }
 
+// P1-7c(코드블록 문법 강조): lowlight의 `common` 번들은 JS/TS/Python/Java/Go/Rust/SQL 등
+// 자주 쓰는 언어를 폭넓게 담고 있어(공식 문서 권장 기본값) 별도로 언어를 하나씩 고를
+// 필요가 없다. 인스턴스는 컴포넌트 바깥에서 한 번만 만든다 — 매 렌더마다 새로 만들 이유가
+// 없고, `useEditor`의 extensions 배열도 최초 마운트 시에만 실제로 쓰인다.
+const lowlight = createLowlight(common);
+
 export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
   const { toast } = useToast();
 
@@ -707,7 +715,14 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
         link: { openOnClick: false },
+        // 문법 강조가 있는 CodeBlockLowlight로 교체하므로 StarterKit 기본 codeBlock은 끈다.
+        codeBlock: false,
       }),
+      // 언어를 지정하지 않아도 lowlight가 내용을 보고 자동으로 언어를 추정해 강조한다
+      // (node_modules/@tiptap/extension-code-block-lowlight 확인 — language 속성이
+      // 없으면 lowlight.highlightAuto()로 폴백) — 이번 범위는 "문법 강조 추가"까지라
+      // 언어를 직접 고르는 UI는 범위 밖으로 뒀다(자동 추정으로 대부분의 경우 충분).
+      CodeBlockLowlight.configure({ lowlight }),
       TextStyle,
       Color,
       Highlight.configure({ multicolor: true }),
