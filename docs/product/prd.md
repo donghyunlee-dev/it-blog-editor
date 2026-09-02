@@ -1,6 +1,8 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9a(`documents/route.ts` 테스트) 완료. `[pageId]/versions/route.test.ts`가 세운 인증·도메인 함수 모킹 관례를 그대로 따랐다. 참고: P1-8은 [PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25)에서 별도로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 두 PR이 모두 병합되면 실제 진행률은 58/71이 된다)
+
+> 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9b(`documents/[pageId]/route.ts` 테스트) 완료. P1-9a와 동일한 인증·도메인 함수 모킹 관례를 그대로 따랐다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 세 PR이 모두 병합되면 실제 진행률은 59/71이 된다)
+
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -219,9 +221,9 @@
 - [x] (완료, P1-7c) 코드블록에 문법 강조를 추가한다 — `@tiptap/extension-code-block-lowlight` + `lowlight`(공식 `common` 언어 번들 — JS/TS/Python/Java/Go/Rust/SQL 등)로 강조를 추가했다. `language` 속성을 지정하지 않아도 `lowlight.highlightAuto()`로 자동 추정 폴백된다는 것을 소스로 확인해, 언어 선택 UI 없이도 동작하게 했다(범위 밖으로 명시). 강조 색상은 기성 테마의 하드코딩 hex 대신 이 프로젝트의 기존 시맨틱 토큰(`--color-brand`=키워드, `--color-success`=문자열, `--color-warning`=숫자, `--color-info`=타입/이름, `--color-muted`=주석 등)에 매핑해 다크 모드 전환을 자동으로 따르게 했다. 설치 전 `npm view`로 버전별 peerDependencies를 확인해, 최신 버전(3.31.0)이 요구하는 `@tiptap/core@3.31.0`이 이 프로젝트의 다른 `@tiptap/*` 패키지(전부 3.30.2)와 어긋난다는 걸 미리 발견하고 `3.30.2`로 맞춰 설치했다. 언어 선택 UI, 공개 뷰어·Confluence storage 포맷에의 강조 정보 반영은 범위 밖. AX Auth 로그인 제약으로 실제 화면에서의 시각적 확인(색상 대비 등)은 하지 못했다. 산출물: `docs/superpowers/tasks/P1-7c-codeblock-syntax-highlighting/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx, src/app/globals.css, package.json
 - [x] (완료, P1-7d) Word/Google Docs 붙여넣기 서식을 정제하는 로직을 추가한다 — 단순 HTML 클린업이 아니라 실제 버그였다: `@tiptap/extension-text-style`의 `TextStyle`/`Color`가 `style` 속성이 있는 아무 `<span>`이든 매치해 그 안의 `color`를 그대로 마크로 만든다는 것을 소스로 확인했는데, Word·Google Docs는 텍스트 조각마다 `<span style="color:...">`를 내보내므로 붙여넣기가 "글자색은 정해진 스와치로만"이라는 기존 결정(2026-08-26)을 조용히 우회하고 있었다. `RichTextEditor.tsx`에 `stripPastedInlineStyles`를 추가해 `editorProps.transformPastedHTML`로 외부에서 붙여넣은 HTML의 인라인 `style` 속성을 전부 제거한다 — 출처(Word/Google Docs/기타 웹사이트)를 구분하지 않고 일괄 적용한다(스키마가 애초에 임의 인라인 스타일을 지원하지 않으므로 출처 무관 같은 해법). 같은 세션 내부 복사-붙여넣기는 ProseMirror가 클립보드 HTML을 재파싱하지 않는 내부 최적화 경로를 타 영향받지 않는다. Word의 사이비 리스트(`mso-list`)를 진짜 리스트로 재구성하는 것, 링크 스킴 검증(이미 `@tiptap/extension-link`가 자체 처리)은 범위 밖. AX Auth 로그인 제약으로 실제 Word/Google Docs 문서를 붙여넣는 엔드투엔드 확인은 하지 못했다. **실사용 확인 중 이 항목과 무관한 기존 버그(새 문서 생성 직후 태그 저장 404) 를 발견해 같은 PR에 함께 고쳤다** — Confluence 라벨 조회가 방금 생성된 페이지를 아직 인식하지 못하는 것으로 보여, `DocumentEditor.tsx`의 `saveTags`에 새 문서 생성 직후에 한해서만(기존 문서 수정 시 404는 그대로 즉시 실패) 짧은 재시도를 추가했다. 붙여넣은 이미지가 화면에 안 보이는 문제도 실제 파이프라인으로 재현해 원인(Word는 로컬 파일 경로, Google Docs는 접근이 막힐 수 있는 외부 URL을 참조해 로드 자체가 안 됨)을 확인했지만, 진짜 해법(클립보드의 이미지 파일을 재업로드)은 범위가 훨씬 커 이번엔 원인 확인까지만 하고 수정은 사용자 확인 후 별도로 진행한다. 산출물: `docs/superpowers/tasks/P1-7d-paste-cleanup/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx, src/components/editor/DocumentEditor.tsx
 - [ ] (P1-8) 삽입된 이미지에 대체 텍스트(alt)를 입력할 수 있는 UI를 추가한다. — [PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25)에서 별도로 진행 중, 아직 main에 병합되지 않음.
-- [x] (완료, P1-9a) `documents/route.ts`(목록 조회·생성) 테스트를 추가한다 — `[pageId]/versions/route.test.ts`가 세운 관례(인증·도메인 함수를 `vi.mock`으로 모듈째 대체, `Request` 직접 생성)를 그대로 따라 `GET`/`POST` 7건을 추가했다. 산출물: `docs/superpowers/tasks/P1-9a-documents-route-test/{task,plan,result,test}.md`, src/app/api/editor/documents/route.test.ts
+- [ ] (P1-9a) `documents/route.ts`(목록 조회·생성) 테스트를 추가한다. — [PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26)에서 별도로 진행 중, 아직 main에 병합되지 않음.
+- [x] (완료, P1-9b) `documents/[pageId]/route.ts`(수정·삭제) 테스트를 추가한다 — P1-9a와 동일한 관례(인증·도메인 함수를 `vi.mock`)를 따라 `PUT`/`DELETE` 7건을 추가했다. 소유자 검증(`requireDocumentOwner`)·낙관적 동시성(`ConflictError`→409)·라우트 자신이 직접 던지는 `version` 검증을 모두 확인했다. 산출물: `docs/superpowers/tasks/P1-9b-document-detail-route-test/{task,plan,result,test}.md`, src/app/api/editor/documents/[pageId]/route.test.ts
 
-- [ ] (P1-9b) `documents/[pageId]/route.ts`(수정·삭제) 테스트를 추가한다.
 - [ ] (P1-9c) `documents/[pageId]/images/route.ts` 테스트를 추가한다.
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다.
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다.
