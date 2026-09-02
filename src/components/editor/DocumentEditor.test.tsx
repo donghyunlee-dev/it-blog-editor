@@ -337,6 +337,63 @@ describe("DocumentEditor", () => {
     );
   });
 
+  /**
+   * 2026-09-02 실사용 확인: 새 문서를 만들자마자 그 pageId로 태그를 저장하면 서버가
+   * 404를 준 뒤(서버 로그로 재현 확인) 곧바로 다시 시도하면 성공하는 사례가 있었다 —
+   * Confluence의 라벨 조회가 방금 만든 페이지를 아직 인식하지 못하는 것과 일치하는
+   * 증상이라, 새 문서 생성 직후에 한해 짧게 재시도한다.
+   */
+  it("새 문서 생성 직후 태그 저장이 404면 한 번 재시도해 성공시킨다", async () => {
+    let tagsCallCount = 0;
+    const fetchMock = stubFetch((url) => {
+      if (url.endsWith("/tags")) {
+        tagsCallCount += 1;
+        return tagsCallCount === 1
+          ? jsonResponse({ error: { code: "NOT_FOUND", message: "문서를 찾을 수 없습니다." } }, 404)
+          : jsonResponse({ pageId: "new-1", tags: ["Backend"] });
+      }
+      return jsonResponse({ pageId: "new-1", version: 1 }, 201);
+    });
+
+    renderEditor(<DocumentEditor mode="create" />);
+
+    await userEvent.type(screen.getByLabelText("제목"), "새 문서");
+    await userEvent.type(
+      screen.getByPlaceholderText("예: React, Backend"),
+      "Backend{Enter}"
+    );
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(await screen.findByText("저장되었습니다.")).toBeInTheDocument();
+    expect(tagsCallCount).toBe(2);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/editor/documents/new-1/tags",
+      expect.objectContaining({ method: "PUT" })
+    );
+  });
+
+  it("기존 문서를 수정할 때는 태그 저장이 404여도 재시도하지 않고 바로 경고로 알린다", async () => {
+    let tagsCallCount = 0;
+    stubFetch((url) => {
+      if (url.endsWith("/tags")) {
+        tagsCallCount += 1;
+        return jsonResponse({ error: { code: "NOT_FOUND", message: "문서를 찾을 수 없습니다." } }, 404);
+      }
+      return jsonResponse({ pageId: "page-1", version: 2 });
+    });
+
+    renderEditor(<DocumentEditor {...EDIT_PROPS} initialTags={["React"]} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(
+      await screen.findByText(
+        "문서는 저장했지만 태그 저장에 실패했습니다: 문서를 찾을 수 없습니다."
+      )
+    ).toBeInTheDocument();
+    expect(tagsCallCount).toBe(1);
+  });
+
   it("문서 저장은 성공했지만 태그 저장이 실패하면 경고 토스트로 구분해 알린다", async () => {
     stubFetch((url) =>
       url.endsWith("/tags")

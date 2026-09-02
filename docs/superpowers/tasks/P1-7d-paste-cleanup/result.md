@@ -9,17 +9,33 @@
 
 **내부 복사-붙여넣기는 영향 없음**: 같은 브라우저 탭·세션 안에서 이 에디터 자신의 콘텐츠를 복사해 다시 붙여넣는 흔한 경우는, ProseMirror가 브라우저 클립보드 HTML을 실제로 재파싱하지 않고 원본 슬라이스를 그대로 재사용하는 내부 최적화 경로를 타므로 `transformPastedHTML` 자체가 호출되지 않는다 — 영향받는 것은 정말 외부에서 오는 붙여넣기뿐이다.
 
+## 2026-09-02 사용자 실사용 확인 — 두 가지 발견
+
+### 1) 태그 저장 404 (수정 완료, 이 PR에 포함)
+"태그 저장 실패가 발생해"라는 보고를 받고 dev 서버 로그를 직접 확인해 `PUT /api/editor/documents/{새 pageId}/tags`가 문서 생성 직후 404를 반환하는 것을 재현 확인했다 — **이 항목(붙여넣기 서식 정제)과는 무관한, 별개의 기존 버그**다(오늘 작업 중 어떤 것도 태그·문서 생성 코드를 건드리지 않았다). 원인을 추적한 결과: `POST /api/editor/documents`가 성공 응답을 준 직후 그 pageId로 곧바로 태그를 저장하는데(`DocumentEditor.tsx`), `getTags`가 쓰는 Confluence 라벨 조회(`listLabels`)가 방금 생성된 페이지를 아직 인식하지 못하는 것으로 보인다 — 같은 요청의 `requireDocumentOwner`(페이지 속성 조회)는 통과하는데 그 다음 라벨 조회만 404가 나는 것이 정확히 이 패턴과 일치한다. `DocumentEditor.tsx`의 `saveTags`에 **새 문서 생성 직후에 한해서만** 짧은 재시도(최대 2회, 600ms/1200ms 간격)를 추가했다 — 기존 문서 수정 시의 404는 그대로 즉시 실패로 처리한다(그때는 진짜로 문서가 삭제된 경우일 수 있어, `getTags`의 기존 주석이 이미 그 이유를 설명하고 있다).
+
+### 2) 이미지 붙여넣기가 조용히 사라짐 (원인 확인, 수정은 보류 — 사용자 확인 필요)
+실제로 재현해서 확인한 결과: Word/Google Docs에서 이미지가 포함된 콘텐츠를 붙여넣으면, 이미지가 텍스트 노드로조차 안 만들어지는 게 아니라 **`<img>` 노드 자체는 정상적으로 만들어지지만, 그 `src`가 우리 페이지에서 로드할 수 없는 값**이라 화면에는 아무것도 안 보이는 것으로 확인했다:
+- Word는 이미지를 로컬 파일 경로(`file:///C:/Users/.../image001.png`)로 참조한다 — 브라우저 보안 정책상 웹페이지가 사용자의 로컬 파일을 불러올 방법이 원천적으로 없다.
+- Google Docs는 자체 호스팅 URL(`https://lh3.googleusercontent.com/...`)로 참조하는데, 접근 권한·CORS 정책에 따라 로드되지 않을 수 있다.
+
+이건 이 세션이 만든 `stripPastedInlineStyles`(스타일 속성만 제거) 때문이 아니라는 것을 실제 파이프라인으로 직접 재현해 확인했다. **진짜 해법**은 붙여넣은 이미지를 우리 자신의 `uploadImage` 파이프라인으로 다시 업로드하는 것인데, 이건 클립보드의 파일(blob) 데이터를 직접 다뤄야 하고 붙여넣은 텍스트를 보존하면서 이미지만 따로 처리해야 해서 이번 "인라인 스타일 제거"보다 훨씬 큰 작업이다 — 이번 PR에는 포함하지 않았고, 사용자에게 범위(지금 고칠지, 별도 항목으로 미룰지)를 확인 중이다.
+
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
 |------|---------|
 | `src/components/editor/RichTextEditor.tsx` | `stripPastedInlineStyles` 함수 추가, `editorProps.transformPastedHTML`에 연결 |
 | `src/components/editor/RichTextEditor.test.tsx` | 신규 테스트 1건(+ `firePasteHtml` 헬퍼) |
+| `src/components/editor/DocumentEditor.tsx` | `saveTags`에 새 문서 생성 직후 한정 재시도 추가(태그 저장 404 수정) |
+| `src/components/editor/DocumentEditor.test.tsx` | 신규 테스트 2건(재시도 성공 케이스, 기존 문서는 재시도 안 함 케이스) |
 | `docs/product/prd.md` | P1-7d 체크리스트 완료 표시 |
 
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
 | `7d2f533` | fix: strip inline styles from external paste |
+| `f42ea8b` | docs: record P1-7d commit SHA in result.md |
+| (아래 참고) | fix: retry tag save once for a just-created document (사용자 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항

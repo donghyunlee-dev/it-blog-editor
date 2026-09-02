@@ -22,9 +22,22 @@ dev 서버(`http://localhost:3100`)를 확인해 컴파일 에러가 없음을 �
 - **조치**: mock의 `getData`가 `text/html`/`text/plain` 외의 타입에는 빈 문자열을 돌려주도록 고쳤다(실제 브라우저에서 `vscode-editor-data`는 VS Code에서 복사한 경우에만 채워지고 그 외에는 항상 빈 문자열이므로, 이 수정이 실제 동작과 더 정확히 일치한다).
 - **재검증 결과**: `npx vitest run src/components/editor/RichTextEditor.test.tsx -t "붙여넣기"` 1/1 통과.
 
+## 2026-09-02 사용자 실사용 확인 후 발견·조치
+
+### 태그 저장 404 (조치 완료)
+- **원인**: dev 서버 로그에서 `PUT /api/editor/documents/{새 pageId}/tags` 404를 직접 확인했다. 새 문서 생성(`POST`) 직후 그 pageId로 곧바로 태그를 저장하는데, Confluence의 라벨 조회(`listLabels`)가 방금 생성된 페이지를 아직 인식하지 못하는 것으로 보인다.
+- **조치**: `DocumentEditor.tsx`의 `saveTags`에 `retryOnNotFound` 옵션을 추가하고, `mode === "create"`일 때만 켰다 — 404를 받으면 600ms/1200ms 간격으로 최대 2회 재시도한다.
+- **재검증 결과**: 신규 테스트 2건 추가 — (1) 새 문서 생성 직후 첫 태그 저장이 404, 재시도한 두 번째 요청이 성공하면 "저장되었습니다." 성공 토스트가 뜨는지, (2) 기존 문서 수정 시 태그 저장이 404면 재시도 없이 요청이 정확히 1번만 나가고 바로 경고 토스트가 뜨는지. `npx vitest run src/components/editor/DocumentEditor.test.tsx -t "태그 저장"` 4/4 통과, `npm test`(전체) 267/267, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과.
+
+### 이미지 붙여넣기 실패 (원인 확인, 수정 보류)
+- **재현**: `RichTextEditor`에 실제 paste 이벤트로 Word 스타일 HTML(`<img src="file:///...">`)과 Google Docs 스타일 HTML(`<img src="https://lh3.googleusercontent.com/...">`)을 각각 시뮬레이션해, 실제 파이프라인(`transformPastedHTML` → ProseMirror 파싱)을 그대로 통과시킨 뒤 결과 DOM을 직접 확인했다(스크래치 테스트, 커밋하지 않고 확인 후 삭제).
+- **결과**: 두 경우 모두 `<img>` 노드 자체는 정상적으로 만들어졌다(`stripPastedInlineStyles`가 이미지를 지우는 게 아님을 확인) — 다만 `src`가 로컬 파일 경로(Word)이거나 외부 호스팅 URL(Google Docs)이라, 우리 페이지에서 실제로 로드되지 않아 화면에는 아무것도 안 보이는 것으로 보인다.
+- **판단**: 진짜 해법(클립보드의 실제 이미지 파일 데이터를 우리 `uploadImage` 파이프라인으로 재업로드)은 이번 "인라인 스타일 제거"보다 범위가 훨씬 크다 — 이번 PR에는 포함하지 않고, 사용자에게 지금 처리할지 별도 항목으로 미룰지 확인 중이다.
+
 ## 검증 중 새로 발견한 결정 사항
-없음.
+없음(태그 저장 재시도 값은 P0-4b/P1-6a와 같은 근거로 GitHub Issue 없이 직접 정함).
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`)을 모두 만족함
+- [x] 수용 기준(`task.md`)을 모두 만족함 — 인라인 스타일 제거(원래 범위)와 태그 저장 404(실사용 중 발견해 같은 PR에 포함) 모두 조치 완료
 - [ ] 🔶 실제 Word/Google Docs 문서를 붙여넣는 엔드투엔드 확인은 AX Auth 제약으로 하지 못함 — 사용자 확인 요청
+- [ ] 🔶 이미지 붙여넣기 실패는 원인만 확인했고 수정은 사용자 확인 후 별도로 진행
