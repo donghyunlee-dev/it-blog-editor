@@ -31,7 +31,7 @@
 | `7b125ad` | docs: record P1-7b commit SHA in result.md |
 | `cd8a09f` | fix: anchor column-resize-handle to its own cell (1차 실사용 확인 후 수정) |
 | `b3879bd` | docs: record resize-handle fix commit SHA in result.md |
-| (아래 참고) | fix: raise column-resize-handle z-index above sibling cells (2차 실사용 확인 후 수정) |
+| `6a0aa2f` | fix: raise column-resize-handle z-index above sibling cells (2차 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
