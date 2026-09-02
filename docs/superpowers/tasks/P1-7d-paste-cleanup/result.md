@@ -19,7 +19,7 @@
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
-| (result.md 작성 후 커밋 예정) | |
+| `7d2f533` | fix: strip inline styles from external paste |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
