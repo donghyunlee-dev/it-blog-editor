@@ -103,7 +103,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
     expect(container.querySelector("table")).not.toBeInTheDocument();
   });
 
-  it("커서가 표 안에 있으면 행/열 추가·삭제 버튼이 모두 보인다", () => {
+  it("커서가 표 안에 있으면 행/열 추가·삭제 버튼이 모두 보인다", async () => {
     render(
       <ToastProvider>
         <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
@@ -111,7 +111,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
     );
 
     for (const label of ["행 추가(위)", "행 추가(아래)", "행 삭제", "열 추가(왼쪽)", "열 추가(오른쪽)", "열 삭제"]) {
-      expect(screen.getByLabelText(label)).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText(label)).toBeInTheDocument());
     }
   });
 
@@ -124,7 +124,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
 
     expect(tableRowCount(container)).toBe(2);
 
-    screen.getByLabelText("행 추가(아래)").click();
+    (await screen.findByLabelText("행 추가(아래)")).click();
 
     await waitFor(() => expect(tableRowCount(container)).toBe(3));
   });
@@ -136,7 +136,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
       </ToastProvider>
     );
 
-    screen.getByLabelText("행 삭제").click();
+    (await screen.findByLabelText("행 삭제")).click();
 
     await waitFor(() => expect(tableRowCount(container)).toBe(1));
   });
@@ -150,7 +150,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
 
     expect(tableColumnCount(container)).toBe(2);
 
-    screen.getByLabelText("열 추가(오른쪽)").click();
+    (await screen.findByLabelText("열 추가(오른쪽)")).click();
 
     await waitFor(() => expect(tableColumnCount(container)).toBe(3));
   });
@@ -162,7 +162,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
       </ToastProvider>
     );
 
-    screen.getByLabelText("열 삭제").click();
+    (await screen.findByLabelText("열 삭제")).click();
 
     await waitFor(() => expect(tableColumnCount(container)).toBe(1));
   });
@@ -183,7 +183,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
       </ToastProvider>
     );
 
-    screen.getByLabelText("행 삭제").click();
+    (await screen.findByLabelText("행 삭제")).click();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(tableRowCount(container)).toBe(1);
@@ -196,19 +196,20 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
       </ToastProvider>
     );
 
-    screen.getByLabelText("열 삭제").click();
+    (await screen.findByLabelText("열 삭제")).click();
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(tableColumnCount(container)).toBe(1);
   });
 
   /**
-   * P1-7a 3차 재설계의 핵심 목표: 표마다 독립된 NodeView(`StickyTableView`)가 "커서가
-   * 이 표의 [pos, pos+nodeSize) 범위 안에 있는가"를 직접 계산해 컨트롤 표시 여부를
-   * 결정한다 — `editor.isActive("table")`만으로는 표가 여러 개일 때 "어떤" 표인지
-   * 구분할 수 없어 이 시나리오를 검증할 수 없다.
+   * P1-7a 3차 재설계의 핵심 목표: 표마다 독립된 NodeView(팩토리로 만든 `StickyTableView`)가
+   * "커서가 이 표 노드와 같은 객체인가"(`findParentNodeClosestToPos` + 참조 비교, P1-7b에서
+   * `getPos` 의존을 없애며 바뀜)를 직접 계산해 컨트롤 표시 여부를 결정한다 —
+   * `editor.isActive("table")`만으로는 표가 여러 개일 때 "어떤" 표인지 구분할 수 없어 이
+   * 시나리오를 검증할 수 없다.
    */
-  it("문서에 표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다", () => {
+  it("문서에 표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다", async () => {
     const doc: JSONContent = {
       type: "doc",
       content: [
@@ -225,7 +226,7 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
     );
 
     // 초기 선택은 문서 첫 표(A) 안에 있으므로, 두 표 중 정확히 하나의 컨트롤 세트만 보여야 한다.
-    expect(screen.getAllByLabelText("행 추가(아래)")).toHaveLength(1);
+    await waitFor(() => expect(screen.getAllByLabelText("행 추가(아래)")).toHaveLength(1));
   });
 });
 
