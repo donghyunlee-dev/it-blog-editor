@@ -12,18 +12,22 @@
 
 **CSS 추가**: prosemirror-tables의 `columnResizing`은 CSS를 전혀 제공하지 않는다(소스 확인) — `globals.css`에 손잡이(`.column-resize-handle`)·드래그 커서(`.resize-cursor`)·표가 넓어질 때의 가로 스크롤(`.tableWrapper { overflow-x: auto }`)을 추가했다(TipTap 공식 문서가 권장하는 CSS를 이 프로젝트의 CSS 변수 토큰에 맞게 이식).
 
+**2026-09-02 사용자 실사용 확인 후 CSS 버그 수정**: "리사이즈 할 때 컨텐츠 영역 우측에 레드 바가 보인다"는 신고를 받았다. 손잡이 자체는 의도된 기능이 맞았지만(브랜드 컬러 `--color-brand`가 실제로 빨간색 `#e4002b`), 위치가 잘못돼 있었다 — prosemirror-tables는 손잡이 `<div>`를 각 셀의 DOM 안에 직접 끼워 넣고 `position: absolute; right: -2px`로 "그 셀 기준 오른쪽 끝"에 배치하는데, 기준이 되어야 할 `td`/`th`에 `position: relative`가 빠져 있어 브라우저가 포지셔닝 기준을 계속 위로 찾아 올라가다 결국 뷰포트 기준으로 떨어져 화면 오른쪽 끝에 막대로 보였다. `.ProseMirror table td, .ProseMirror table th`에 `position: relative`를 추가해 손잡이가 자기 컬럼 경계에 정확히 붙도록 고쳤다 — 사용자가 "불필요하면 제거"라고 물었지만, 실제로는 필요한 기능(리사이즈 손잡이)이 위치 버그로 엉뚱하게 보였던 것이라 삭제 대신 위치를 고쳤다.
+
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
 |------|---------|
 | `src/components/editor/RichTextEditor.tsx` | `resizable: true`로 전환, `StickyTableView`를 `createStickyTableView(editor)` 팩토리로 리팩터링(`getPos` 의존 제거, `findParentNodeClosestToPos` 기반 판단으로 교체), `TableWithToolbar`의 `addNodeView`/`addProseMirrorPlugins` 함께 오버라이드 |
 | `src/components/editor/RichTextEditor.test.tsx` | 기존 P1-7a 테스트 9건을 새 렌더링 경로(초기 마운트 시 NodeView가 한 번 더 재구성되며 생기는 비동기 타이밍)에 맞춰 `findByLabelText`/`waitFor`로 조정(아래 "발견된 문제" 참고) |
-| `src/app/globals.css` | `.tableWrapper`/`.resize-cursor`/`.column-resize-handle` 추가 |
+| `src/app/globals.css` | `.tableWrapper`/`.resize-cursor`/`.column-resize-handle` 추가, `td`/`th`에 `position: relative` 추가(손잡이 위치 버그 수정) |
 | `docs/product/prd.md` | P1-7b 체크리스트 완료 표시 |
 
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
 | `7790753` | feat: enable table column resize |
+| `7b125ad` | docs: record P1-7b commit SHA in result.md |
+| (아래 참고) | fix: anchor column-resize-handle to its own cell (사용자 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항

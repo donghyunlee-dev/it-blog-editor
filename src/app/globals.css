@@ -154,6 +154,7 @@ body {
 
 .ProseMirror table td,
 .ProseMirror table th {
+  position: relative;
   border: 1px solid var(--color-border);
   padding: 0.5rem 0.75rem;
   text-align: left;
@@ -169,6 +170,15 @@ body {
  * 제공하지 않는다(node_modules/prosemirror-tables 확인) — 이 세 규칙이 없으면 리사이즈
  * 자체는 동작해도 손잡이가 안 보이고 드래그 중 커서도 안 바뀐다. TipTap 공식 문서가
  * 리사이즈 활성화 시 함께 쓰라고 권장하는 CSS를 이 프로젝트 토큰에 맞게 그대로 옮겼다.
+ *
+ * 2026-09-02 실사용 확인: 손잡이(.column-resize-handle)가 원래 붙어야 할 컬럼 경계가
+ * 아니라 콘텐츠 영역 오른쪽 끝에 막대로 보인다는 신고를 받았다. 원인은 이 CSS가 아니라
+ * 위쪽 `td`/`th` 규칙에 `position: relative`가 빠져 있었던 것이다 — prosemirror-tables는
+ * 이 손잡이 <div>를 각 셀의 DOM 안에 직접 끼워 넣고 `position: absolute; right: -2px`로
+ * "그 셀 기준 오른쪽 끝"에 두는데, 기준이 되어야 할 셀 자체가 `position: static`이면
+ * 브라우저가 포지셔닝 기준을 계속 위로 찾아 올라가다 결국 뷰포트 기준으로 떨어져(빠진
+ * 포지셔닝 컨텍스트) 엉뚱하게 화면 오른쪽 끝에 붙어버린다. `td`/`th`에 `position: relative`
+ * 를 추가해 손잡이가 자기 컬럼 경계에 정확히 붙게 고쳤다.
  */
 .tableWrapper {
   overflow-x: auto;
