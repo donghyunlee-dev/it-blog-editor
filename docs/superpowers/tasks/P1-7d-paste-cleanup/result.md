@@ -35,7 +35,7 @@
 |-----|--------|
 | `7d2f533` | fix: strip inline styles from external paste |
 | `f42ea8b` | docs: record P1-7d commit SHA in result.md |
-| (아래 참고) | fix: retry tag save once for a just-created document (사용자 실사용 확인 후 수정) |
+| `3061303` | fix: retry tag save once for a just-created document (사용자 실사용 확인 후 수정) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
