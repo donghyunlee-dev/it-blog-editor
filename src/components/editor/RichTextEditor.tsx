@@ -47,6 +47,29 @@ function countImageNodes(doc: ProseMirrorNode): number {
   return count;
 }
 
+/**
+ * P1-7d(Word/Google Docs 붙여넣기 서식 정제): Word·Google Docs는 텍스트 조각마다
+ * `<span style="color:...; font-family:...; mso-...">`처럼 인라인 스타일을 촘촘히
+ * 붙여서 내보낸다. 이 프로젝트의 `TextStyle`/`Color` 마크는 `style` 속성이 있는 `<span>`을
+ * 만나면 그 안의 `color`를 그대로 읽어들이도록 되어 있다(`@tiptap/extension-text-style`
+ * 확인) — 즉 붙여넣기를 그대로 두면, 글자색 팔레트를 정해진 스와치로만 고르게 제한한
+ * 기존 결정(2026-08-26, "임의 색을 못 고르게 했다")이 붙여넣기 경로로는 그냥 우회된다.
+ * 원본 출처가 Word인지 Google Docs인지 감지해서 다르게 처리하지 않는다 — 이 스키마가
+ * 애초에 임의의 인라인 스타일을 지원하지 않으므로, 어느 외부 출처에서 오든 `style` 속성은
+ * 전부 걷어내는 것이 같은 문제(색상·폰트·크기 등 브랜드 톤과 무관한 서식이 새어 들어옴)의
+ * 근본 해결이다. 같은 세션 안에서 이 에디터 자신이 만든 텍스트를 복사해 다시 붙여넣는
+ * 경우는 ProseMirror가 그 붙여넣기를 브라우저 클립보드 HTML 재파싱 없이 원본 슬라이스를
+ * 그대로 재사용하는 내부 최적화 경로를 타므로(같은 탭·같은 세션 한정) 이 변환을 거치지
+ * 않아 서식이 그대로 유지된다 — 영향받는 것은 외부 출처에서 오는 붙여넣기뿐이다.
+ */
+function stripPastedInlineStyles(html: string): string {
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  parsed.body.querySelectorAll("[style]").forEach((element) => {
+    element.removeAttribute("style");
+  });
+  return parsed.body.innerHTML;
+}
+
 /** 드롭/붙여넣기로 받은 이미지를 업로드한 뒤, 해당 위치에 image 노드를 삽입한다. */
 function insertUploadedImage(
   view: EditorView,
@@ -760,6 +783,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       // 브라우저 기본 맞춤법 검사가 한글 문장 곳곳에 빨간 물결 밑줄을 그려 Notion/Confluence
       // 캡쳐와 나란히 비교했을 때 유독 지저분해 보였다(2026-08-26, 사용자 피드백).
       attributes: { spellcheck: "false" },
+      transformPastedHTML: stripPastedInlineStyles,
       handleDrop: (view, event) => {
         const file = event.dataTransfer?.files?.[0];
         if (!file || !file.type.startsWith("image/")) return false;

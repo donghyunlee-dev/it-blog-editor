@@ -52,6 +52,29 @@ function firePaste(container: HTMLElement, file: File) {
   target.dispatchEvent(event);
 }
 
+/**
+ * Word/Google Docs 등 외부 출처의 HTML 붙여넣기를 흉내 낸다(파일 없이 text/html만).
+ * `text/html`/`text/plain` 외의 타입(예: VS Code 붙여넣기 감지용 `vscode-editor-data`)은
+ * 빈 문자열을 돌려줘야 한다 — 그렇지 않으면 다른 확장(@tiptap/extension-code-block의
+ * VS Code 붙여넣기 핸들러)이 그 값을 JSON으로 파싱하려다 실패한다.
+ */
+function firePasteHtml(container: HTMLElement, html: string, text: string) {
+  const target = container.querySelector(".ProseMirror") as HTMLElement;
+  const event = new Event("paste", { bubbles: true, cancelable: true }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: [],
+      types: ["text/html", "text/plain"],
+      getData: (type: string) => {
+        if (type === "text/html") return html;
+        if (type === "text/plain") return text;
+        return "";
+      },
+    },
+  });
+  target.dispatchEvent(event);
+}
+
 function tableNode(rows = 2, cols = 2, label = ""): JSONContent {
   return {
     type: "table",
@@ -311,5 +334,40 @@ describe("RichTextEditor 코드블록 문법 강조(P1-7c)", () => {
     const codeEl = container.querySelector("pre code");
     expect(codeEl).toBeInTheDocument();
     expect(codeEl?.querySelector('[class^="hljs-"]')).not.toBeNull();
+  });
+});
+
+describe("RichTextEditor 붙여넣기 서식 정제(P1-7d)", () => {
+  /**
+   * Word/Google Docs는 텍스트 조각마다 `<span style="color:...">`를 촘촘히 붙여 내보낸다.
+   * 이 프로젝트의 Color 마크는 style이 있는 span을 만나면 그 color를 그대로 읽어들이므로
+   * (실측 확인), 정제 없이 붙여넣으면 "글자색은 정해진 스와치로만" 제한한 기존 결정이
+   * 붙여넣기 경로로 우회된다 — 그 우회가 실제로 막혔는지 확인한다.
+   */
+  it("외부에서 붙여넣은 인라인 스타일(색상)이 문서에 반영되지 않는다", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [] }] }}
+          onChange={onChange}
+        />
+      </ToastProvider>
+    );
+
+    firePasteHtml(
+      container,
+      '<span style="color: rgb(255, 0, 0); font-family: Arial;">외부 텍스트</span>',
+      "외부 텍스트"
+    );
+
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+
+    // stripPastedInlineStyles가 style 속성을 걷어내면 textStyle 마크의 parseHTML 규칙
+    // 자체가 매치하지 않아(구현이 `!element.hasAttribute("style")`이면 규칙을 아예
+    // 적용하지 않는다) 색상 마크가 붙지 않는다 — 그래서 style이 있는 요소 자체가
+    // 없어야 하고, 텍스트 내용만 그대로 살아있어야 한다.
+    expect(container.querySelector(".ProseMirror [style]")).toBeNull();
+    expect(container.textContent).toContain("외부 텍스트");
   });
 });
