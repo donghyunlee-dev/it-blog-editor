@@ -290,24 +290,50 @@ export function DocumentEditor({
    * 태그는 문서 저장 API가 아니라 전용 엔드포인트로 저장한다. 문서 본문 저장이 이미
    * 성공한 뒤에 호출되므로, 실패를 예외로 올려 "저장 실패"로 보이게 하면 사실과 다르다.
    * 그래서 실패 사유를 문자열로 돌려주고 호출부가 경고 토스트로 구분해 알린다.
+   *
+   * `retryOnNotFound`는 새 문서를 만든 직후에만 켠다(2026-09-02, 실사용 확인) — 문서
+   * 생성 응답(`POST /api/editor/documents`)이 이미 확인된 뒤 그 pageId로 곧바로 태그를
+   * 저장하는데도 `PUT .../tags`가 404를 던지는 사례를 서버 로그로 확인했다. 원인을
+   * 추적해보니 `getTags`가 쓰는 Confluence 라벨 조회(`listLabels`)가, 방금 만든 페이지의
+   * 속성(`authorMeta`)은 이미 읽을 수 있는데도(같은 요청의 `requireDocumentOwner`는
+   * 통과함) 그보다 늦게 반영되는 것으로 보인다 — Confluence의 라벨 하위 시스템이 방금
+   * 생성된 페이지를 아직 인식하지 못한 것과 일치하는 증상이다. 기존 문서를 수정할 때는
+   * 이런 "막 생성된 페이지" 지연이 있을 이유가 없어 재시도를 켜지 않는다 — 그때의 404는
+   * 진짜로 문서가 삭제된 경우일 수 있어(`getTags`의 기존 주석 참고), 불필요하게 재시도로
+   * 늦게 알리고 싶지 않다.
    */
-  async function saveTags(currentPageId: string): Promise<string | null> {
-    try {
-      const response = await fetch(
-        `/api/editor/documents/${currentPageId}/tags`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tags }),
+  async function saveTags(
+    currentPageId: string,
+    options?: { retryOnNotFound?: boolean }
+  ): Promise<string | null> {
+    const maxAttempts = options?.retryOnNotFound ? 3 : 1;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const response = await fetch(
+          `/api/editor/documents/${currentPageId}/tags`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ tags }),
+          }
+        );
+        if (response.ok) {
+          return null;
         }
-      );
-      if (!response.ok) {
+        if (response.status === 404 && attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+          continue;
+        }
         return await errorMessageOf(response, "태그 저장에 실패했습니다.");
+      } catch (err) {
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
+          continue;
+        }
+        return err instanceof Error ? err.message : "태그 저장에 실패했습니다.";
       }
-      return null;
-    } catch (err) {
-      return err instanceof Error ? err.message : "태그 저장에 실패했습니다.";
     }
+    return "태그 저장에 실패했습니다.";
   }
 
   /**
@@ -464,7 +490,9 @@ export function DocumentEditor({
 
       // 새 문서도 생성 응답으로 받은 pageId로 곧바로 태그를 저장한다. 그렇지 않으면
       // 첫 저장에서 입력한 태그가 조용히 사라진다.
-      const tagError = currentPageId ? await saveTags(currentPageId) : null;
+      const tagError = currentPageId
+        ? await saveTags(currentPageId, { retryOnNotFound: mode === "create" })
+        : null;
       if (tagError) {
         toast(`문서는 저장했지만 태그 저장에 실패했습니다: ${tagError}`, "warning");
       } else {
