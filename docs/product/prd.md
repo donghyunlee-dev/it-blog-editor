@@ -1,7 +1,7 @@
 # 📄 PRD — SFOOD IT Editor
 
 
-> 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9c(`documents/[pageId]/images/route.ts` 테스트) 완료. 라우트 자신이 갖고 있는 유일한 로직(`file instanceof File ? file : null` 변환)을 직접 검증했고, 나머지는 P1-9a/b와 동일한 관례로 위임을 확인했다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))·P1-9b([PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 네 PR이 모두 병합되면 실제 진행률은 60/71이 된다)
+> 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9d(`folder/route.ts` 테스트) 완료. P1-9a~c와 동일한 관례를 따랐다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))·P1-9b([PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27))·P1-9c([PR #28](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/28))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 다섯 PR이 모두 병합되면 실제 진행률은 61/71이 된다)
 
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
@@ -223,9 +223,10 @@
 - [ ] (P1-8) 삽입된 이미지에 대체 텍스트(alt)를 입력할 수 있는 UI를 추가한다. — [PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9a) `documents/route.ts`(목록 조회·생성) 테스트를 추가한다. — [PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9b) `documents/[pageId]/route.ts`(수정·삭제) 테스트를 추가한다. — [PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27)에서 별도로 진행 중, 아직 main에 병합되지 않음.
-- [x] (완료, P1-9c) `documents/[pageId]/images/route.ts` 테스트를 추가한다 — P1-9a/b와 동일한 관례를 따르되, 라우트 자신이 갖고 있는 유일한 로직(`file instanceof File ? file : null` 변환)까지 직접 검증했다. Node 전역 `FormData`/`File`을 그대로 사용했다. 산출물: `docs/superpowers/tasks/P1-9c-images-route-test/{task,plan,result,test}.md`, src/app/api/editor/documents/[pageId]/images/route.test.ts
 
-- [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다.
+- [ ] (P1-9c) `documents/[pageId]/images/route.ts` 테스트를 추가한다. — [PR #28](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/28)에서 별도로 진행 중, 아직 main에 병합되지 않음.
+- [x] (완료, P1-9d) `folder/route.ts` 테스트를 추가한다 — P1-9a~c와 동일한 관례를 따라 `GET`/`POST` 6건을 추가했다. 산출물: `docs/superpowers/tasks/P1-9d-folder-route-test/{task,plan,result,test}.md`, src/app/api/editor/folder/route.test.ts
+
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다.
 - [ ] (P1-9f) `SlashCommandExtension.ts` 테스트를 추가한다.
 - [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. **2026-08-28 갱신(P0-8)**: "초안"/"게시" 서브폴더 구분 자체가 없어져 `restoreDocument`가 이제 계정 폴더 하나로만 이동하므로, "어느 서브폴더로 이동할지 잘못 고르는" 경로는 더 이상 존재하지 않는다 — 이 리팩터로 재현 경로가 사라진 것으로 보이지만, 원래 버그의 정확한 원인을 소급 확인하지는 않았다(범위 밖으로 명시). pageId `212959235` 자체(이미 최상위에 남아있는 문서)를 수동으로 정리하는 작업도 하지 않았다.
