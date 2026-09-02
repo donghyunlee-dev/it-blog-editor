@@ -1,6 +1,8 @@
 # 📄 PRD — SFOOD IT Editor
 
+
 > 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9e(`RichTextEditor.tsx` 테스트) 완료. 텍스트 선택 기반 UI(서식 버블 메뉴)를 처음으로 테스트 가능하게 만든 `selectText` 헬퍼(Range + selectionchange 이벤트)를 확립했고, 그 과정에서 happy-dom 고유의 함정 두 가지(URL input 제약 검증이 `javascript:`를 실제 브라우저보다 엄격하게 막음, `color-mix()` CSS 미지원)를 소스로 원인까지 확인하고 우회했다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))·P1-9b([PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27))·P1-9c([PR #28](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/28))·P1-9d([PR #29](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/29))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 여섯 PR이 모두 병합되면 실제 진행률은 62/71이 된다)
+
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -221,9 +223,11 @@
 - [ ] (P1-8) 삽입된 이미지에 대체 텍스트(alt)를 입력할 수 있는 UI를 추가한다. — [PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9a) `documents/route.ts`(목록 조회·생성) 테스트를 추가한다. — [PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9b) `documents/[pageId]/route.ts`(수정·삭제) 테스트를 추가한다. — [PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27)에서 별도로 진행 중, 아직 main에 병합되지 않음.
+
 - [ ] (P1-9c) `documents/[pageId]/images/route.ts` 테스트를 추가한다. — [PR #28](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/28)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다. — [PR #29](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/29)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [x] (완료, P1-9e) `RichTextEditor.tsx` 테스트를 추가한다 — 텍스트 선택 기반 UI(서식 버블 메뉴)를 처음으로 검증 가능하게 만든 `selectText` 헬퍼(Range + `selectionchange` 이벤트 디스패치)를 확립하고, 굵게/기울임/취소선/글자색/하이라이트/링크 9건 + 기본 렌더링 1건 + 이미지 삽입 실제 결과 1건(기존 P0-4b 공백 보완)을 추가했다. happy-dom 고유 함정 두 가지(`javascript:` URL 제약 검증 과잉 차단, `color-mix()` CSS 미지원)를 소스로 원인까지 확인해 우회했다. 산출물: `docs/superpowers/tasks/P1-9e-richtexteditor-test/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.test.tsx
+
 - [ ] (P1-9f) `SlashCommandExtension.ts` 테스트를 추가한다.
 - [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. **2026-08-28 갱신(P0-8)**: "초안"/"게시" 서브폴더 구분 자체가 없어져 `restoreDocument`가 이제 계정 폴더 하나로만 이동하므로, "어느 서브폴더로 이동할지 잘못 고르는" 경로는 더 이상 존재하지 않는다 — 이 리팩터로 재현 경로가 사라진 것으로 보이지만, 원래 버그의 정확한 원인을 소급 확인하지는 않았다(범위 밖으로 명시). pageId `212959235` 자체(이미 최상위에 남아있는 문서)를 수동으로 정리하는 작업도 하지 않았다.
 - [ ] (P1-11) 게시 설정에 `slug: "/root"`처럼 슬래시가 포함된 값이 실제로 저장된 사례가 발견됐다(위 P1-10과 같은 문서, pageId `212959235`) — 현재 slug 검증(`publish.ts`의 `validateAndComposeViewers`)은 빈 값만 걸러내고 형식은 검증하지 않는다. P1-6c(slug 형식 검증)의 실제 필요성을 뒷받침하는 사례로 남긴다.

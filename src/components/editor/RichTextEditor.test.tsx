@@ -405,10 +405,12 @@ describe("RichTextEditor 기본 렌더링(P1-9e)", () => {
       <ToastProvider>
         <RichTextEditor
           content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "안녕하세요" }] }] }}
+
           onChange={vi.fn()}
         />
       </ToastProvider>
     );
+
 
     expect(screen.getByText("안녕하세요")).toBeInTheDocument();
   });
@@ -591,5 +593,6 @@ describe("RichTextEditor 이미지 업로드 성공 경로(P1-9e)", () => {
 
     const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
     expect(lastDoc.content?.some((n) => n.type === "image")).toBe(true);
+
   });
 });

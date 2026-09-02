@@ -68,6 +68,35 @@ describe("이미지·글자색·하이라이트", () => {
     expect(html).toBe('<ac:image><ri:attachment ri:filename="photo.png" /></ac:image>');
   });
 
+  it("alt가 있는 이미지 노드는 ac:alt 속성을 포함해 변환한다(P1-8)", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { filename: "photo.png", alt: "회의실 사진" } }],
+    });
+
+    expect(html).toBe('<ac:image ac:alt="회의실 사진"><ri:attachment ri:filename="photo.png" /></ac:image>');
+  });
+
+  it("alt 값의 특수문자를 이스케이프한다(P1-8)", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { filename: "photo.png", alt: '"인용" & <태그>' }}],
+    });
+
+    expect(html).toBe(
+      '<ac:image ac:alt="&quot;인용&quot; &amp; &lt;태그&gt;"><ri:attachment ri:filename="photo.png" /></ac:image>'
+    );
+  });
+
+  it("alt가 빈 문자열/공백이면 ac:alt 속성을 넣지 않는다(P1-8)", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { filename: "photo.png", alt: "   " } }],
+    });
+
+    expect(html).toBe('<ac:image><ri:attachment ri:filename="photo.png" /></ac:image>');
+  });
+
   it("글자 색상과 하이라이트를 인라인 style로 변환한다", () => {
     const html = tiptapDocToStorageFormat({
       type: "doc",
@@ -286,6 +315,17 @@ describe("HTML로 붙여넣은 이미지(filename 없음)", () => {
     });
 
     expect(html).toBe('<ac:image><ri:url ri:value="https://example.com/photo.png" /></ac:image>');
+  });
+
+  it("alt가 있으면 ri:url 참조에도 ac:alt 속성을 포함한다(P1-8)", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "image", attrs: { src: "https://example.com/photo.png", alt: "외부 이미지" } }],
+    });
+
+    expect(html).toBe(
+      '<ac:image ac:alt="외부 이미지"><ri:url ri:value="https://example.com/photo.png" /></ac:image>'
+    );
   });
 
   it("filename도 src도 없으면 빈 문자열을 반환한다(깨진 참조를 만들지 않는다)", () => {
