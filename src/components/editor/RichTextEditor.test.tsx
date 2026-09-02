@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ToastProvider } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
@@ -7,9 +7,36 @@ import * as imageUpload from "@/lib/editor/image-upload";
 
 /**
  * TipTap(ProseMirror)은 실제 렌더링된 contenteditable에 드래그/붙여넣기 DOM 이벤트를
- * 그대로 받는 구조라, RichTextEditor는 이번 작업 전까지 테스트가 없었다. 이 파일은
- * P0-4b(이미지 개수 상한)만 최소로 검증한다 — 전체 리치 편집 기능 테스트는 범위 밖이다.
+ * 그대로 받는 구조라, RichTextEditor는 처음엔 테스트가 없었다(P0-4b가 최초로 추가).
+ * 이후 기능을 추가할 때마다(P1-7a/c/d, P1-9e) 그 기능의 테스트를 이 파일에 누적해 왔다 —
+ * 새 기능을 다룰 땐 별도 파일로 쪼개지 말고 이 파일에 describe 블록을 추가한다.
  */
+
+/**
+ * ProseMirror는 브라우저의 네이티브 `Selection`/`Range`를 관찰해 자신의 `TextSelection`으로
+ * 변환한다(`view.domObserver`가 `document`의 `selectionchange`를 구독). jsdom/happy-dom도
+ * `Range`/`window.getSelection()`을 지원하므로, 텍스트 노드에 `Range`를 만들어 선택한 뒤
+ * `selectionchange` 이벤트를 직접 디스패치하면 실제 브라우저의 드래그 선택과 동일하게
+ * ProseMirror가 이를 인식한다(스파이크 테스트로 확인) — `EditorBubbleMenu`(텍스트 선택 시
+ * 뜨는 서식 메뉴)를 테스트하려면 이 방법 외에는 대안이 없다(RichTextEditor가 editor 인스턴스를
+ * 외부에 노출하지 않아 `editor.commands.setTextSelection()`을 직접 호출할 수도 없다).
+ */
+function selectText(container: HTMLElement, textMatch: string) {
+  const editorEl = container.querySelector(".ProseMirror") as HTMLElement;
+  editorEl.focus();
+  const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT);
+  let node: Node | null = null;
+  while ((node = walker.nextNode())) {
+    if (node.textContent?.includes(textMatch)) break;
+  }
+  if (!node) throw new Error(`텍스트를 찾을 수 없습니다: ${textMatch}`);
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+}
 
 /** N개의 이미지 노드를 담은 TipTap doc을 만든다. */
 function docWithImages(count: number): JSONContent {
@@ -369,5 +396,200 @@ describe("RichTextEditor 붙여넣기 서식 정제(P1-7d)", () => {
     // 없어야 하고, 텍스트 내용만 그대로 살아있어야 한다.
     expect(container.querySelector(".ProseMirror [style]")).toBeNull();
     expect(container.textContent).toContain("외부 텍스트");
+  });
+});
+
+describe("RichTextEditor 기본 렌더링(P1-9e)", () => {
+  it("content prop으로 넘긴 문서를 그대로 렌더링한다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "안녕하세요" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(screen.getByText("안녕하세요")).toBeInTheDocument();
+  });
+});
+
+describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
+  function renderWithText(onChange = vi.fn()) {
+    const utils = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "안녕하세요" }] }] }}
+          onChange={onChange}
+        />
+      </ToastProvider>
+    );
+    selectText(utils.container, "안녕");
+    return utils;
+  }
+
+  it("텍스트를 선택하지 않으면 서식 버블 메뉴가 보이지 않는다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "안녕하세요" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(screen.queryByLabelText("굵게")).not.toBeInTheDocument();
+  });
+
+  it("텍스트를 선택하면 서식 버블 메뉴가 뜬다", async () => {
+    renderWithText();
+
+    await waitFor(() => expect(screen.getByLabelText("굵게")).toBeInTheDocument());
+    expect(screen.getByLabelText("기울임")).toBeInTheDocument();
+    expect(screen.getByLabelText("취소선")).toBeInTheDocument();
+  });
+
+  it("굵게 버튼을 클릭하면 선택한 텍스트에 굵게 마크가 적용되고 onChange가 호출된다", async () => {
+    const onChange = vi.fn();
+    const { container } = renderWithText(onChange);
+
+    (await screen.findByLabelText("굵게")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror strong")).not.toBeNull());
+    const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    const marks = lastDoc.content?.[0]?.content?.flatMap((n) => n.marks?.map((m) => m.type) ?? []) ?? [];
+    expect(marks).toContain("bold");
+  });
+
+  it("기울임 버튼을 클릭하면 선택한 텍스트에 기울임 마크가 적용된다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("기울임")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror em")).not.toBeNull());
+  });
+
+  it("취소선 버튼을 클릭하면 선택한 텍스트에 취소선 마크가 적용된다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("취소선")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror s")).not.toBeNull());
+  });
+
+  it("글자 색상 팔레트에서 색을 고르면 선택한 텍스트에 색상이 적용된다", async () => {
+    const { container } = renderWithText();
+
+    fireEvent.click(await screen.findByLabelText("글자 색상"));
+    const swatch = await waitFor(() => {
+      const el = container.querySelector('button[style*="background"]');
+      if (!el) throw new Error("스와치가 아직 렌더링되지 않았습니다.");
+      return el as HTMLElement;
+    });
+    fireEvent.click(swatch);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror [style*=color]")).not.toBeNull());
+  });
+
+  it("글자 색상 팔레트의 '색상 지우기'를 고르면 적용된 색상이 해제된다", async () => {
+    const { container } = renderWithText();
+
+    fireEvent.click(await screen.findByLabelText("글자 색상"));
+    const swatch = await waitFor(() => {
+      const el = container.querySelector('button[style*="background"]');
+      if (!el) throw new Error("스와치가 아직 렌더링되지 않았습니다.");
+      return el as HTMLElement;
+    });
+    fireEvent.click(swatch);
+    await waitFor(() => expect(container.querySelector(".ProseMirror [style*=color]")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "색상 지우기" }));
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror [style*=color]")).toBeNull());
+  });
+
+  it("하이라이트 팔레트에서 색을 고르면 선택한 텍스트에 하이라이트가 적용된다", async () => {
+    const { container } = renderWithText();
+
+    fireEvent.click(await screen.findByLabelText("하이라이트"));
+    // HIGHLIGHT_SWATCHES는 `color-mix(...)` 값을 쓰는데, happy-dom의 CSSOM이 이 함수를
+    // 인식하지 못해(소스로 확인) `style` 속성 자체가 렌더링되지 않는다 — TEXT_COLOR_SWATCHES
+    // (단순 `var(--color-*)` 값)와 달리 `[style*="background"]` 셀렉터로 못 찾으므로 스와치
+    // 이름(aria-label)으로 대신 찾는다.
+    fireEvent.click(await screen.findByLabelText("브랜드"));
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror mark")).not.toBeNull());
+  });
+
+  it("하이라이트 팔레트의 '색상 지우기'를 고르면 적용된 하이라이트가 해제된다", async () => {
+    const { container } = renderWithText();
+
+    fireEvent.click(await screen.findByLabelText("하이라이트"));
+    fireEvent.click(await screen.findByLabelText("브랜드"));
+    await waitFor(() => expect(container.querySelector(".ProseMirror mark")).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "색상 지우기" }));
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror mark")).toBeNull());
+  });
+
+  it("링크 팝오버에서 안전한 URL을 적용하면 링크 마크가 붙는다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("링크")).click();
+    const input = await screen.findByLabelText("링크 URL");
+    fireEvent.change(input, { target: { value: "https://example.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "적용" }));
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror a[href='https://example.com']")).not.toBeNull());
+  });
+
+  it("링크 팝오버에서 안전하지 않은 스킴(javascript:)을 적용하면 토스트로 거부되고 링크가 붙지 않는다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("링크")).click();
+    const input = await screen.findByLabelText("링크 URL");
+    fireEvent.change(input, { target: { value: "javascript:alert(1)" } });
+    // happy-dom의 `<input type="url">`은 `javascript:` 스킴 값을 자체 HTML5 제약 검증에서
+    // 이미 무효로 판정해, 제출 버튼을 클릭해도(`fireEvent.click`) 브라우저의 "제출 전 검증"
+    // 단계에서 막혀 우리 `onSubmit` 핸들러(및 그 안의 `isSafeLinkHref` 검사)까지 아예 도달하지
+    // 못한다는 것을 직접 확인했다(실제 브라우저의 WHATWG `type=url` 검증은 이보다 관대해
+    // `javascript:` 스킴도 "유효한 URL"로 통과시킨다 — happy-dom 쪽이 더 엄격한 구현). 그래서
+    // 이 앱 자신의 방어 로직을 테스트하려는 의도에 맞게, 네이티브 검증을 우회하고 `submit`
+    // 이벤트를 폼에 직접 디스패치한다.
+    fireEvent.submit(input.closest("form") as HTMLFormElement);
+
+    await waitFor(() =>
+      expect(screen.getByText("허용되지 않는 링크 형식입니다. http(s):// 또는 mailto: 링크만 사용할 수 있습니다.")).toBeInTheDocument()
+    );
+    expect(container.querySelector(".ProseMirror a")).toBeNull();
+  });
+});
+
+describe("RichTextEditor 이미지 업로드 성공 경로(P1-9e)", () => {
+  it("드래그앤드롭 업로드가 끝나면 실제로 이미지 노드가 삽입되고 onChange에 반영된다", async () => {
+    vi.spyOn(imageUpload, "uploadImage").mockResolvedValue({
+      url: "https://example.com/new.png",
+      filename: "new.png",
+    });
+    const onChange = vi.fn();
+
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [] }] }}
+          onChange={onChange}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    fireDrop(container, makeImageFile());
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror img")).not.toBeNull());
+    expect(container.querySelector(".ProseMirror img")).toHaveAttribute("src", "https://example.com/new.png");
+
+    const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    expect(lastDoc.content?.some((n) => n.type === "image")).toBe(true);
   });
 });
