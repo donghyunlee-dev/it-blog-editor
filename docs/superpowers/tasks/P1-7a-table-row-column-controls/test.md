@@ -3,8 +3,8 @@
 ## 자동화 테스트
 | 커맨드 | 결과 |
 |---|---|
-| `npx vitest run src/components/editor/RichTextEditor.test.tsx` | 통과 (11/11, 신규 8건) |
-| `npm test`(전체) | 통과 (262/262) |
+| `npx vitest run src/components/editor/RichTextEditor.test.tsx` | 통과 (12/12, 신규 9건 — 3차 재설계에서 다중 표 시나리오 1건 추가) |
+| `npm test`(전체) | 통과 (263/263) |
 | `npx tsc --noEmit` | 통과 |
 | `npm run lint` | 통과 — 에러 0, 경고 2(기존 무관 경고) |
 | `npm run build` | 통과 |
@@ -38,9 +38,13 @@
 - **조치 3**: `TableControls`를 `sticky top-14`(헤더 바로 아래 고정) 아이콘 툴바로 재설계했다. 텍스트 라벨을 전부 손으로 그린 아이콘(+ `Tooltip`)으로 바꾸고, 표시·비활성화 판단을 `useEditorState`로 리액티브하게 옮겼다. 아이콘 형태는 코드 작성과 별도로 이 세션의 시각화 도구로 미리 렌더링해 눈으로 한 번 확인했다(제목 `table_toolbar_icons`).
 - **재검증 결과 3**: 기존 컴포넌트 테스트 8건 모두 변경 없이 그대로 통과(아이콘으로 바뀌어도 `aria-label`은 그대로 유지해 `getByLabelText` 쿼리가 안 깨짐) — `npx vitest run src/components/editor/RichTextEditor.test.tsx` 11/11, `npm test`(전체) 262/262, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과.
 
+- **원인 4 (2026-09-01, 3차 실사용 확인)**: "툴바가 상단에 고정하는 게 수정된 버전이 맞아? 테이블 상단이나 하단으로 툴바를 고정시킬 수 있는지 검토해봐." 확인해보니 `sticky top-14`는 문서 전체 스크롤 영역 기준이라 표가 스크롤로 멀리 내려가면 툴바가 화면 맨 위에 남아 표와 시각적으로 분리되는, 사실상 맞는 지적이었다. 사용자에게 "표 상단 고정 vs 표 하단 고정 vs 현재 유지" 세 옵션을 제시했고, 표 상단 고정을 추천했으며 사용자가 승인했다.
+- **조치 4**: TipTap의 `Table` 확장이 `resizable: false`일 때 실제로 쓰는 `TableView` 클래스를 `StickyTableView`로 상속해, `.tableWrapper`의 `<table>` 앞에 툴바 슬롯을 끼워 넣고 `ReactRenderer`로 기존 `TableToolbar`를 마운트했다. "커서가 이 표 안에 있는가"는 선택 범위가 `[getPos(), getPos()+node.nodeSize)` 안에 있는지로 직접 계산해(표가 여러 개일 때 `isActive("table")`로는 구분 불가), `editor`의 `selectionUpdate`/`transaction` 이벤트마다 갱신한다.
+- **재검증 결과 4**: 기존 8건 모두 변경 없이 통과 + 신규 시나리오("문서에 표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다") 1건 추가, 총 12/12 통과 — `npx vitest run src/components/editor/RichTextEditor.test.tsx`. `npm test`(전체) 263/263, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과. dev 서버를 재시작해 재확인한 결과 컴파일 에러 없음, 이후 서버 로그에서 사용자가 실제 계정으로 `GET /editor/212959235`(200) → `PUT /api/editor/documents/212959235`(200)까지 정상 완료한 것을 확인했다 — 이 변경과 관련된 서버 에러는 없었다.
+
 ## 검증 중 새로 발견한 결정 사항
-없음.
+없음. (3차 재설계의 "표 상단 vs 하단" 선택은 `AskUserQuestion`으로 대화 중 바로 확인해 GitHub Issue를 거치지 않았다 — 순수 UI 배치 취향이라 즉시 결정 가능한 사안으로 판단했다.)
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`, 2026-08-31 2차 갱신 버전)을 모두 만족함
-- [ ] 🔶 실제 로그인된 화면에서의 육안 확인은 AX Auth 제약으로 하지 못함 — 아이콘/`sticky` 재설계 후 재확인 요청
+- [x] 수용 기준(`task.md`, 2026-09-01 3차 갱신 버전)을 모두 만족함
+- [ ] 🔶 실제 화면에서 스크롤하며 "툴바가 표에만 고정되는지" 육안 확인, 그리고 표 편집 핵심 동작(셀 드래그 선택, 방향키 이동)에 회귀가 없는지는 NodeView 도입으로 리스크가 더 커진 부분이라 각별히 재확인 요청

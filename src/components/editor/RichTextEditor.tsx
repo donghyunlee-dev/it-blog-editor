@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Node, type Editor } from "@tiptap/core";
-import { EditorContent, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
+import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { EditorContent, ReactRenderer, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -10,7 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Button, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
@@ -465,36 +465,39 @@ function TableToolbarButton({
 }
 
 /**
- * 2026-08-31 사용자 실사용 확인 두 차례를 거쳐 현재 형태로 정착했다.
+ * P1-7a 3차 재설계(2026-09-01, 표 자체의 상단에 고정): 2차 버전(`sticky top-14`)은
+ * "문서 헤더 바로 아래"에 고정될 뿐 표 자체와는 무관한 위치였다 — 표가 스크롤로 한참
+ * 내려가면 툴바는 화면 맨 위에 그대로 남아 표와 시각적으로 분리돼 보인다는 지적을
+ * 받았다. "표 자체의 상단에" 고정하려면 sticky의 고정 범위(constraint)가 그 표를 감싸는
+ * 컨테이너여야 하는데, 일반 React 트리에서는 표 하나하나를 감싸는 지점에 손댈 수 없다
+ * (TipTap이 `table` 노드를 스키마 기반으로 직접 렌더링하기 때문) — 그래서 표 노드
+ * 렌더링 자체를 커스터마이즈하는 TipTap NodeView가 필요하다.
  *
- * 1차(정적 블록 → BubbleMenu): 원래 에디터 콘텐츠 위쪽에 고정된 정적 블록이라 표가 문서
- * 중간·아래쪽에 있으면 스크롤 밖으로 벗어나 안 보였다. `EditorBubbleMenu`와 같은
- * `BubbleMenu`(선택 위치를 따라다니는 플로팅 UI)로 바꿔 이 문제는 고쳤다.
+ * 표의 실제 DOM 구조(`.tableWrapper > table > colgroup + tbody`)와 셀 선택·컬럼 너비
+ * 관리는 prosemirror-tables가 아주 세밀하게 의존하는 부분이라(`ignoreMutation`,
+ * `updateColumns` 등) 직접 재구현하지 않는다 — TipTap이 기본 제공하는 `TableView`
+ * 클래스(`Table`의 `resizable: false`일 때 실제로 쓰이는 바로 그 클래스, 이 프로젝트
+ * 설정과 일치함)를 그대로 상속해 딱 필요한 것만 더한다: `.tableWrapper`의 `<table>` 앞에
+ * 툴바 슬롯 하나를 끼워 넣고, `ReactRenderer`(TipTap이 NodeView 밖에서 React UI를
+ * 마운트할 때 쓰라고 공식 제공하는 저수준 API — 내부적으로 `EditorContent`가 관리하는
+ * React 트리에 포털로 얹혀, 별도 React 루트를 만들지 않는다)로 `TableToolbar`를 그
+ * 슬롯에 마운트한다. 이 슬롯은 `contentDOM`(=tbody) 밖에 있어 `TableView`가 이미
+ * 구현해 둔 `ignoreMutation`("wrapper 안·content 밖 변경은 무시")이 그대로 보호해
+ * 준다 — 별도 방어 코드가 필요 없다.
  *
- * 2차(BubbleMenu → sticky 고정 바 + 아이콘): 그런데 이번엔 "커서를 옮길 때마다 바로 옆에
- * 툴바가 튀어나와 방해된다"는 피드백과 "텍스트 버튼이라 가로로 너무 길고 디자인 품질이
- * 낮다"는 피드백을 함께 받았다. 사용자가 제시한 두 대안(① 특정 위치 클릭 시 노출 ② 상단에
- * 고정) 중, ①(Confluence처럼 행/열 손잡이를 hover/click하면 뜨는 방식)은 ProseMirror
- * 데코레이션으로 표 grip UI를 새로 구현해야 해 리스크가 큰 반면, ②는 이 파일이 속한
- * `DocumentEditor.tsx`에 이미 검증된 선례(`sticky top-0` 헤더, "EditorShell의
- * overflow-y-auto 영역을 기준으로 스크롤해도 계속 보인다")가 있어 훨씬 안전하게 재사용할
- * 수 있었다 — ②를 택했다. 헤더(`h-14`) 바로 아래에 `sticky top-14`로 붙여, 캐럿을 따라
- * 화면 여기저기로 튀지 않고 항상 같은 자리에 나타나게 했다. 텍스트 라벨은 전부 아이콘(+
- * `Tooltip`)으로 바꿔 가로 폭을 크게 줄였다.
- *
- * 이 과정에서 `editor.isActive("table")`/`editor.can()`을 렌더 시점에 그냥 읽기만 하면
- * (TipTap v3는 `shouldRerenderOnTransaction` 기본값이 `false`라 선택만 바뀌고 문서 내용은
- * 안 바뀌는 전환에는 컴포넌트가 리렌더되지 않는다) 다른 셀로 커서만 옮겨도 컨트롤 표시·버튼
- * 비활성화 상태가 갱신되지 않는 잠재적 버그가 있었다는 것도 확인했다 — 공식 문서가 권장하는
- * `useEditorState`(선택자 결과가 바뀔 때만, 그 즉시 리렌더)로 옮겨 이 문제도 함께 없앴다.
+ * "지금 커서가 이 표 안에 있는가"는 선택 범위가 이 표 노드의 [pos, pos+nodeSize) 안에
+ * 완전히 들어있는지로 직접 계산한다 — `editor.isActive("table")`은 문서에 표가 여러 개일
+ * 때 "어떤" 표인지 구분하지 못해 쓸 수 없다(한 문서에 표가 하나뿐이던 이전 버전에서는
+ * 문제가 안 됐다). `editor`의 `selectionUpdate`/`transaction` 이벤트마다 다시 계산해,
+ * 값이 실제로 바뀔 때만 `ReactRenderer.updateProps`를 호출한다(모든 키 입력마다 불필요한
+ * 리렌더를 피한다 — 문서에 표가 여러 개면 그 개수만큼 리스너가 따로 붙기 때문에 더 중요).
  */
-function TableControls({ editor }: { editor: Editor | null }) {
+function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
   const tableState = useEditorState({
     editor,
     selector: ({ editor: currentEditor }) =>
       currentEditor
         ? {
-            isActive: currentEditor.isActive("table"),
             canAddRowBefore: currentEditor.can().addRowBefore(),
             canAddRowAfter: currentEditor.can().addRowAfter(),
             canDeleteRow: currentEditor.can().deleteRow(),
@@ -507,7 +510,7 @@ function TableControls({ editor }: { editor: Editor | null }) {
         : null,
   });
 
-  if (!editor || !tableState?.isActive) return null;
+  if (!active || !tableState) return null;
 
   return (
     <div className="sticky top-14 z-10 flex flex-wrap items-center gap-0.5 border-b border-border bg-surface px-2 py-1.5 shadow-sm">
@@ -574,6 +577,81 @@ function TableControls({ editor }: { editor: Editor | null }) {
   );
 }
 
+class StickyTableView extends TableView {
+  private toolbarSlot: HTMLDivElement;
+  private renderer: ReactRenderer<unknown, { editor: Editor; active: boolean }>;
+  private tvEditor: Editor;
+  private getPos: () => number | undefined;
+  private lastActive = false;
+  private handleEditorUpdate = () => this.syncActive();
+
+  constructor(
+    node: ProseMirrorNode,
+    cellMinWidth: number,
+    view: EditorView,
+    HTMLAttributes: Record<string, unknown>,
+    editor: Editor,
+    getPos: () => number | undefined
+  ) {
+    super(node, cellMinWidth, view, HTMLAttributes);
+    this.tvEditor = editor;
+    this.getPos = getPos;
+
+    // contentDOM(tbody) 밖, <table> 앞에 슬롯을 끼워 넣는다 — TableView.ignoreMutation이
+    // 이미 "wrapper 안·content 밖"을 편집 대상에서 제외해 주므로 여기 마운트되는 React
+    // UI는 ProseMirror에게 문서 변경으로 오인되지 않는다.
+    this.toolbarSlot = document.createElement("div");
+    this.dom.insertBefore(this.toolbarSlot, this.table);
+
+    this.renderer = new ReactRenderer(TableToolbar, {
+      editor,
+      props: { editor, active: false },
+    });
+    this.toolbarSlot.appendChild(this.renderer.element);
+
+    editor.on("selectionUpdate", this.handleEditorUpdate);
+    editor.on("transaction", this.handleEditorUpdate);
+    this.syncActive();
+  }
+
+  private syncActive() {
+    const pos = this.getPos();
+    const { from, to } = this.tvEditor.state.selection;
+    const active = typeof pos === "number" && from >= pos && to <= pos + this.node.nodeSize;
+    if (active === this.lastActive) return;
+    this.lastActive = active;
+    this.renderer.updateProps({ active });
+  }
+
+  update(node: ProseMirrorNode) {
+    const updated = super.update(node);
+    if (updated) this.syncActive();
+    return updated;
+  }
+
+  destroy() {
+    this.tvEditor.off("selectionUpdate", this.handleEditorUpdate);
+    this.tvEditor.off("transaction", this.handleEditorUpdate);
+    this.renderer.destroy();
+  }
+}
+
+const TableWithToolbar = Table.extend({
+  addNodeView() {
+    return ({ node, view, HTMLAttributes, getPos }) => {
+      const mergedAttributes = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes);
+      return new StickyTableView(
+        node,
+        this.options.cellMinWidth,
+        view,
+        mergedAttributes,
+        this.editor,
+        getPos
+      );
+    };
+  },
+});
+
 export interface RichTextEditorProps {
   content: JSONContent;
   onChange: (doc: JSONContent) => void;
@@ -600,7 +678,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       Highlight.configure({ multicolor: true }),
       AttachmentImage,
       Panel,
-      Table.configure({ resizable: false }),
+      TableWithToolbar.configure({ resizable: false }),
       TableRow,
       TableHeader,
       TableCell,
@@ -688,7 +766,6 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
   return (
     <>
       {editor && <EditorBubbleMenu editor={editor} />}
-      {editor && <TableControls editor={editor} />}
       {/*
         2026-08-25에는 prose-sm(본문 14px)으로 낮췄었다 — 그런데 그 저해상도 노트북
         문제의 실제 원인은 헤더의 버튼/링크/태그류(px 낭비가 큰 UI 크롬)였지 본문

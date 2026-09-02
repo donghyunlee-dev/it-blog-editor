@@ -52,29 +52,28 @@ function firePaste(container: HTMLElement, file: File) {
   target.dispatchEvent(event);
 }
 
+function tableNode(rows = 2, cols = 2, label = ""): JSONContent {
+  return {
+    type: "table",
+    content: Array.from({ length: rows }, (_, r) => ({
+      type: "tableRow",
+      content: Array.from({ length: cols }, (_, c) => ({
+        type: "tableCell",
+        content: [{ type: "paragraph", content: [{ type: "text", text: `${label}r${r}c${c}` }] }],
+      })),
+    })),
+  };
+}
+
 /**
  * 표가 문서의 맨 첫 노드일 때, TipTap이 초기화 시 기본 선택(`Selection.atStart`)을
  * 문서 시작 지점의 유효한 위치로 잡는데, 그게 곧 첫 셀 안이다 — 그래서 별도의 클릭/선택
- * 시뮬레이션 없이도 렌더링 직후 `editor.isActive("table")`이 참이 되어 TableControls가
- * 보인다(실측 확인됨). 표 뒤에 별도 문단이 있는 문서는 이 전제가 깨지므로 "표 밖" 회귀
- * 테스트에 쓴다.
+ * 시뮬레이션 없이도 렌더링 직후 이 표의 툴바(`TableToolbar`, `StickyTableView`가 커서
+ * 위치를 계산해 활성화)가 보인다(실측 확인됨). 표 뒤에 별도 문단이 있는 문서는 이 전제가
+ * 깨지므로 "표 밖" 회귀 테스트에 쓴다.
  */
 function tableFirstDoc(rows = 2, cols = 2): JSONContent {
-  return {
-    type: "doc",
-    content: [
-      {
-        type: "table",
-        content: Array.from({ length: rows }, (_, r) => ({
-          type: "tableRow",
-          content: Array.from({ length: cols }, (_, c) => ({
-            type: "tableCell",
-            content: [{ type: "paragraph", content: [{ type: "text", text: `r${r}c${c}` }] }],
-          })),
-        })),
-      },
-    ],
-  };
+  return { type: "doc", content: [tableNode(rows, cols)] };
 }
 
 function tableRowCount(container: HTMLElement): number {
@@ -201,6 +200,32 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(tableColumnCount(container)).toBe(1);
+  });
+
+  /**
+   * P1-7a 3차 재설계의 핵심 목표: 표마다 독립된 NodeView(`StickyTableView`)가 "커서가
+   * 이 표의 [pos, pos+nodeSize) 범위 안에 있는가"를 직접 계산해 컨트롤 표시 여부를
+   * 결정한다 — `editor.isActive("table")`만으로는 표가 여러 개일 때 "어떤" 표인지
+   * 구분할 수 없어 이 시나리오를 검증할 수 없다.
+   */
+  it("문서에 표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다", () => {
+    const doc: JSONContent = {
+      type: "doc",
+      content: [
+        tableNode(2, 2, "A"),
+        { type: "paragraph", content: [{ type: "text", text: "구분 문단" }] },
+        tableNode(2, 2, "B"),
+      ],
+    };
+
+    render(
+      <ToastProvider>
+        <RichTextEditor content={doc} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    // 초기 선택은 문서 첫 표(A) 안에 있으므로, 두 표 중 정확히 하나의 컨트롤 세트만 보여야 한다.
+    expect(screen.getAllByLabelText("행 추가(아래)")).toHaveLength(1);
   });
 });
 
