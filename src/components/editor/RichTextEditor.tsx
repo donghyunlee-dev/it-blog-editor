@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor } from "@tiptap/core";
 import { EditorContent, ReactRenderer, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
+import { columnResizing, tableEditing } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
 import { Color, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
@@ -577,77 +578,111 @@ function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
   );
 }
 
-class StickyTableView extends TableView {
-  private toolbarSlot: HTMLDivElement;
-  private renderer: ReactRenderer<unknown, { editor: Editor; active: boolean }>;
-  private tvEditor: Editor;
-  private getPos: () => number | undefined;
-  private lastActive = false;
-  private handleEditorUpdate = () => this.syncActive();
+/**
+ * P1-7b(표 컬럼 리사이즈) 도입 때 `getPos` 의존을 제거하도록 다시 손봤다. `resizable: true`가
+ * 되면 `@tiptap/extension-table`의 `addNodeView()`는 스스로 `null`을 반환하고, 대신
+ * prosemirror-tables의 `columnResizing` 플러그인이 **자신의 `nodeViews` 등록**으로 View
+ * 클래스를 생성한다 — 그 호출부가 `new View(node, cellMinWidth, view)` 세 인자만 넘기므로
+ * (`node_modules/prosemirror-tables/dist/index.cjs` 확인), 이전 버전이 의존하던 네 번째
+ * 인자 `getPos`를 받을 방법이 없다. 그래서 `editor`를 생성자 인자 대신 이 팩토리 함수의
+ * 클로저로 캡처해 두 호출부(TipTap 자체 `addNodeView()` / prosemirror-tables의
+ * `columnResizing`) 모두와 호환되는 3~4-인자 생성자로 통일했다.
+ *
+ * "커서가 이 표 안에 있는가"도 `getPos()` + `nodeSize` 범위 비교 대신,
+ * `findParentNodeClosestToPos`(`@tiptap/extension-table`이 `deleteRow`/`deleteColumn`
+ * 내부에서 이미 쓰는 것과 같은 TipTap 코어 유틸)로 현재 선택 위치에서 가장 가까운 표
+ * 조상을 찾아, 그 노드가 `this.node`와 **객체 참조가 같은지**로 판단한다. ProseMirror
+ * 노드는 불변 객체라 참조 비교가 안전하다 — 내용이 완전히 같은 표 두 개가 있어도 서로
+ * 다른 객체라 정확히 구분되고, `getPos` 없이도(리사이즈 켜짐 경로에서도) 동작한다.
+ */
+function createStickyTableView(editor: Editor) {
+  return class extends TableView {
+    private toolbarSlot: HTMLDivElement;
+    private renderer: ReactRenderer<unknown, { editor: Editor; active: boolean }>;
+    private lastActive = false;
+    private handleEditorUpdate = () => this.syncActive();
 
-  constructor(
-    node: ProseMirrorNode,
-    cellMinWidth: number,
-    view: EditorView,
-    HTMLAttributes: Record<string, unknown>,
-    editor: Editor,
-    getPos: () => number | undefined
-  ) {
-    super(node, cellMinWidth, view, HTMLAttributes);
-    this.tvEditor = editor;
-    this.getPos = getPos;
+    constructor(
+      node: ProseMirrorNode,
+      cellMinWidth: number,
+      view: EditorView,
+      HTMLAttributes: Record<string, unknown> = {}
+    ) {
+      super(node, cellMinWidth, view, HTMLAttributes);
 
-    // contentDOM(tbody) 밖, <table> 앞에 슬롯을 끼워 넣는다 — TableView.ignoreMutation이
-    // 이미 "wrapper 안·content 밖"을 편집 대상에서 제외해 주므로 여기 마운트되는 React
-    // UI는 ProseMirror에게 문서 변경으로 오인되지 않는다.
-    this.toolbarSlot = document.createElement("div");
-    this.dom.insertBefore(this.toolbarSlot, this.table);
+      // contentDOM(tbody) 밖, <table> 앞에 슬롯을 끼워 넣는다 — TableView.ignoreMutation이
+      // 이미 "wrapper 안·content 밖"을 편집 대상에서 제외해 주므로 여기 마운트되는 React
+      // UI는 ProseMirror에게 문서 변경으로 오인되지 않는다.
+      this.toolbarSlot = document.createElement("div");
+      this.dom.insertBefore(this.toolbarSlot, this.table);
 
-    this.renderer = new ReactRenderer(TableToolbar, {
-      editor,
-      props: { editor, active: false },
-    });
-    this.toolbarSlot.appendChild(this.renderer.element);
+      this.renderer = new ReactRenderer(TableToolbar, {
+        editor,
+        props: { editor, active: false },
+      });
+      this.toolbarSlot.appendChild(this.renderer.element);
 
-    editor.on("selectionUpdate", this.handleEditorUpdate);
-    editor.on("transaction", this.handleEditorUpdate);
-    this.syncActive();
-  }
+      editor.on("selectionUpdate", this.handleEditorUpdate);
+      editor.on("transaction", this.handleEditorUpdate);
+      this.syncActive();
+    }
 
-  private syncActive() {
-    const pos = this.getPos();
-    const { from, to } = this.tvEditor.state.selection;
-    const active = typeof pos === "number" && from >= pos && to <= pos + this.node.nodeSize;
-    if (active === this.lastActive) return;
-    this.lastActive = active;
-    this.renderer.updateProps({ active });
-  }
+    private syncActive() {
+      const found = findParentNodeClosestToPos(
+        editor.state.selection.$from,
+        (n) => n.type.name === "table"
+      );
+      const active = found?.node === this.node;
+      if (active === this.lastActive) return;
+      this.lastActive = active;
+      this.renderer.updateProps({ active });
+    }
 
-  update(node: ProseMirrorNode) {
-    const updated = super.update(node);
-    if (updated) this.syncActive();
-    return updated;
-  }
+    update(node: ProseMirrorNode) {
+      const updated = super.update(node);
+      if (updated) this.syncActive();
+      return updated;
+    }
 
-  destroy() {
-    this.tvEditor.off("selectionUpdate", this.handleEditorUpdate);
-    this.tvEditor.off("transaction", this.handleEditorUpdate);
-    this.renderer.destroy();
-  }
+    destroy() {
+      editor.off("selectionUpdate", this.handleEditorUpdate);
+      editor.off("transaction", this.handleEditorUpdate);
+      this.renderer.destroy();
+    }
+  };
 }
 
+/**
+ * `addNodeView()`/`addProseMirrorPlugins()` 둘 다 `@tiptap/extension-table`의 원본 구현을
+ * 그대로 복제하되(둘 다 실측 확인), `View`(표 렌더링 클래스) 자리에 이 에디터 인스턴스에
+ * 묶인 `createStickyTableView(this.editor)`를 넣는다 — `resizable`이 켜져 있든 꺼져
+ * 있든 항상 표별 sticky 툴바가 딸린 View가 쓰이게 하기 위해서다.
+ */
 const TableWithToolbar = Table.extend({
+  addProseMirrorPlugins() {
+    const View = createStickyTableView(this.editor);
+    return [
+      ...(this.options.resizable && this.editor.isEditable
+        ? [
+            columnResizing({
+              handleWidth: this.options.handleWidth,
+              cellMinWidth: this.options.cellMinWidth,
+              defaultCellMinWidth: this.options.cellMinWidth,
+              View,
+              lastColumnResizable: this.options.lastColumnResizable,
+            }),
+          ]
+        : []),
+      tableEditing({ allowTableNodeSelection: this.options.allowTableNodeSelection }),
+    ];
+  },
   addNodeView() {
-    return ({ node, view, HTMLAttributes, getPos }) => {
+    const isResizable = this.options.resizable && this.editor.isEditable;
+    if (isResizable) return null;
+    const View = createStickyTableView(this.editor);
+    return ({ node, view, HTMLAttributes }) => {
       const mergedAttributes = mergeAttributes(this.options.HTMLAttributes, HTMLAttributes);
-      return new StickyTableView(
-        node,
-        this.options.cellMinWidth,
-        view,
-        mergedAttributes,
-        this.editor,
-        getPos
-      );
+      return new View(node, this.options.cellMinWidth, view, mergedAttributes);
     };
   },
 });
@@ -678,7 +713,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       Highlight.configure({ multicolor: true }),
       AttachmentImage,
       Panel,
-      TableWithToolbar.configure({ resizable: false }),
+      TableWithToolbar.configure({ resizable: true }),
       TableRow,
       TableHeader,
       TableCell,

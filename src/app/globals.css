@@ -154,6 +154,7 @@ body {
 
 .ProseMirror table td,
 .ProseMirror table th {
+  position: relative;
   border: 1px solid var(--color-border);
   padding: 0.5rem 0.75rem;
   text-align: left;
@@ -162,6 +163,48 @@ body {
 .ProseMirror table th {
   background: var(--color-surface-subtle);
   font-weight: 600;
+}
+
+/*
+ * P1-7b(표 컬럼 리사이즈): prosemirror-tables의 columnResizing 플러그인은 CSS를 전혀
+ * 제공하지 않는다(node_modules/prosemirror-tables 확인) — 이 세 규칙이 없으면 리사이즈
+ * 자체는 동작해도 손잡이가 안 보이고 드래그 중 커서도 안 바뀐다. TipTap 공식 문서가
+ * 리사이즈 활성화 시 함께 쓰라고 권장하는 CSS를 이 프로젝트 토큰에 맞게 그대로 옮겼다.
+ *
+ * 2026-09-02 실사용 확인: 손잡이(.column-resize-handle)가 원래 붙어야 할 컬럼 경계가
+ * 아니라 콘텐츠 영역 오른쪽 끝에 막대로 보인다는 신고를 받았다. 원인은 이 CSS가 아니라
+ * 위쪽 `td`/`th` 규칙에 `position: relative`가 빠져 있었던 것이다 — prosemirror-tables는
+ * 이 손잡이 <div>를 각 셀의 DOM 안에 직접 끼워 넣고 `position: absolute; right: -2px`로
+ * "그 셀 기준 오른쪽 끝"에 두는데, 기준이 되어야 할 셀 자체가 `position: static`이면
+ * 브라우저가 포지셔닝 기준을 계속 위로 찾아 올라가다 결국 뷰포트 기준으로 떨어져(빠진
+ * 포지셔닝 컨텍스트) 엉뚱하게 화면 오른쪽 끝에 붙어버린다. `td`/`th`에 `position: relative`
+ * 를 추가해 손잡이가 자기 컬럼 경계에 정확히 붙게 고쳤다.
+ *
+ * 그런데 이 `position: relative` 추가가 새 부작용을 낳았다: 헤더 행의 손잡이만 유독 얇아
+ * 보인다는 후속 신고를 받았다. `right: -2px`인 손잡이는 옆 셀 영역까지 살짝 넘쳐 그려지는데,
+ * `z-index`를 안 준 `position: relative` 요소끼리는 DOM 순서로 쌓여 "다음" 셀이 그
+ * 넘친 부분 위에 그려진다 — 헤더(`th`)는 `background: var(--color-surface-subtle)`로
+ * 불투명 배경이 있어 이 가림이 드러나 보이고, 본문(`td`)은 배경이 투명해 같은 현상이 있어도
+ * 안 보였을 뿐이다. `column-resize-handle`에 `z-index`를 줘서 옆 셀의 쌓임 순서보다
+ * 항상 위에 그려지게 해 해결한다.
+ */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.resize-cursor {
+  cursor: col-resize;
+}
+
+.column-resize-handle {
+  position: absolute;
+  z-index: 10;
+  right: -2px;
+  top: 0;
+  bottom: -2px;
+  width: 4px;
+  background-color: var(--color-brand);
+  pointer-events: none;
 }
 
 /*
