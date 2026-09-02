@@ -20,11 +20,17 @@
 ### 실제 인스턴스/브라우저 확인
 dev 서버(`http://localhost:3100`)를 재시작해 컴파일 에러가 없음을 확인했다. AX Auth 로그인 제약으로 이 세션에서 직접 로그인해 실제 드래그 리사이즈 상호작용을 확인하지는 못했다 — **실제 화면에서 컬럼 경계를 드래그해 너비가 바뀌는지, 손잡이가 보이는지는 사용자 확인이 필요하다.**
 
-### 2026-09-02 사용자 실사용 확인 후 발견·수정
+### 2026-09-02 사용자 실사용 확인 1차 후 발견·수정
 - **원인**: "리사이즈 할 때 컨텐츠 영역 우측에 레드 바가 보인다. 스크롤 때문인가? 불필요하면 제거해줘." 리사이즈 자체는 정상 동작했지만, `.column-resize-handle`이 각 셀 기준으로 위치해야 하는데 `td`/`th`에 `position: relative`가 빠져 있어 브라우저가 포지셔닝 기준을 계속 위로 찾아 올라가다 뷰포트 기준으로 떨어져 화면 오른쪽 끝에 막대로 잘못 나타났다.
 - **확인**: `--color-brand`가 실제로 `#e4002b`(빨간 계열)임을 `globals.css`에서 확인 — "빨간 막대"는 손잡이 자체(의도된 기능)가 맞았고, 삭제가 아니라 위치를 고쳐야 하는 문제였다.
 - **조치**: `.ProseMirror table td, .ProseMirror table th`에 `position: relative`를 추가했다.
 - **재검증 결과**: `npx vitest run src/components/editor/RichTextEditor.test.tsx` 12/12, `npm test`(전체) 263/263, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과. dev 서버 재시작 후 컴파일 에러 없음 확인. 실제 화면에서 손잡이가 컬럼 경계에 정확히 붙는지는 여전히 사용자 확인이 필요하다.
+
+### 2026-09-02 사용자 실사용 확인 2차 후 발견·수정
+- **원인**: "헤더와 로우의 바 사이즈가 달라. 헤더가 더 얇아. 설정된 width 사이즈 확인해봐"(스크린샷 첨부: 헤더 구간만 가느다란 선, 본문 구간은 굵은 막대). `.column-resize-handle`의 `width`가 헤더/본문 구분 없이 4px 하나뿐임을 코드로 먼저 확인해 "선언된 폭 자체가 다르다"는 가설은 배제했다.
+- **진단**: 직전 수정(`position: relative`)이 새로 낳은 부작용이었다. `z-index`가 없는 `position: relative` 요소는 CSS2.1 Appendix E 페인팅 순서상 DOM 트리 순서로 쌓인다 — 손잡이가 `right: -2px`로 옆 셀 영역까지 살짝 넘쳐 그려지는데, 옆(다음) 셀도 이제 `position: relative`라 같은 계층에서 나중에 그려져 그 넘친 부분을 덮는다. 헤더는 불투명 배경(`background: var(--color-surface-subtle)`)이 있어 가려짐이 드러났고, 본문은 배경이 투명해 같은 현상이 있어도 안 보였을 뿐이다.
+- **조치**: `.column-resize-handle`에 `z-index: 10`을 추가해 옆 셀(z-index:auto)보다 항상 위에 그려지도록 했다.
+- **재검증 결과**: `npx vitest run src/components/editor/RichTextEditor.test.tsx` 12/12, `npm test`(전체) 263/263, `npx tsc --noEmit`·`npm run lint`(경고 2건, 기존 무관)·`npm run build` 모두 통과. 이 진단은 CSS 페인팅 순서 스펙(CSS2.1 Appendix E)에 근거했고 스크린샷과 정확히 들어맞지만, AX Auth 제약으로 실제 개발자 도구로 직접 확인하지는 못했다 — 재확인을 요청한다.
 
 ### 대안으로 수행한 검증
 - 기존 P1-7a 테스트 스위트(표 생성/표시·행/열 추가삭제·다중 표 시나리오) 9건을 `resizable: true`가 적용된 실제 설정 그대로 재실행해 전부 통과함을 확인 — 리사이즈를 켜면서 표 편집의 기존 핵심 기능에 회귀가 없음을 검증했다.
