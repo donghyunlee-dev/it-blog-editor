@@ -1,6 +1,8 @@
 # 📄 PRD — SFOOD IT Editor
 
+
 > 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9b(`documents/[pageId]/route.ts` 테스트) 완료. P1-9a와 동일한 인증·도메인 함수 모킹 관례를 그대로 따랐다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 세 PR이 모두 병합되면 실제 진행률은 59/71이 된다)
+
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -221,6 +223,7 @@
 - [ ] (P1-8) 삽입된 이미지에 대체 텍스트(alt)를 입력할 수 있는 UI를 추가한다. — [PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9a) `documents/route.ts`(목록 조회·생성) 테스트를 추가한다. — [PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [x] (완료, P1-9b) `documents/[pageId]/route.ts`(수정·삭제) 테스트를 추가한다 — P1-9a와 동일한 관례(인증·도메인 함수를 `vi.mock`)를 따라 `PUT`/`DELETE` 7건을 추가했다. 소유자 검증(`requireDocumentOwner`)·낙관적 동시성(`ConflictError`→409)·라우트 자신이 직접 던지는 `version` 검증을 모두 확인했다. 산출물: `docs/superpowers/tasks/P1-9b-document-detail-route-test/{task,plan,result,test}.md`, src/app/api/editor/documents/[pageId]/route.test.ts
+
 - [ ] (P1-9c) `documents/[pageId]/images/route.ts` 테스트를 추가한다.
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다.
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다.

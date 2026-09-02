@@ -316,7 +316,19 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
 }
 
 function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
-  if (!editor) return null;
+  // 이미지가 선택된 동안은 텍스트 서식 메뉴 대신 `ImageBubbleMenu`가 뜬다(두 메뉴가 겹치지
+  // 않도록 마운트 자체를 나눈다). `shouldShow`를 오버라이드하는 대신 조건부 렌더링으로
+  // 나눈 이유: 이 확장의 기본 `shouldShow`는 포커스가 메뉴 안(예: 링크 팝오버의 입력창)으로
+  // 옮겨가도 메뉴가 숨겨지지 않게 하는 로직(`isChildOfMenu`)을 함께 갖고 있는데, `shouldShow`를
+  // 통째로 대체하면 그 로직까지 사라져 기존 링크 편집 UX가 깨진다(소스로 확인). `isActive`를
+  // 렌더 시점에 그냥 읽으면 순수 선택 변경에 리렌더가 안 될 수 있다는 것을 P1-7a에서 이미
+  // 확인했으므로, 여기서도 `useEditorState`로 구독한다.
+  const isImageActive = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => !!currentEditor?.isActive("image"),
+  });
+
+  if (!editor || isImageActive) return null;
 
   return (
     <BubbleMenu editor={editor} options={{ placement: "top" }}>
@@ -377,6 +389,73 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
         >
           <LinkPopoverForm editor={editor} />
         </Popover>
+      </div>
+    </BubbleMenu>
+  );
+}
+
+const IMAGE_ALT_MAX_LENGTH = 300;
+
+/**
+ * 이미지의 alt 텍스트를 입력하는 폼. `LinkPopoverForm`과 동일한 패턴(마운트 시 포커스,
+ * 제출 시 노드/마크 속성 갱신)을 그대로 재사용한다 — 다만 링크는 마크(`setLink`/`unsetLink`)를
+ * 다루고 이미지는 노드 속성이라 `updateAttributes("image", { alt })`를 쓴다는 차이만 있다.
+ * alt는 선택 사항이므로 빈 값 제출도 그대로 허용한다(에러 없이 alt를 비운다).
+ */
+function ImageAltPopoverForm({ editor }: { editor: Editor }) {
+  const [alt, setAlt] = useState(String(editor.getAttributes("image").alt ?? ""));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  function submit() {
+    editor
+      .chain()
+      .focus()
+      .updateAttributes("image", { alt: alt.trim() || null })
+      .run();
+  }
+
+  return (
+    <form
+      className="flex items-center gap-1.5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        aria-label="이미지 대체 텍스트(alt)"
+        placeholder="이미지 설명을 입력하세요"
+        maxLength={IMAGE_ALT_MAX_LENGTH}
+        className="w-56 rounded-input border border-border bg-surface px-2 py-1 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
+        value={alt}
+        onChange={(event) => setAlt(event.target.value)}
+      />
+      <Button type="submit" variant="primary" size="sm">
+        적용
+      </Button>
+    </form>
+  );
+}
+
+/** 이미지가 선택돼 있을 때만 뜨는, alt 텍스트 입력 전용 버블 메뉴. */
+function ImageBubbleMenu({ editor }: { editor: Editor | null }) {
+  const isImageActive = useEditorState({
+    editor,
+    selector: ({ editor: currentEditor }) => !!currentEditor?.isActive("image"),
+  });
+
+  if (!editor || !isImageActive) return null;
+
+  return (
+    <BubbleMenu editor={editor} options={{ placement: "bottom" }}>
+      <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
+        <ImageAltPopoverForm editor={editor} />
       </div>
     </BubbleMenu>
   );
@@ -840,6 +919,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
   return (
     <>
       {editor && <EditorBubbleMenu editor={editor} />}
+      {editor && <ImageBubbleMenu editor={editor} />}
       {/*
         2026-08-25에는 prose-sm(본문 14px)으로 낮췄었다 — 그런데 그 저해상도 노트북
         문제의 실제 원인은 헤더의 버튼/링크/태그류(px 낭비가 큰 UI 크롬)였지 본문
