@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
+import { ValidationError } from "./errors";
 import {
   DEFAULT_ACCOUNT_META,
   getAccountMeta,
@@ -51,6 +52,21 @@ describe("needsOnboarding", () => {
 });
 
 describe("saveAccountMeta", () => {
+  it("이름 또는 팀이 비어 있으면(공백만 있는 경우 포함) ValidationError를 던진다", async () => {
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+
+    await expect(saveAccountMeta("account-1", { name: "", team: "IT팀" })).rejects.toThrow(
+      ValidationError
+    );
+    await expect(saveAccountMeta("account-1", { name: "홍길동", team: "" })).rejects.toThrow(
+      ValidationError
+    );
+    await expect(saveAccountMeta("account-1", { name: "  ", team: "IT팀" })).rejects.toThrow(
+      ValidationError
+    );
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
   it("처음 저장할 때 onboardedAt을 채운다", async () => {
     vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
     const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
