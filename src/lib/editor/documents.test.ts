@@ -11,6 +11,7 @@ import {
   getDocumentVersionHistory,
   listDocuments,
   requireDocumentOwner,
+  searchDocuments,
   updateDocument,
 } from "./documents";
 
@@ -237,6 +238,85 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
       vi.doUnmock("react");
       vi.resetModules();
     }
+  });
+});
+
+describe("searchDocuments(P1-1a 후속, Ctrl+K 전체 검색)", () => {
+  it("빈 쿼리(공백만 포함)는 하위 문서를 조회하지 않고 빈 배열을 반환한다", async () => {
+    const listChildPagesSpy = vi.spyOn(client, "listChildPages");
+
+    const result = await searchDocuments("account-1", "   ");
+
+    expect(result).toEqual([]);
+    expect(listChildPagesSpy).not.toHaveBeenCalled();
+  });
+
+  it("제목에 쿼리가 포함된 문서를 찾는다(대소문자 무시)", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+      page("doc-2", "internal-2", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "React 19 정리", doc: SAMPLE_DOC } },
+      "doc-2": { sourceDocument: { title: "회의록", doc: SAMPLE_DOC } },
+    });
+
+    const result = await searchDocuments("account-1", "REACT");
+
+    expect(result.map((doc) => doc.pageId)).toEqual(["doc-1"]);
+  });
+
+  it("태그에 쿼리가 포함된 문서를 찾는다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue(["Backend"]);
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "무관한 제목", doc: SAMPLE_DOC } },
+    });
+
+    const result = await searchDocuments("account-1", "backend");
+
+    expect(result.map((doc) => doc.pageId)).toEqual(["doc-1"]);
+  });
+
+  it("본문(sourceDocument.doc)에 쿼리가 포함된 문서를 찾는다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+      page("doc-2", "internal-2", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": {
+        sourceDocument: {
+          title: "제목1",
+          doc: {
+            type: "doc",
+            content: [{ type: "paragraph", content: [{ type: "text", text: "kubernetes 배포 노트" }] }],
+          },
+        },
+      },
+      "doc-2": { sourceDocument: { title: "제목2", doc: SAMPLE_DOC } },
+    });
+
+    const result = await searchDocuments("account-1", "kubernetes");
+
+    expect(result.map((doc) => doc.pageId)).toEqual(["doc-1"]);
+  });
+
+  it("제목·태그·본문 어디에도 없으면 빈 배열을 반환한다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "제목", doc: SAMPLE_DOC } },
+    });
+
+    const result = await searchDocuments("account-1", "존재하지않는단어");
+
+    expect(result).toEqual([]);
   });
 });
 

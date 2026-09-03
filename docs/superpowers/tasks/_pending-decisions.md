@@ -13,4 +13,4 @@
 | P1-4a | [#4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4) | 구조화 로깅 도구/전송 대상 | 반영됨 — Slack만 유지, 별도 도구 없이 `src/lib/logger.ts`(JSON 한 줄 로그)로 구현. `docs/superpowers/tasks/P1-4a-structured-logging/` |
 | P1-5 | [#5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5) | 레이트리밋 구현 방식과 임계값 | 반영됨 — 단일 인메모리 방식, 사용자당 분당 30회. `docs/superpowers/tasks/P1-5-rate-limiting/` |
 | P2-3 | [#6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6) | AWS 배포 방식 및 시크릿 매니저 종류 | 반영됨 — AWS Lambda, 별도 시크릿 매니저 없이 Lambda 환경변수(Secret value) 설정 사용. `docs/superpowers/tasks/P2-3-lambda-secrets/` |
-| P1-1a(본문 검색) | [#7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7) | 본문 검색 지원 여부·방식(N+1 비용 트레이드오프) | 대기 |
+| P1-1a(본문 검색) | [#7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7) | 본문 검색 지원 여부·방식(N+1 비용 트레이드오프) | 반영됨 — Ctrl+K 전역 검색 팝업으로 개별 구현, 사이드바 검색은 제목·태그만 유지. `docs/superpowers/tasks/P1-1a-content-search-ctrlk/` |

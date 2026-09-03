@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { EditorSidebar } from "./EditorSidebar";
+import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
@@ -152,6 +153,7 @@ export function EditorShell({ documents, children, userEmail, onLogout }: Editor
   // 링크 모두에 적용되려면 두 쪽이 같은 Context를 공유해야 한다.
   return (
     <UnsavedChangesProvider>
+    <GlobalSearchModal />
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button
