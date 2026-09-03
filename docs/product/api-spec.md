@@ -12,10 +12,12 @@
   | code | 상태 코드 | 의미 |
   |---|---|---|
   | UNAUTHORIZED | 401 | 로그인 필요 |
+  | ACCESS_DISABLED | 403 | 로그인은 됐으나 계정 접속이 차단됨(2026-09-03 추가, `accountMeta.accessEnabled=false`) |
   | INVALID_REQUEST | 400 | 필수 값 누락 등 유효성 오류 |
   | NOT_FOUND | 404 | 대상 문서/리소스 없음 |
   | CONFLICT | 409 | 버전 불일치 등(2026-08-28부터 slug 중복은 구조적으로 불가능해져 이 코드 대상에서 빠짐 — P0-5b) |
   | UPSTREAM_ERROR | 502 | Confluence 등 외부 연동 실패(Slack으로 이상 감지 알림 전송) |
+- **2026-09-03 갱신**: 로그인 세션이 있어도 `accountMeta.accessEnabled=false`면 `/api/editor/**` 전체가 `ACCESS_DISABLED`(403)를 반환한다(온보딩 API 자체도 예외 없음 — 접속 차단이 온보딩보다 우선한다).
 
 ## 엔드포인트 목록
 | Method | 경로 | 설명 | prd.md 관련 기능 |
@@ -32,6 +34,12 @@
 | POST | /api/editor/documents/{pageId}/images | 이미지 첨부 | 이미지 첨부 |
 | PATCH | /api/editor/documents/{pageId}/publish | 게시 설정 변경 | 초안-게시 생명주기, 게시 메타데이터의 뷰어별 확장 |
 | PUT | /api/editor/documents/{pageId}/tags | 문서 태그 설정 | 문서 태그 지정 |
+| GET | /api/editor/account | 내 계정 정보(이름·팀·온보딩 여부) 조회 | 사용자 계정 정보 관리 |
+| PUT | /api/editor/account | 내 계정 정보(이름·팀) 저장 — 온보딩·수정 공용 | 사용자 계정 정보 관리 |
+| GET | /api/editor/account/search | 계정 검색(이름·이메일·팀 부분 일치) | 최상단 계정 관리 페이지, 페이지 공유 |
+| POST | /api/editor/documents/{pageId}/share | 공유 대상 추가 | 페이지 공유 |
+| DELETE | /api/editor/documents/{pageId}/share/{email} | 공유 대상 제거 | 페이지 공유 |
+| GET | /api/editor/documents/shared | 나에게 공유된 문서 목록 조회 | 페이지 공유 |
 
 ## 엔드포인트 상세
 
@@ -170,13 +178,17 @@
 { "pageId": "111", "version": 2 }
 ```
 
+> **2026-09-03 갱신(페이지 공유)**: 저장 성공 시 `sharingMeta.lastEditedBy`(이메일·이름·수정 시각)를 함께 갱신한다. 소유권 검사(`requireDocumentOwner`)는 문서 소유자 또는 `sharingMeta.sharedWith`에 포함된 계정 모두 통과하도록 확장됐다 — 공유받은 사람도 소유자와 동일하게 저장할 수 있다(읽기 전용 공유는 없음).
+
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
 | 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 403 | FORBIDDEN | 문서 소유자도 공유 대상도 아님 |
 | 400 | INVALID_REQUEST | version 누락, 제목/본문 누락 |
 | 404 | NOT_FOUND | 문서 없음 |
-| 409 | CONFLICT | 요청한 version이 최신이 아님(동시 수정) |
+| 409 | CONFLICT | 요청한 version이 최신이 아님(동시 수정) — 응답 본문에 `lastEditedBy`를 함께 내려보내 "누가 먼저 저장했는지" 화면에서 안내할 수 있게 한다 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 ### DELETE /api/editor/documents/{pageId} — 문서 삭제
@@ -260,6 +272,136 @@
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 태그는 Confluence 네이티브 페이지 라벨로 저장되며, 자유 텍스트로 입력할 수 있다. 문서함의 태그 필터링과 자동완성에 사용된다.
+
+### GET /api/editor/account — 내 계정 정보 조회(2026-09-03 추가)
+**Header**: Cookie(세션) 필수
+
+**Request Body**: 해당 없음
+
+**Response Body (성공)**
+```json
+{ "email": "user@s-food.com", "name": "홍길동", "team": "IT팀", "needsOnboarding": false }
+```
+`name`/`team`이 둘 다 비어 있으면(계정 폴더에 `accountMeta`가 아직 없는 경우 포함) `needsOnboarding: true`를 반환해, 클라이언트가 온보딩 팝업을 띄울지 판단한다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### PUT /api/editor/account — 내 계정 정보 저장(2026-09-03 추가, 온보딩·수정 공용)
+**Header**: Cookie(세션) 필수
+
+**Request Body**
+```json
+{ "name": "홍길동", "team": "IT팀" }
+```
+`accessEnabled`는 이 API로 바꿀 수 없다(관리자 전용 스크립트로만 변경 — 아래 "참고" 절 및 architecture.md 참고).
+
+**Response Body (성공)**
+```json
+{ "email": "user@s-food.com", "name": "홍길동", "team": "IT팀" }
+```
+저장 시 Space 최상단 "계정 관리" 페이지의 `accountIndex` 항목도 함께 upsert된다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 400 | INVALID_REQUEST | 이름/팀 누락 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### GET /api/editor/account/search — 계정 검색(2026-09-03 추가)
+**Header**: Cookie(세션) 필수
+
+**Request Body**: 해당 없음. 쿼리 파라미터 `q`(검색어, 이름·이메일·팀 부분 일치, 대소문자 무시) 필요.
+
+**Response Body (성공)**
+```json
+{ "accounts": [ { "email": "user2@s-food.com", "name": "김철수", "team": "디자인팀" } ] }
+```
+"계정 관리" 페이지의 `accountIndex` property만 읽어 서버에서 필터링한다(Space 전체 재조회 없음). 접속이 차단(`accessEnabled=false`)된 계정도 결과에 포함된다 — 검색 자체는 공유 대상을 찾기 위한 것이라 접속 가능 여부와 무관하다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 400 | INVALID_REQUEST | 검색어(`q`) 누락 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### POST /api/editor/documents/{pageId}/share — 공유 대상 추가(2026-09-03 추가)
+**Header**: Cookie(세션) 필수
+
+**Request Body**
+```json
+{ "email": "user2@s-food.com" }
+```
+
+**Response Body (성공)**
+```json
+{ "pageId": "111", "sharedWith": ["user2@s-food.com"] }
+```
+문서의 `sharingMeta.sharedWith`에 이메일을 추가하고, 대상 계정 폴더의 `sharedDocumentRefs`에도 문서 참조를 함께 기록한다(두 쓰기 중 하나가 실패해도 재시도로 수렴할 수 있도록, 문서 쪽을 먼저 쓴 뒤 대상 계정 폴더를 쓴다 — 대상 계정 폴더 쓰기만 실패하면 "공유는 됐지만 상대방 목록에는 아직 안 보이는" 일시적 불일치가 남을 수 있음을 감수한다).
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 400 | INVALID_REQUEST | 이메일 누락, 존재하지 않는 계정, 본인 자신을 공유 대상으로 지정 |
+| 403 | FORBIDDEN | 문서 소유자가 아님(공유받은 사람은 재공유 불가) |
+| 404 | NOT_FOUND | 문서 없음 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### DELETE /api/editor/documents/{pageId}/share/{email} — 공유 대상 제거(2026-09-03 추가)
+**Header**: Cookie(세션) 필수
+
+**Request Body**: 해당 없음
+
+**Response**: 성공 시 204 No Content. `sharingMeta.sharedWith`와 대상 계정 폴더의 `sharedDocumentRefs` 양쪽에서 제거한다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 403 | FORBIDDEN | 문서 소유자가 아님 |
+| 404 | NOT_FOUND | 문서 없음 또는 해당 이메일이 공유 대상이 아님 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### GET /api/editor/documents/shared — 나에게 공유된 문서 목록(2026-09-03 추가)
+**Header**: Cookie(세션) 필수
+
+**Request Body**: 해당 없음
+
+**Response Body (성공)**
+```json
+{
+  "documents": [
+    {
+      "pageId": "222",
+      "title": "제목",
+      "ownerEmail": "owner@s-food.com",
+      "ownerName": "홍길동",
+      "updatedAt": "2026-09-03T00:00:00.000Z",
+      "isPublished": false,
+      "tags": ["React"]
+    }
+  ]
+}
+```
+내 계정 폴더의 `sharedDocumentRefs`를 근거로 각 문서를 조회한다(문서함 목록 조회와 동일하게 문서마다 `sourceDocument`/`publishMetadata`를 읽는다). 사이드바 상단의 "공유받은 문서" 영역이 이 API를 사용한다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 ## 참고 — 외부 연동 API (이 서비스가 호출하는 쪽)
 - **Confluence Cloud REST API**: `src/lib/confluence/client.ts`에서 v2를 우선 사용하고, v2에 없는 기능(첨부파일 업로드, 예상되는 페이지 제한 기능)은 v1으로 대체한다. 공식 문서: Atlassian Confluence Cloud REST API Reference.
