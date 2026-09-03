@@ -22,3 +22,28 @@
 - [ ] **Step 5**: `OnboardingModal.test.tsx` 작성 — `needsOnboarding: true`/`false` 각각의 초기 렌더링, 제출 성공/실패, Escape/배경 클릭으로 닫히지 않음(onClose no-op)을 검증.
 
 각 Step은 `npm test -- account`/`OnboardingModal`로 검증 가능한 단위로 쪼갠다.
+
+## 2026-09-03 갱신 — Modal에서 전용 페이지(`/welcome`)로 재구성
+
+위 계획대로 구현·머지된 뒤, "메인에서 팝업으로 받는 방법은 아니다"라는 피드백을 받아 다시 짰다.
+
+### Global Constraints (추가)
+- 서버 리다이렉트(`redirect()`)로 강제한다 — 클라이언트 상태(예: 컴포넌트가 안 뜨는 것)에만 의존하면 사용자가 URL을 직접 조작해 우회할 수 있다. `/editor/layout.tsx`와 `/welcome/page.tsx` 양쪽 모두 서버 컴포넌트에서 판단한다.
+- 로그인 화면(`src/app/login/page.tsx`)의 "박스 없이 중앙 정렬" 레이아웃을 그대로 재사용해 새로운 시각 언어를 만들지 않는다.
+
+### Files (추가/변경)
+- Modify: `src/lib/editor/folder.ts` (`ensurePersonalFolder` 신설 — `/editor/layout.tsx`·`/welcome/page.tsx` 공용)
+- Modify: `src/lib/editor/folder.test.ts`
+- Modify: `src/app/editor/layout.tsx` (`ensurePersonalFolder` 사용 + `needsOnboarding`이면 `/welcome`로 리다이렉트)
+- Create: `src/app/welcome/page.tsx`
+- Create: `src/components/welcome/WelcomeForm.tsx`
+- Create: `src/components/welcome/WelcomeForm.test.tsx`
+- Delete: `src/components/editor/OnboardingModal.tsx`, `src/components/editor/OnboardingModal.test.tsx`
+- Modify: `src/components/editor/EditorShell.tsx`(`<OnboardingModal />` 제거), `src/components/editor/EditorShell.test.tsx`(더 이상 필요 없어진 fetch stub 되돌림)
+
+### Steps (추가)
+- [ ] **Step 6**: `folder.ts`에 `ensurePersonalFolder` 추가(find-or-create, 경쟁 상황의 `ConflictError`는 재조회로 흡수). `folder.test.ts`에 테스트 추가.
+- [ ] **Step 7**: `editor/layout.tsx`를 `ensurePersonalFolder` + `needsOnboarding` 검사로 갱신.
+- [ ] **Step 8**: `welcome/page.tsx`(서버 컴포넌트, 세션·온보딩 여부 판단) + `WelcomeForm.tsx`(클라이언트, 로그인 화면과 동일한 레이아웃) 작성.
+- [ ] **Step 9**: `OnboardingModal` 관련 파일 삭제, `EditorShell.tsx`/`EditorShell.test.tsx` 정리.
+- [ ] **Step 10**: `WelcomeForm.test.tsx` 작성(폼 표시, 제출 성공 시 `/editor`로 이동, 실패 시 오류 표시).

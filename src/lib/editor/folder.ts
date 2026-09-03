@@ -52,3 +52,25 @@ export async function createPersonalFolder(email: string): Promise<PersonalFolde
 
   return { accountFolderId: accountFolder.id, spaceKey: space.key };
 }
+
+/**
+ * 계정 폴더를 찾고, 없으면 만든다. `/editor` layout과 `/welcome` 페이지 양쪽이 로그인 직후
+ * 똑같이 "계정 폴더가 있어야 한다"는 전제로 시작하므로(P5-2 리다이렉트 온보딩 흐름), 그
+ * find-or-create 로직을 여기 하나로 모은다. 동시 요청으로 인한 `ConflictError`(둘 다 동시에
+ * 생성을 시도한 경우)는 재조회로 흡수한다 — 그래도 못 찾으면(사실상 일어나지 않는 경쟁
+ * 상황) 원래 오류를 그대로 전파한다.
+ */
+export async function ensurePersonalFolder(email: string): Promise<PersonalFolder> {
+  const existing = await findPersonalFolder(email);
+  if (existing) return existing;
+
+  try {
+    return await createPersonalFolder(email);
+  } catch (error) {
+    if (error instanceof ConflictError) {
+      const folder = await findPersonalFolder(email);
+      if (folder) return folder;
+    }
+    throw error;
+  }
+}

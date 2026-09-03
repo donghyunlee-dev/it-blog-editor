@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { createPersonalFolder, findPersonalFolder } from "@/lib/editor/folder";
+import { ensurePersonalFolder } from "@/lib/editor/folder";
 import { listDocuments } from "@/lib/editor/documents";
-import { ConflictError } from "@/lib/editor/errors";
+import { getAccountMeta, needsOnboarding } from "@/lib/editor/account";
 import { EditorShell } from "@/components/editor/EditorShell";
 import { logoutAction } from "@/lib/actions/logout";
 
@@ -17,20 +17,17 @@ export default async function EditorLayout({
     redirect("/login");
   }
 
-  let folder = await findPersonalFolder(email);
-  if (!folder) {
-    try {
-      folder = await createPersonalFolder(email);
-    } catch (error) {
-      if (error instanceof ConflictError) {
-        folder = await findPersonalFolder(email);
-      } else {
-        throw error;
-      }
-    }
+  const folder = await ensurePersonalFolder(email);
+
+  // 이름·팀 온보딩이 끝나지 않은 계정은 메인으로 들어오지 못하고 전용 환영 페이지로
+  // 리다이렉트된다(P5-2, 2026-09-03 — 처음엔 메인 화면 위 Modal이었으나 "메인에서 팝업으로
+  // 받는 방식은 아닌 것 같다"는 피드백으로 별도 페이지 전환 흐름으로 바꿨다).
+  const accountMeta = await getAccountMeta(folder.accountFolderId);
+  if (needsOnboarding(accountMeta)) {
+    redirect("/welcome");
   }
 
-  const documents = folder ? await listDocuments(folder.accountFolderId) : [];
+  const documents = await listDocuments(folder.accountFolderId);
 
   return (
     // 각 하위 페이지(new/[pageId])가 이미 자기 <main>을 렌더링하므로,

@@ -32,3 +32,36 @@ AX Auth 로그인 제약으로 이 세션에서 실제 계정으로 로그인해
 
 ## 최종 판정
 - [x] 수용 기준(`task.md`)을 모두 만족함 — PRD 갱신 가능
+
+## 2026-09-03 갱신 — Modal에서 전용 페이지(`/welcome`)로 재구성
+
+### 자동화 테스트
+| 커맨드 | 결과 |
+|---|---|
+| `npx vitest run src/lib/editor/folder.test.ts src/components/welcome/WelcomeForm.test.tsx src/components/editor/EditorShell.test.tsx` | 통과 (15/15) |
+| `npx vitest run` (전체 스위트) | 통과 (41 파일 / 382건) |
+| `npm run lint` | 통과(기존 경고 2건 외 신규 문제 없음) |
+| `npx tsc --noEmit` | 통과(에러 없음) |
+| `npm run build` | 통과 — `/welcome` 라우트가 정상 등록됨을 빌드 출력으로 확인 |
+
+### 수동 검증 (필요 시)
+이번에도 AX Auth 로그인 제약으로 이 세션에서 실제 계정으로 로그인해 `/welcome` 페이지가 뜨고
+완료 시 `/editor`로 이동하는 것을 브라우저로 직접 확인하지는 못했다. 대신 `WelcomeForm.test.tsx`가
+`@sfood/ui`의 실제 `FormField`·`Input`·`Button`을 렌더링해 다음을 검증한다:
+- Modal(`role="dialog"`)이 아니라 일반 페이지 콘텐츠로 렌더링된다.
+- 이름·팀이 비어 있으면 "시작하기" 버튼이 비활성화된다.
+- 제출 성공 시 `PUT /api/editor/account`가 정확한 바디로 호출되고 `router.replace("/editor")`가
+  호출된다.
+- 제출 실패 시 오류 메시지가 뜨고 이동하지 않는다.
+
+`ensurePersonalFolder`(서버 리다이렉트 판단의 기반)는 `folder.test.ts`에서 정상 조회·신규 생성·
+동시 생성 경쟁(ConflictError 재조회)·재조회 실패 시 오류 전파 4가지 경로를 모두 검증한다.
+
+### 발견된 문제와 조치
+없음.
+
+### 검증 중 새로 발견한 결정 사항
+없음.
+
+### 최종 판정
+- [x] 갱신된 수용 기준(`task.md`)을 모두 만족함 — PRD 반영 완료
