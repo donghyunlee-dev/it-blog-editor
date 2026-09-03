@@ -12,10 +12,15 @@ vi.mock("@/lib/editor/documents", () => ({
   requireDocumentOwner: vi.fn(),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: vi.fn(),
+}));
+
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { setPublishState } from "@/lib/editor/publish";
 import { requireDocumentOwner } from "@/lib/editor/documents";
-import { UnauthorizedError } from "@/lib/editor/errors";
+import { RateLimitError, UnauthorizedError } from "@/lib/editor/errors";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { PATCH } from "./route";
 
 beforeEach(() => {
@@ -76,5 +81,24 @@ describe("PATCH /api/editor/documents/[pageId]/publish", () => {
     expect(body.viewers).toEqual({
       "tech-blog": { slug: "my-post", metaDescription: "설명", publicSlug: "my-post-internal-key" },
     });
+  });
+
+  it("레이트리밋을 초과하면 429를 반환하고 소유자 확인·setPublishState를 호출하지 않는다", async () => {
+    vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
+    vi.mocked(enforceRateLimit).mockImplementation(() => {
+      throw new RateLimitError(30);
+    });
+
+    const request = new Request("http://localhost/api/editor/documents/doc-1/publish", {
+      method: "PATCH",
+      body: JSON.stringify({ isPublished: true }),
+    });
+
+    const response = await PATCH(request, { params: Promise.resolve({ pageId: "doc-1" }) });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(vi.mocked(requireDocumentOwner)).not.toHaveBeenCalled();
+    expect(vi.mocked(setPublishState)).not.toHaveBeenCalled();
   });
 });

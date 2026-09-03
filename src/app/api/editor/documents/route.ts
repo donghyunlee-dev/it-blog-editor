@@ -4,6 +4,7 @@ import { toErrorResponse } from "@/lib/api-response";
 import { NotFoundError } from "@/lib/editor/errors";
 import { findPersonalFolder } from "@/lib/editor/folder";
 import { createDocument, listDocuments } from "@/lib/editor/documents";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import type { JSONContent } from "@/lib/editor/tiptap-to-storage";
 
 export async function GET() {
@@ -25,6 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const email = await requireSessionEmail();
+    enforceRateLimit("documents:create", email);
     const folder = await findPersonalFolder(email);
 
     if (!folder) {
