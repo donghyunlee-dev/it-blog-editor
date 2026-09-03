@@ -1,6 +1,7 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 66 / 71 항목 완료 (최근 갱신: 2026-09-03 — Ctrl+K 전역 검색 팝업을 Notion 스타일(좌측 그룹핑된 결과 목록 + 우측 미리보기, "제목만" 필터)로 재구성했다. 사용자가 실제 Notion 검색 화면 캡처를 공유하며 격차를 지적해 진행된 후속 작업이다. `@sfood/ui`의 `Modal`이 필요한 폭을 지원하지 않아 커스텀 오버레이로 대체(이유는 design.md 기록). 이 항목도 이미 완료 표시돼 있던 P1-1a에 딸린 후속 개선이라 체크리스트 개수(71개)에는 변화가 없다. 이전 갱신: P1-1a 본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7)) 완료 — `listDocuments()`가 이미 문서 본문을 조회하면서 버리고 있었다는 것을 확인해 원래 우려했던 N+1 비용 증가 없이 재사용, P2-3(AWS Lambda·시크릿 관리 결정) 완료, P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소, Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
+> 전체 진행률: 67 / 85 항목 완료 (최근 갱신: 2026-09-03 — Phase 5 P5-1(계정 데이터 모델 확장) 완료. 이전 갱신: 사용자 계정 관리·페이지 공유 두 기능을 새 Phase 5·6(총 14개 항목)으로 계획에 반영했다. 신규 가입자 기본 접속 허용(Y), 관리자의 접속 권한 변경은 별도 화면 없이 수동 스크립트로 운영, 계정 검색은 최상단 "계정 관리" 페이지 기반, 동시 편집 충돌은 기존 버전 충돌 감지(P0-3)에 마지막 수정자 표시만 추가 — 이 4가지를 사용자와의 대화로 먼저 확정한 뒤 계획을 세웠다(체크리스트 개수 71 → 85, 완료 수는 그대로). 이전 갱신: P1-1a 본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7)) 완료 — "Ctrl+K 전역 검색 팝업으로 개별 구현"이라는 결정대로 `GlobalSearchModal`과 `GET /api/editor/documents/search`를 추가했다. P2-3(AWS Lambda·시크릿 관리 결정) 완료, P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소, Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
+
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -18,6 +19,11 @@
 | 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지 + 태그, 태그 필터, "새 문서" 버튼), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
 | 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, 태그 칩 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·삭제(확인 모달)·게시 설정 여는 버튼 | `/editor/new`, `/editor/[pageId]` |
 | 게시 설정 | 게시 여부·뷰어별 slug·메타 설명 설정 | 문서 전체 게시 토글, 뷰어별 카드(지금은 Tech Blog 1개, 카드마다 slug·메타 설명 입력) — 별도 화면이 아니라 문서 편집 화면(`DocumentEditor`) 안에서 열리는 `Modal` 오버레이다(2026-08-26 변경 — 기존 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal |
+| 온보딩 팝업(2026-09-03 추가) | 신규 가입자(또는 이름·팀 미입력 계정)의 첫 로그인 직후 이름·팀 입력 | `Modal` + `FormField` 2개(이름, 팀), 저장 전까지 닫기 불가 | 별도 라우트 없음 — `/editor` 진입 직후 자동으로 뜨는 Modal |
+| 계정 정보 팝업(2026-09-03 추가) | 로그인한 계정의 이름·팀을 언제든 조회·수정 | `Modal` + `FormField`(이메일은 읽기전용, 이름·팀은 수정 가능), 저장 성공/실패는 `Toast` | 별도 라우트 없음 — 사이드바 계정 표시 클릭 시 여는 Modal |
+| 접속 차단 안내 화면(2026-09-03 추가) | `accessEnabled=false`인 계정이 로그인 직후 보게 되는 안내 화면(메인 진입 차단) | `Card` + `Alert`(접속이 제한되었다는 안내, 관리자 문의 방법) | `/editor` 진입을 이 화면으로 대체(리다이렉트 없이 같은 라우트에서 렌더링) |
+| 공유 팝업(2026-09-03 추가) | 문서를 다른 사내 계정과 공유(추가/해제) | `Modal` + 계정 검색 입력(디바운스 검색), 검색 결과 리스트, 이미 공유된 대상 `Tag`/`Chip` 목록(제거 버튼 포함) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal(문서 편집 화면의 "공유" 버튼) |
+| 계정 관리 페이지(2026-09-03 추가) | 전체 계정(이메일·이름·팀·접속 허용 여부)을 목록으로 조회·검색 | `List` + 검색 입력, 계정별 상태 뱃지(접속 허용/차단) — 이번 범위는 조회 전용이며 Y/N 변경은 화면이 아니라 관리자 스크립트로 한다 | `/editor/accounts` |
 
 ## 🛠️ 개발 스펙 정의
 - 기술 스택·인증·데이터 저장·배포 방향의 상세 근거는 [architecture.md](./architecture.md)를 참고한다. 요약:
@@ -130,6 +136,60 @@
 - API 필요 여부: 아니오
 - 상태: 완료 — 에디팅 화면(사이드바·에디터·태그·게시 설정)에 이어 페이지 셸(문서 작성/수정/게시 설정 화면의 제목·이동 버튼·카드 컨테이너)까지 `@sfood/ui`로 전환 완료(2026-08-25), `globals.css`의 구형 `.page`/`.card`/`.button*`/`.field`/`.empty-state`/`.doc-list*`/`.badge*`/`.error-text` 클래스 제거. 2026-08-26 갱신: 게시 설정은 별도 페이지가 아니라 `DocumentEditor` 내부 Modal로 통합되어 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨. 산출물: src/app/editor/[pageId]/page.tsx, src/app/editor/new/page.tsx, src/components/editor/DocumentEditor.tsx, src/app/globals.css
 
+### 기능 — 사용자 계정 정보 관리·온보딩(2026-09-03 추가)
+- 설명: 로그인한 이메일만으로는 "누구인지" 알 수 없던 문제를 해소한다. 첫 로그인 시 이름·팀을 입력받아 계정 폴더에 저장하고, 이후 계정 정보 팝업으로 언제든 수정할 수 있다. 계정 표시는 "이름(이메일)" 형식으로 통일한다.
+- 입력: 이름(자유 텍스트), 팀(자유 텍스트)
+- 출력·동작: 계정 폴더의 `accountMeta.name`/`team` 저장, "계정 관리" 페이지의 `accountIndex` 항목도 함께 갱신
+- 예외 상황: 이름/팀 누락 시 400(`ValidationError`), 온보딩 완료 전에는 Modal을 닫을 수 없음
+- 데이터 저장 여부: 예 — data-spec.md의 "AccountFolder(`accountMeta`)"/"AccountIndex" 참고
+- API 필요 여부: 예 — `GET /api/editor/account`, `PUT /api/editor/account`
+- 상태: 계획 — Phase 5(P5-1~P5-5)에서 구현 예정
+
+### 기능 — 접속 권한 게이트(2026-09-03 추가)
+- 설명: 계정별로 접속 허용(Y)/차단(N)을 관리자가 통제한다. 신규 가입자는 기본 허용(Y)이며, 관리자가 필요한 계정만 개별적으로 차단한다. 차단된 계정은 AX Auth 로그인 자체는 성공하지만 `/editor` 메인 화면과 모든 `/api/editor/**` 요청이 막힌다.
+- 입력: 없음(계정 폴더의 `accountMeta.accessEnabled` 값을 읽기만 함). 값 변경은 관리자가 로컬에서 실행하는 스크립트(`scripts/set-account-access.ts`)로만 가능 — 화면 UI는 이번 범위에 없다(2026-09-03 사용자와의 대화로 결정).
+- 출력·동작: `accessEnabled=false`면 `/editor` 진입 시 접속 차단 안내 화면을 대신 렌더링하고, API는 403(`ACCESS_DISABLED`)을 반환
+- 예외 상황: 온보딩 미완료 + 접속 차단이 동시에 해당하면 접속 차단이 우선한다(온보딩 팝업보다 먼저 차단 화면을 보여준다)
+- 데이터 저장 여부: 예(위 계정 정보 관리 기능과 같은 property 사용)
+- API 필요 여부: 예 — 기존 모든 `/api/editor/**`에 공통 검사 추가
+- 상태: 계획 — Phase 5(P5-1, P5-3, P5-6)에서 구현 예정
+
+### 기능 — 최상단 계정 관리 페이지(2026-09-03 추가)
+- 설명: 전체 계정(이메일·이름·팀·접속 허용 여부)을 한 화면에서 검색·조회한다. 페이지 공유의 "공유 대상 검색"과 관리자의 계정 상태 확인에 공용으로 쓰인다.
+- 입력: 검색어(이름·이메일·팀 부분 일치)
+- 출력·동작: 계정 목록(이름(이메일), 팀, 접속 허용 뱃지)
+- 예외 상황: 검색 API 실패 시 오류 메시지 표시
+- 데이터 저장 여부: 예 — data-spec.md의 "AccountIndex" 참고
+- API 필요 여부: 예 — `GET /api/editor/account/search`
+- 상태: 계획 — Phase 5(P5-1, P5-7)에서 구현 예정
+
+### 기능 — 페이지 공유(2026-09-03 추가)
+- 설명: 문서 소유자가 다른 사내 계정을 검색해 문서를 공유하면, 공유받은 사람도 소유자와 동일하게 그 문서를 조회·편집할 수 있다(별도 읽기 전용 공유는 이번 범위 밖, 재공유는 소유자만 가능).
+- 입력: 공유 대상 이메일(계정 검색 결과에서 선택)
+- 출력·동작: 문서의 `sharingMeta.sharedWith`에 추가/제거, 대상 계정 폴더의 `sharedDocumentRefs`에도 참조를 함께 기록
+- 예외 상황: 이미 공유된 대상 재추가 시 무시(멱등), 본인 자신을 공유 대상으로 지정 시 400, 문서 소유자가 아니면 403
+- 데이터 저장 여부: 예 — data-spec.md의 "Document(`sharingMeta`)"/"AccountFolder(`sharedDocumentRefs`)" 참고
+- API 필요 여부: 예 — `POST /api/editor/documents/{pageId}/share`, `DELETE /api/editor/documents/{pageId}/share/{email}`
+- 상태: 계획 — Phase 6(P6-1~P6-3, P6-6)에서 구현 예정
+
+### 기능 — 공유받은 문서 목록 조회(2026-09-03 추가)
+- 설명: 사이드바 문서함 상단에 "공유받은 문서" 영역을 별도로 분리해 보여준다. 내 문서와 섞이지 않는다.
+- 입력: 세션 이메일
+- 출력·동작: 내 계정 폴더의 `sharedDocumentRefs`를 근거로 문서 목록(제목, 소유자, 최종 수정일, 게시 여부) 반환
+- 예외 상황: 공유받은 문서가 없으면 빈 목록(영역 자체를 숨김)
+- 데이터 저장 여부: 아니오(조회 전용)
+- API 필요 여부: 예 — `GET /api/editor/documents/shared`
+- 상태: 계획 — Phase 6(P6-4, P6-5)에서 구현 예정
+
+### 기능 — 동시 편집 충돌 감지 + 마지막 수정자 표시(2026-09-03 추가)
+- 설명: 공유 문서를 여러 사람이 편집할 수 있게 되면서, 실시간 잠금/공동편집(추가 인프라 필요) 대신 기존 낙관적 동시성 제어(P0-3)를 그대로 재사용하고 "마지막 수정자"만 화면에 표시하는 것으로 범위를 정했다(2026-09-03 사용자와의 대화로 결정, 상세 트레이드오프는 architecture.md 참고).
+- 입력: 없음(저장 시 자동 기록)
+- 출력·동작: 문서 저장 성공 시 `sharingMeta.lastEditedBy`(이메일·이름·시각) 갱신, 편집 화면에 "마지막 수정: {이름}, {시각}" 표시. 저장 시도 시 버전이 이미 바뀌어 있으면 기존과 동일하게 409(`ConflictError`)를 반환하되, 응답에 `lastEditedBy`를 포함해 "누가 먼저 저장했는지" 안내
+- 예외 상황: 소유자 1인만 편집하는 일반 문서에도 동일하게 적용(공유 여부와 무관하게 항상 마지막 수정자를 기록)
+- 데이터 저장 여부: 예(위 페이지 공유 기능과 같은 property 사용)
+- API 필요 여부: 예 — 기존 `PUT /api/editor/documents/{pageId}` 응답/충돌 처리 확장
+- 상태: 계획 — Phase 6(P6-7)에서 구현 예정
+
 ## 🗺️ 단계별 개발 계획
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -152,6 +212,18 @@
 - 목표: 2026-08-27 [프로덕션 준비도 감사](https://claude.ai/code/artifact/87302c07-68d6-42ed-8712-9345547cb659)에서 발견된 데이터 손실·정보 노출·확장성·접근성 공백을 해소한다. requirements.md가 "2차: 개인 에디터 기능 강화(상세 요구사항은 1차 완료 후 별도로 논의)"로 남겨뒀던 논의를 실제로 진행한 결과이기도 하다.
 - 포함 기능: 감사 리포트의 발견 항목 18개(P0 6건·P1 9건·P2 3건)를 검증 가능한 단위로 더 잘게 쪼갠 37개 세부 항목(P0 9개·P1 23개·P2 5개). 목록은 아래 체크리스트 참고.
 - 진행 방식: 항목마다 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴"(task→plan→result→test→PRD)을 따른다. 값·방식이 아직 정해지지 않은 항목(🔶 표시)은 GitHub Issue로 결정을 받은 뒤 착수하고, 추측으로 진행하지 않는다 — 6건 모두 2026-08-27에 이슈로 등록됐다(진행 현황은 [_pending-decisions.md](../superpowers/tasks/_pending-decisions.md) 참고).
+
+### Phase 5 — 사용자 계정 관리 (신규, 2026-09-03 계획)
+- 목표: 로그인한 이메일만으로는 "누구인지" 알 수 없던 문제를 해소한다. 신규 가입자 온보딩(이름·팀 입력), 계정 정보 수정, 계정별 접속 허용/차단(Y/N), 계정 검색 기반을 갖춘다.
+- 포함 기능: 사용자 계정 정보 관리·온보딩, 접속 권한 게이트, 최상단 계정 관리 페이지
+- 핵심 결정(2026-09-03, 사용자와의 대화로 확정 — GitHub Issue 없이 직접 정함): 신규 가입자 기본 접속 허용(Y). 관리자의 Y/N 변경은 이번 범위에서는 화면 없이 수동 스크립트(`scripts/set-account-access.ts`)로 운영. 계정 검색은 Space 최상단 "계정 관리" 페이지의 `accountIndex` property 기반.
+- 진행 방식: Phase 4와 동일하게 항목마다 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴"을 따른다. 이 Phase의 핵심 결정은 이미 대화로 확정돼 있어 착수 전 별도 GitHub Issue가 필요 없다.
+
+### Phase 6 — 페이지 공유 (신규, 2026-09-03 계획)
+- 목표: 문서를 다른 사내 계정과 공유해 함께 조회·편집할 수 있게 하고, 공유받은 문서를 사이드바에서 분리해 보여준다. Phase 5(계정 정보·계정 검색)가 선행돼야 한다.
+- 포함 기능: 페이지 공유, 공유받은 문서 목록 조회, 동시 편집 충돌 감지 + 마지막 수정자 표시
+- 핵심 결정(2026-09-03, 사용자와의 대화로 확정): 공유는 소유자와 동일한 편집 권한 하나만 제공(읽기 전용 공유는 범위 밖, 재공유는 소유자만 가능). 동시 편집 충돌은 실시간 잠금/공동편집 없이 기존 버전 충돌 감지(P0-3)에 마지막 수정자 표시만 추가.
+- 진행 방식: Phase 5와 동일. Phase 5의 계정 검색(P5-7)이 끝나야 P6-2(계정 검색 API 재사용)를 시작할 수 있다.
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -244,6 +316,28 @@
 - [ ] (P2-1c) 모바일 오프캔버스 드로어에 포커스 트랩을 추가한다.
 - [ ] (P2-2) 문서-코드 드리프트 잔여 항목 정리 — 이번 갱신으로 prd.md의 게시 설정 라우트 서술은 반영됨. `EditorSidebar.tsx`의 `extractPageIdFromPathname`이 여전히 다루는 존재하지 않는 `/editor/{pageId}/publish` 경로 처리와 design.md 쪽 서술까지 확인·정리한다.
 - [x] (완료, P2-3) 비밀값을 AWS Secrets Manager 또는 SSM Parameter Store로 옮긴다 — [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 2026-08-30 "1차 개발은 Lambda와 Lambda의 Secret value 설정으로 진행"으로 결정돼, 원래 항목이 전제한 "별도 시크릿 매니저로 이전"은 하지 않는 것으로 확정됐다. 배포 서비스도 AWS Lambda로 확정됐다. 현재 코드(`src/lib/env.ts`의 `requireEnv`)는 `process.env`만 읽으므로 Lambda 환경변수와 코드 변경 없이 그대로 호환됨을 확인했다 — 코드 변경 없음, `architecture.md`에 결정 반영. Next.js를 Lambda에 올리는 구체적인 어댑터·빌드 구성·도메인/HTTPS는 이 결정과 별개로 실제 배포 착수 시점에 따로 정한다(범위 밖). 산출물: `docs/superpowers/tasks/P2-3-lambda-secrets/{task,plan,result,test}.md`, docs/product/architecture.md
+
+### Phase 5 — 사용자 계정 관리 (신규, 2026-09-03 계획)
+각 항목의 산출물은 `docs/superpowers/tasks/{ID}-{slug}/{task,plan,result,test}.md` 4파일이다. 항목마다 GitHub에 개별 PR을 올려 머지·확인 후 다음 항목을 진행한다(CLAUDE.md "작업 루틴" 참고). P5-1 → (P5-2, P5-3, P5-6 순서 무관하게 병행 가능) → P5-4 → P5-5 → P5-7 순서를 권장한다(뒤 항목이 앞 항목의 데이터 모델·화면에 의존).
+
+- [x] (완료, P5-1) 계정 데이터 모델 확장 — 계정 폴더 생성 시 `accountMeta`(기본값 `{ name: "", team: "", accessEnabled: true }`) 함께 생성, 조회/저장 도메인 함수(`src/lib/editor/account.ts`) 신설. 기존 계정(속성 없음)은 조회 시점에 기본값으로 보정(쓰기 없음). `saveAccountMeta`로는 `accessEnabled`를 바꿀 수 없게 해, 접속 권한 변경은 관리자 스크립트(P5-6)만의 몫이라는 설계를 코드로 강제했다. 산출물: `docs/superpowers/tasks/P5-1-account-data-model/{task,plan,result,test}.md`, src/lib/editor/account.ts, src/lib/editor/account.test.ts, src/lib/editor/folder.ts, src/lib/editor/folder.test.ts
+- [ ] (P5-2) 온보딩 팝업 — `accountMeta.name`/`team`이 비어 있으면 `/editor` 진입 직후 이름·팀 입력 Modal을 띄우고, 저장 전까지 닫을 수 없게 한다. `GET /api/editor/account`, `PUT /api/editor/account` 추가.
+- [ ] (P5-3) 접속 권한 게이트 — `/editor` 진입 시 서버 측에서 `accountMeta.accessEnabled`를 확인해 `false`면 접속 차단 안내 화면을 렌더링하고, `/api/editor/**` 공통 처리에도 같은 검사를 추가해 403(`ACCESS_DISABLED`)을 반환한다. 검증: `accessEnabled=false` 계정으로 접근 시 차단 화면·403, `true`인 계정은 정상 통과하는 자동화 테스트.
+- [ ] (P5-4) 계정 정보 수정 팝업 — 사이드바 계정 표시 영역에 진입점을 추가하고, `Modal`+`FormField`로 이름·팀을 수정해 `PUT /api/editor/account`로 저장(성공/실패 `Toast` 안내).
+- [ ] (P5-5) 계정 표시 형식 통일 — 사이드바·문서함 등 계정을 표시하던 모든 위치를 "이름(이메일)" 형식으로 갱신(이름이 없으면 기존처럼 이메일만 표시하는 하위 호환 유지).
+- [ ] (P5-6) 관리자 접속 권한 변경 스크립트 — `scripts/set-account-access.ts`(로컬 실행, 서비스 계정 자격증명 사용)로 특정 이메일의 `accountMeta.accessEnabled`를 직접 수정할 수 있게 한다. UI 없음(2026-09-03 결정).
+- [ ] (P5-7) 최상단 계정 관리 페이지 — Space 최상단 "계정 관리" 페이지(`AccountIndex`, 최초 접근 시 자동 생성)와 `accountIndex` property 유지(계정 생성·정보 수정·온보딩 시 upsert), `GET /api/editor/account/search` 추가, `/editor/accounts` 화면(목록+검색, 조회 전용) 구현.
+
+### Phase 6 — 페이지 공유 (신규, 2026-09-03 계획, Phase 5 선행 필요)
+각 항목의 산출물은 `docs/superpowers/tasks/{ID}-{slug}/{task,plan,result,test}.md` 4파일이다. P6-1 → P6-2(Phase 5의 P5-7 완료 후) → P6-3 → P6-4 → P6-5 → P6-6 → P6-7 순서를 권장한다.
+
+- [ ] (P6-1) 공유 데이터 모델 확장 — 문서에 `sharingMeta`(`sharedWith`, `lastEditedBy`) property 추가, 공유 대상 계정 폴더에 `sharedDocumentRefs` property 추가. 관련 도메인 함수(`src/lib/editor/sharing.ts`) 신설.
+- [ ] (P6-2) 계정 검색 API 연동 — 공유 팝업이 P5-7의 `GET /api/editor/account/search`를 재사용해 대상을 찾도록 연동(디바운스 검색 UI 포함).
+- [ ] (P6-3) 공유 버튼 + 팝업 UI — 문서 편집 화면에 "공유" 버튼과 `Modal`(계정 검색 + 이미 공유된 대상 목록/제거)을 추가, `POST /api/editor/documents/{pageId}/share`·`DELETE /api/editor/documents/{pageId}/share/{email}` 연동. 소유자만 버튼이 보이도록 처리(재공유 방지).
+- [ ] (P6-4) 공유받은 문서 인덱스 기록 — 공유 추가/해제 시 대상 계정 폴더의 `sharedDocumentRefs`를 함께 갱신(P1-2b `deletedDocuments` 패턴 재사용). 검증: 공유 추가 후 대상 계정 폴더 property에 참조가 기록되는지, 해제 후 제거되는지 확인하는 유닛 테스트.
+- [ ] (P6-5) 공유받은 문서 목록 조회 — `GET /api/editor/documents/shared` 추가, 사이드바 상단에 "공유받은 문서" 영역을 문서함과 분리해 표시(비어 있으면 영역 숨김).
+- [ ] (P6-6) 공유 문서 접근 권한 확장 — 문서 조회·수정 API의 소유권 검사(`requireDocumentOwner`)를 "소유자 또는 `sharingMeta.sharedWith` 포함 계정"으로 확장. 검증: 공유받은 계정의 조회·수정 성공, 공유되지 않은 제3자의 접근 403을 확인하는 자동화 테스트.
+- [ ] (P6-7) 동시 편집 충돌 감지 + 마지막 수정자 표시 — 문서 저장 성공 시 `sharingMeta.lastEditedBy` 갱신, 편집 화면에 마지막 수정자 표시, 409(`ConflictError`) 응답에 `lastEditedBy` 포함(기존 P0-3 버전 검사 로직은 그대로 재사용).
 
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)

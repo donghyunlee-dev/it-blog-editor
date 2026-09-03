@@ -1,4 +1,5 @@
 import { createPage, findChildPageByTitle, getConfiguredSpace } from "@/lib/confluence/client";
+import { initializeAccountMeta } from "./account";
 import { ConflictError } from "./errors";
 
 export interface PersonalFolder {
@@ -46,6 +47,8 @@ export async function createPersonalFolder(email: string): Promise<PersonalFolde
     title: email,
     bodyValue: `<p>${email}님의 문서함입니다.</p>`,
   });
+
+  await initializeAccountMeta(accountFolder.id);
 
   return { accountFolderId: accountFolder.id, spaceKey: space.key };
 }

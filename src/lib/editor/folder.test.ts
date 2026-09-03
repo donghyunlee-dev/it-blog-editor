@@ -58,6 +58,13 @@ describe("createPersonalFolder", () => {
     const createSpy = vi.spyOn(client, "createPage").mockResolvedValue(
       page("account-1", EMAIL, "home-1")
     );
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "", team: "", accessEnabled: true },
+      version: { number: 1 },
+    });
 
     const folder = await createPersonalFolder(EMAIL);
 
@@ -66,6 +73,11 @@ describe("createPersonalFolder", () => {
       parentId: "home-1",
       title: EMAIL,
       bodyValue: expect.stringContaining(EMAIL),
+    });
+    expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", {
+      name: "",
+      team: "",
+      accessEnabled: true,
     });
     expect(folder).toEqual({ accountFolderId: "account-1", spaceKey: "SFOODIT" });
   });
