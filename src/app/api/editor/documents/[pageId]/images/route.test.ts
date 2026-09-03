@@ -12,10 +12,15 @@ vi.mock("@/lib/editor/images", () => ({
   registerImage: vi.fn(),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: vi.fn(),
+}));
+
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { requireDocumentOwner } from "@/lib/editor/documents";
 import { registerImage } from "@/lib/editor/images";
-import { UnauthorizedError, ValidationError } from "@/lib/editor/errors";
+import { RateLimitError, UnauthorizedError, ValidationError } from "@/lib/editor/errors";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { POST } from "./route";
 
 beforeEach(() => {
@@ -85,5 +90,21 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     const response = await POST(postRequest(formData), { params: Promise.resolve({ pageId: "doc-1" }) });
 
     expect(response.status).toBe(400);
+  });
+
+  it("레이트리밋을 초과하면 429를 반환하고 소유자 확인·registerImage를 호출하지 않는다", async () => {
+    vi.mocked(enforceRateLimit).mockImplementation(() => {
+      throw new RateLimitError(30);
+    });
+
+    const formData = new FormData();
+    formData.append("file", new File(["x"], "photo.png", { type: "image/png" }));
+
+    const response = await POST(postRequest(formData), { params: Promise.resolve({ pageId: "doc-1" }) });
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(vi.mocked(requireDocumentOwner)).not.toHaveBeenCalled();
+    expect(vi.mocked(registerImage)).not.toHaveBeenCalled();
   });
 });

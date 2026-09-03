@@ -13,10 +13,15 @@ vi.mock("@/lib/editor/documents", () => ({
   listDocuments: vi.fn(),
 }));
 
+vi.mock("@/lib/rate-limit", () => ({
+  enforceRateLimit: vi.fn(),
+}));
+
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { findPersonalFolder } from "@/lib/editor/folder";
 import { createDocument, listDocuments } from "@/lib/editor/documents";
-import { UnauthorizedError, ValidationError } from "@/lib/editor/errors";
+import { RateLimitError, UnauthorizedError, ValidationError } from "@/lib/editor/errors";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import { GET, POST } from "./route";
 
 beforeEach(() => {
@@ -134,5 +139,23 @@ describe("POST /api/editor/documents", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(400);
+  });
+
+  it("레이트리밋을 초과하면 429를 반환하고 폴더 조회·createDocument를 호출하지 않는다", async () => {
+    vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
+    vi.mocked(enforceRateLimit).mockImplementation(() => {
+      throw new RateLimitError(30);
+    });
+
+    const request = new Request("http://localhost/api/editor/documents", {
+      method: "POST",
+      body: JSON.stringify({ title: "제목", doc: { type: "doc", content: [] } }),
+    });
+    const response = await POST(request);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("30");
+    expect(vi.mocked(findPersonalFolder)).not.toHaveBeenCalled();
+    expect(vi.mocked(createDocument)).not.toHaveBeenCalled();
   });
 });

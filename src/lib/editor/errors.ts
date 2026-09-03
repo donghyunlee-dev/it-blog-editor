@@ -32,3 +32,18 @@ export class ConflictError extends Error {
     this.name = "ConflictError";
   }
 }
+
+/**
+ * 민감 API 엔드포인트(문서 생성·이미지 업로드·게시)의 레이트리밋 초과 시 던진다
+ * ([Issue #5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5), P1-5).
+ * `toErrorResponse`가 429로 매핑하고 `retryAfterSeconds`를 `Retry-After` 헤더로 싣는다.
+ */
+export class RateLimitError extends Error {
+  retryAfterSeconds: number;
+
+  constructor(retryAfterSeconds: number, message = "요청이 너무 잦습니다. 잠시 후 다시 시도해주세요.") {
+    super(message);
+    this.name = "RateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}

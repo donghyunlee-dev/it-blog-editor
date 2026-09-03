@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   ConflictError,
   NotFoundError,
+  RateLimitError,
   UnauthorizedError,
   ValidationError,
 } from "@/lib/editor/errors";
@@ -48,6 +49,12 @@ export async function toErrorResponse(error: unknown): Promise<NextResponse> {
   if (error instanceof ConflictError) {
     return NextResponse.json(errorBody("CONFLICT", error.message), {
       status: 409,
+    });
+  }
+  if (error instanceof RateLimitError) {
+    return NextResponse.json(errorBody("RATE_LIMITED", error.message), {
+      status: 429,
+      headers: { "Retry-After": String(error.retryAfterSeconds) },
     });
   }
 
