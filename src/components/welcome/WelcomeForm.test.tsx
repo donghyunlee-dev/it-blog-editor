@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import { WelcomeForm } from "./WelcomeForm";
 
+const EMAIL = "user@s-food.com";
 const replaceMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -22,7 +23,7 @@ const jsonResponse = (body: unknown, status = 200) =>
 function renderForm() {
   return render(
     <ToastProvider>
-      <WelcomeForm />
+      <WelcomeForm email={EMAIL} />
     </ToastProvider>
   );
 }
@@ -34,12 +35,16 @@ beforeEach(() => {
 });
 
 describe("WelcomeForm", () => {
-  it("이름·팀 입력 폼을 보여준다(Modal이 아닌 일반 페이지 콘텐츠)", () => {
+  it("서비스 소개(제목·기능 3가지)와 로그인 계정 이메일, 이름·팀 입력 폼을 함께 보여준다", () => {
     renderForm();
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/^이름/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^팀/)).toBeInTheDocument();
+    expect(screen.getByText("SFOOD IT Editor에 오신 걸 환영해요!")).toBeInTheDocument();
+    expect(screen.getByText("초안은 나만 볼 수 있어요")).toBeInTheDocument();
+    expect(screen.getByText("원할 때 바로 게시")).toBeInTheDocument();
+    expect(screen.getByText("편하게 쓰는 에디터")).toBeInTheDocument();
+    expect(screen.getByText(EMAIL)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^이름을 알고 싶어요/)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^어디 소속인지 알려주세요/)).toBeInTheDocument();
   });
 
   it("이름·팀을 입력하지 않으면 시작하기 버튼이 비활성화된다", () => {
@@ -52,15 +57,15 @@ describe("WelcomeForm", () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch((url, init) => {
       if (url === "/api/editor/account" && init?.method === "PUT") {
-        return jsonResponse({ email: "user@s-food.com", name: "홍길동", team: "IT팀" });
+        return jsonResponse({ email: EMAIL, name: "홍길동", team: "IT팀" });
       }
       throw new Error(`unexpected request: ${url}`);
     });
 
     renderForm();
 
-    await user.type(screen.getByLabelText(/^이름/), "홍길동");
-    await user.type(screen.getByLabelText(/^팀/), "IT팀");
+    await user.type(screen.getByLabelText(/^이름을 알고 싶어요/), "홍길동");
+    await user.type(screen.getByLabelText(/^어디 소속인지 알려주세요/), "IT팀");
     await user.click(screen.getByRole("button", { name: "시작하기" }));
 
     await waitFor(() => {
@@ -77,17 +82,17 @@ describe("WelcomeForm", () => {
     });
   });
 
-  it("제출에 실패하면 오류 메시지를 보여주고 이동하지 않는다", async () => {
+  it("제출에 실패하면 Toast로 오류를 안내하고 이동하지 않는다", async () => {
     const user = userEvent.setup();
     stubFetch(() => jsonResponse({ error: { message: "이름과 팀을 모두 입력해주세요." } }, 400));
 
     renderForm();
 
-    await user.type(screen.getByLabelText(/^이름/), "홍길동");
-    await user.type(screen.getByLabelText(/^팀/), "IT팀");
+    await user.type(screen.getByLabelText(/^이름을 알고 싶어요/), "홍길동");
+    await user.type(screen.getByLabelText(/^어디 소속인지 알려주세요/), "IT팀");
     await user.click(screen.getByRole("button", { name: "시작하기" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("이름과 팀을 모두 입력해주세요.");
+    expect(await screen.findByText("이름과 팀을 모두 입력해주세요.")).toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
   });
 });

@@ -23,5 +23,5 @@ export default async function WelcomePage() {
     redirect("/editor");
   }
 
-  return <WelcomeForm />;
+  return <WelcomeForm email={email} />;
 }
