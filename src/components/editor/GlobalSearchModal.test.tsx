@@ -24,6 +24,26 @@ function openWithCtrlK() {
   fireEvent.keyDown(document, { key: "k", ctrlKey: true });
 }
 
+/** N일 전(자정 기준)의 ISO 문자열 — 그룹핑(오늘/어제/최근 7일/이전) 테스트용. */
+function daysAgoIso(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  date.setHours(12, 0, 0, 0);
+  return date.toISOString();
+}
+
+function makeDoc(overrides: Partial<Parameters<typeof jsonResponse>[0]> & Record<string, unknown> = {}) {
+  return {
+    pageId: "doc-1",
+    title: "React 19 정리",
+    updatedAt: daysAgoIso(0),
+    isPublished: false,
+    tags: [] as string[],
+    snippet: "",
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -36,7 +56,7 @@ describe("GlobalSearchModal", () => {
     expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
   });
 
-  it("Ctrl+K를 누르면 열리고, 다시 누르면 닫힌다", () => {
+  it("Ctrl+K를 누르면 열리고, 다시 누르거나 Escape를 누르면 닫힌다", () => {
     render(<GlobalSearchModal />);
 
     openWithCtrlK();
@@ -44,15 +64,17 @@ describe("GlobalSearchModal", () => {
 
     openWithCtrlK();
     expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
+
+    openWithCtrlK();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
   });
 
-  it("검색어를 입력하면(디바운스 후) 서버에 물어보고 결과를 보여준다", async () => {
+  it("검색어를 입력하면 결과를 목록에 보여주고, 첫 번째 결과가 자동으로 미리보기에 나타난다", async () => {
     const fetchMock = stubFetch((url) => {
       expect(url).toBe("/api/editor/documents/search?q=react");
       return jsonResponse({
-        documents: [
-          { pageId: "doc-1", title: "React 19 정리", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: true, tags: ["Frontend"] },
-        ],
+        documents: [makeDoc({ tags: ["Frontend"], snippet: "React 19의 새 기능 정리" })],
       });
     });
     const user = userEvent.setup();
@@ -62,8 +84,9 @@ describe("GlobalSearchModal", () => {
     await user.type(screen.getByLabelText("문서 전체 검색"), "react");
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled(), { timeout: 2000 });
-    expect(await screen.findByText("React 19 정리")).toBeInTheDocument();
-    expect(screen.getByText("Frontend")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "React 19 정리" })).toBeInTheDocument();
+    expect(screen.getByText("React 19의 새 기능 정리")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /React 19 정리/ })).toBeInTheDocument();
   });
 
   it("일치하는 문서가 없으면 안내 문구를 보여준다", async () => {
@@ -89,20 +112,15 @@ describe("GlobalSearchModal", () => {
   });
 
   it("결과를 클릭하면 모달이 닫히고 해당 문서로 이동한다", async () => {
-    stubFetch(() =>
-      jsonResponse({
-        documents: [
-          { pageId: "doc-1", title: "React 19 정리", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
-        ],
-      })
-    );
+    stubFetch(() => jsonResponse({ documents: [makeDoc()] }));
     const user = userEvent.setup();
 
     render(<GlobalSearchModal />);
     openWithCtrlK();
     await user.type(screen.getByLabelText("문서 전체 검색"), "react");
 
-    await user.click(await screen.findByText("React 19 정리", {}, { timeout: 2000 }));
+    const row = await screen.findByRole("button", { name: /React 19 정리/ }, { timeout: 2000 });
+    await user.click(row);
 
     expect(push).toHaveBeenCalledWith("/editor/doc-1");
     expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
@@ -112,8 +130,8 @@ describe("GlobalSearchModal", () => {
     stubFetch(() =>
       jsonResponse({
         documents: [
-          { pageId: "doc-1", title: "문서A", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
-          { pageId: "doc-2", title: "문서B", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
+          makeDoc({ pageId: "doc-1", title: "문서A" }),
+          makeDoc({ pageId: "doc-2", title: "문서B" }),
         ],
       })
     );
@@ -123,11 +141,70 @@ describe("GlobalSearchModal", () => {
     openWithCtrlK();
     const input = screen.getByLabelText("문서 전체 검색");
     await user.type(input, "문서");
-    await screen.findByText("문서A", {}, { timeout: 2000 });
+    await screen.findByRole("button", { name: /문서A/ }, { timeout: 2000 });
 
     fireEvent.keyDown(input, { key: "ArrowDown" });
     fireEvent.keyDown(input, { key: "Enter" });
 
     expect(push).toHaveBeenCalledWith("/editor/doc-2");
+  });
+
+  it("날짜별로 결과를 오늘/어제/최근 7일/이전으로 묶어서 보여준다", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        documents: [
+          makeDoc({ pageId: "doc-today", title: "오늘 문서", updatedAt: daysAgoIso(0) }),
+          makeDoc({ pageId: "doc-yesterday", title: "어제 문서", updatedAt: daysAgoIso(1) }),
+          makeDoc({ pageId: "doc-week", title: "주중 문서", updatedAt: daysAgoIso(3) }),
+          makeDoc({ pageId: "doc-old", title: "옛날 문서", updatedAt: daysAgoIso(30) }),
+        ],
+      })
+    );
+    const user = userEvent.setup();
+
+    render(<GlobalSearchModal />);
+    openWithCtrlK();
+    await user.type(screen.getByLabelText("문서 전체 검색"), "문서");
+
+    await screen.findByText("오늘", {}, { timeout: 2000 });
+    expect(screen.getByText("어제")).toBeInTheDocument();
+    expect(screen.getByText("최근 7일")).toBeInTheDocument();
+    expect(screen.getByText("이전")).toBeInTheDocument();
+  });
+
+  it("'제목만' 토글을 켜면 본문·태그로만 일치했던 문서는 목록에서 사라진다", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        documents: [
+          makeDoc({ pageId: "doc-title", title: "kubernetes 가이드" }),
+          makeDoc({ pageId: "doc-body-only", title: "무관한 제목", snippet: "kubernetes 배포 방법" }),
+        ],
+      })
+    );
+    const user = userEvent.setup();
+
+    render(<GlobalSearchModal />);
+    openWithCtrlK();
+    await user.type(screen.getByLabelText("문서 전체 검색"), "kubernetes");
+    await screen.findByRole("button", { name: /kubernetes 가이드/ }, { timeout: 2000 });
+    expect(screen.getByRole("button", { name: /무관한 제목/ })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Aa 제목만" }));
+
+    expect(screen.getByRole("button", { name: /kubernetes 가이드/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /무관한 제목/ })).not.toBeInTheDocument();
+  });
+
+  it("결과가 없을 때는 안내 문구를, 결과가 있을 때는 선택된 문서의 미리보기를 오른쪽에 보여준다", async () => {
+    render(<GlobalSearchModal />);
+    openWithCtrlK();
+
+    expect(screen.getByText("검색어를 입력해 문서를 찾아보세요.")).toBeInTheDocument();
+
+    stubFetch(() => jsonResponse({ documents: [makeDoc({ snippet: "본문 미리보기 내용" })] }));
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("문서 전체 검색"), "react");
+
+    expect(await screen.findByText("본문 미리보기 내용", {}, { timeout: 2000 })).toBeInTheDocument();
   });
 });
