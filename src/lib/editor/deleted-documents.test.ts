@@ -72,6 +72,14 @@ describe("restoreDocument", () => {
     );
   });
 
+  /**
+   * `moveSpy`가 정확히 `"account-1"`(findPersonalFolder가 돌려준 계정 폴더 id)로 호출됐는지
+   * 확인하는 것이 이 테스트의 핵심이다 — P1-10에서 실제 인스턴스에 발견된 사례(복구된 문서가
+   * 계정 폴더가 아니라 Space 홈페이지 최상위로 이동한 것)를 이 assertion이 구조적으로 막는다.
+   * P0-8 이전 커밋(`469c3bb^1`)의 구현도 확인했지만 `folder.draftFolderId`가 `space.homepageId`와
+   * 같아지는 코드 경로는 찾지 못했다 — 정확한 원래 원인은 특정하지 못한 채 남겨둔다(`task.md` 참고).
+   * 지금 구현은 애초에 서브폴더 선택 자체가 없어(계정 폴더 하나뿐) 그 종류의 버그가 들어설 자리가 없다.
+   */
   it("레지스트리에 있으면 계정 폴더로 이동시키고 제한을 다시 걸고 레지스트리에서 제거한다(P0-8 — 더 이상 '초안' 서브폴더가 아니라 계정 폴더 하나뿐이다)", async () => {
     stubGetPageProperty({
       registry: [{ pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-01T00:00:00.000Z" }],
