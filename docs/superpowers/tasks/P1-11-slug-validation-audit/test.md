@@ -9,12 +9,13 @@
 
 ## 수동 검증 (필요 시)
 - `src/lib/editor/publish.ts`의 `SLUG_PATTERN`/`validateAndComposeViewers`를 직접 읽어 `"/root"`가 정규식에 매치되지 않아 거부됨을 확인했다.
+- **2026-09-03**: 실제 Confluence 인스턴스 API(`GET /api/v2/pages/212959235/properties`)로 `publishMetadata` property를 직접 조회했다. 결과: `{ isPublished: true, publishedAt: "2026-08-28T08:31:56.357Z", viewers: { "tech-blog": { slug: "/root", metaDescription: "그런듯", publicSlug: "/root-51cda131-6bd4-449f-ace4-a73dc45f27ce" } } }` — 지금도 이 잘못된 slug 값으로 게시 중임을 직접 확인했다. 페이지 실제 URL: `https://sfoodxproject.atlassian.net/wiki/spaces/ITTECHBLOG/pages/212959235/51cda131-6bd4-449f-ace4-a73dc45f27ce`.
 
 ## 발견된 문제와 조치
-없음 — 이미 완료된 항목임을 확인한 것 외에 새로운 문제는 없었다.
+없음 — 이번 작업 자체는 코드 버그가 아니라 감사였다. 다만 실데이터 확인 결과, "코드는 이미 고쳤으니 이 항목은 끝났다"고 성급히 결론 내리지 않고 실제 저장된 값까지 직접 재조회한 것이 이 작업의 핵심이었다(같은 문서의 P1-10은 재조회 결과 이미 정상이었던 반면, 이 slug 값은 여전히 비정상임을 실제로 구분해 확인했다).
 
 ## 검증 중 새로 발견한 결정 사항
-- pageId `212959235`의 실제 `slug` 값 정정 여부 — P1-10의 위치 정리와 함께 사용자에게 확인이 필요하다(`task.md` 참고).
+- pageId `212959235`의 실제 `slug` 값을 정정할지, 게시를 취소할지 사용자에게 확인이 필요하다(`task.md` "결정이 필요한 사항" 참고). GitHub Issue는 등록하지 않았다 — 코드 변경이 필요한 결정이 아니라 사용자의 실제 Confluence 인스턴스에 쓰기 작업을 해도 되는지 묻는 1회성 승인 사항이라 대화로 확인하는 것이 적절하다고 판단했다.
 
 ## 최종 판정
-- [x] 수용 기준(`task.md`)을 모두 만족함(단, pageId `212959235`의 실제 slug 정정은 사용자 승인 후 별도 진행) — PRD 갱신 가능
+- [x] 수용 기준(`task.md`)을 모두 만족함(단, pageId `212959235`의 실제 slug 정정/게시 취소는 사용자 승인 후 별도 진행) — PRD 갱신 가능
