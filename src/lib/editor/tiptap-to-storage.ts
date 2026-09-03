@@ -116,9 +116,15 @@ function serializeNode(node: JSONContent): string {
     case "horizontalRule":
       return "<hr/>";
     case "image": {
+      // Confluence storage format의 `ac:image`는 대체 텍스트를 별도 ac:parameter가
+      // 아니라 `ac:alt` 속성으로 직접 받는다(Atlassian 공식 문서 확인). 값이 없으면
+      // 기존과 동일하게 속성 자체를 넣지 않는다.
+      const alt = String(node.attrs?.alt ?? "").trim();
+      const altAttr = alt ? ` ac:alt="${escapeHtml(alt)}"` : "";
+
       const filename = String(node.attrs?.filename ?? "").trim();
       if (filename) {
-        return `<ac:image><ri:attachment ri:filename="${escapeHtml(filename)}" /></ac:image>`;
+        return `<ac:image${altAttr}><ri:attachment ri:filename="${escapeHtml(filename)}" /></ac:image>`;
       }
       // HTML로 붙여넣은 이미지(파일이 아니라 `<img src>` 조각)는 AttachmentImage 노드에
       // filename 없이 src만 채워진다. filename이 없다고 그대로 두면 직렬화 시
@@ -126,7 +132,7 @@ function serializeNode(node: JSONContent): string {
       // 외부 이미지 참조(`ri:url`)로 내보낸다(Confluence storage format에서 유효한 형태).
       const src = String(node.attrs?.src ?? "").trim();
       if (src && isSafeImageSrc(src)) {
-        return `<ac:image><ri:url ri:value="${escapeHtml(src)}" /></ac:image>`;
+        return `<ac:image${altAttr}><ri:url ri:value="${escapeHtml(src)}" /></ac:image>`;
       }
       return "";
     }

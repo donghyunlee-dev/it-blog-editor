@@ -1,6 +1,8 @@
 # 📄 PRD — SFOOD IT Editor
 
+=
 > 전체 진행률: 57 / 71 항목 완료 (최근 갱신: 2026-09-02 — Phase 4 P1-9f(`SlashCommandExtension.ts` 테스트, P1-9 시리즈 마지막 항목) 완료. 지금까지 한 번도 실행된 적 없던 모듈에 커맨드 체인 검증(패널 3종의 `panelType` 오타 방지 포함)과 렌더러 동작 테스트를 추가했다. 참고: P1-8([PR #25](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/25))·P1-9a([PR #26](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/26))·P1-9b([PR #27](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/27))·P1-9c([PR #28](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/28))·P1-9d([PR #29](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/29))·P1-9e([PR #30](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/30))도 각각 별도 PR로 진행 중이며 아직 이 브랜치 기준(main)에는 반영되지 않았다 — 일곱 PR이 모두 병합되면 실제 진행률은 63/71이 된다)
+=
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -225,6 +227,7 @@
 - [ ] (P1-9d) `folder/route.ts` 테스트를 추가한다. — [PR #29](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/29)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [ ] (P1-9e) `RichTextEditor.tsx` 테스트를 추가한다. — [PR #30](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/30)에서 별도로 진행 중, 아직 main에 병합되지 않음.
 - [x] (완료, P1-9f) `SlashCommandExtension.ts` 테스트를 추가한다 — P1-9 시리즈 마지막 항목. `createSlashItems` 필터링 4건, 9개 기본 항목의 커맨드 체인 검증 9건(패널 3종의 `panelType` 혼동 방지 포함), `createSlashMenuRenderer` 동작 7건(렌더링·빈 목록·키보드 순환·클릭·unmount) 총 20건을 추가했다. 산출물: `docs/superpowers/tasks/P1-9f-slashcommand-test/{task,plan,result,test}.md`, src/components/editor/SlashCommandExtension.test.ts
+
 - [ ] (P1-10) 삭제된 문서 복구(P1-2b) 후 문서가 계정 폴더의 "초안"이 아니라 **Space 홈페이지 바로 아래(최상위)**로 옮겨지는 사례가 실제 인스턴스에서 발견됐다 — 2026-08-28, P0-5b/P0-7 작업 중 실제 계정 폴더를 조회하다가 우연히 발견. 증거: pageId `212959235`("CODEX 명령어 요약1")가 `authorMeta`/`sourceDocument`/`publishMetadata`(실제 이 앱이 쓰는 property 전부)를 갖고 있어 이 앱에서 만든 진짜 문서임이 확인되는데, `parentId`가 계정 폴더가 아니라 Space 홈페이지(`204341502`)이고 제한은 작성자 1인 전용(초안과 동일한 패턴)이다 — 즉 "초안처럼 숨겨져는 있지만 계정 폴더 밖으로 나가 `listDocuments()`(초안/게시 서브폴더만 조회)에 더 이상 잡히지 않는" 상태. 다른 사람에게 노출되진 않아 보안 사고는 아니지만, 작성자 본인도 앱에서 더 이상 찾을 수 없는 사실상의 데이터 유실이다. **2026-08-28 갱신(P0-8)**: "초안"/"게시" 서브폴더 구분 자체가 없어져 `restoreDocument`가 이제 계정 폴더 하나로만 이동하므로, "어느 서브폴더로 이동할지 잘못 고르는" 경로는 더 이상 존재하지 않는다 — 이 리팩터로 재현 경로가 사라진 것으로 보이지만, 원래 버그의 정확한 원인을 소급 확인하지는 않았다(범위 밖으로 명시). pageId `212959235` 자체(이미 최상위에 남아있는 문서)를 수동으로 정리하는 작업도 하지 않았다.
 - [ ] (P1-11) 게시 설정에 `slug: "/root"`처럼 슬래시가 포함된 값이 실제로 저장된 사례가 발견됐다(위 P1-10과 같은 문서, pageId `212959235`) — 현재 slug 검증(`publish.ts`의 `validateAndComposeViewers`)은 빈 값만 걸러내고 형식은 검증하지 않는다. P1-6c(slug 형식 검증)의 실제 필요성을 뒷받침하는 사례로 남긴다.
 
