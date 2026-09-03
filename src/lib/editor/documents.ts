@@ -176,10 +176,36 @@ export const listDocuments = cache(async function listDocuments(
  * 판단했다 — `listDocuments()`가 애초에 이 본문을 이미 조회하고 있었다는 것도 이 판단의 근거다
  * (제목만 쓰고 버리고 있었을 뿐, 추가 조회가 아니라 이미 하던 조회의 재사용에 가깝다).
  */
+export interface DocumentSearchResult extends DocumentSummary {
+  /** 미리보기 패널에 보여줄 본문 일부. 검색어가 본문 안에 있으면 그 주변을, 없으면(제목·태그만
+   * 일치) 본문 맨 앞을 잘라 보여준다. 본문이 비어 있으면 빈 문자열이다. */
+  snippet: string;
+}
+
+const SNIPPET_LENGTH = 140;
+const SNIPPET_CONTEXT_BEFORE = 40;
+
+/** 본문 텍스트에서 미리보기용 조각을 잘라낸다 — 검색어가 있으면 그 앞뒤 문맥을 보여준다. */
+function buildSnippet(bodyText: string, normalizedQuery: string): string {
+  const trimmed = bodyText.trim();
+  if (!trimmed) return "";
+
+  const matchIndex = normalizedQuery ? trimmed.toLowerCase().indexOf(normalizedQuery) : -1;
+  if (matchIndex === -1) {
+    return trimmed.length > SNIPPET_LENGTH ? `${trimmed.slice(0, SNIPPET_LENGTH)}…` : trimmed;
+  }
+
+  const start = Math.max(0, matchIndex - SNIPPET_CONTEXT_BEFORE);
+  const end = Math.min(trimmed.length, start + SNIPPET_LENGTH);
+  const prefix = start > 0 ? "…" : "";
+  const suffix = end < trimmed.length ? "…" : "";
+  return `${prefix}${trimmed.slice(start, end)}${suffix}`;
+}
+
 export async function searchDocuments(
   accountFolderId: string,
   query: string
-): Promise<DocumentSummary[]> {
+): Promise<DocumentSearchResult[]> {
   const normalized = query.trim().toLowerCase();
   if (!normalized) {
     return [];
@@ -194,7 +220,10 @@ export async function searchDocuments(
       if (summary.tags.some((tag) => tag.toLowerCase().includes(normalized))) return true;
       return bodyText.toLowerCase().includes(normalized);
     })
-    .map((entry) => entry.summary);
+    .map(({ summary, bodyText }) => ({
+      ...summary,
+      snippet: buildSnippet(bodyText, normalized),
+    }));
 }
 
 /**

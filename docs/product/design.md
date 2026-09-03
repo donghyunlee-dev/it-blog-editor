@@ -459,6 +459,30 @@ toast('오류가 발생했습니다.', 'danger')
 prop으로 그 이유를 짧게 설명하고, 라벨도 "공개 주소 키워드"로 바꿔 이 필드가 URL에 들어갈
 문서 키워드라는 것을 이름 자체에서 알 수 있게 했다. 산출물: `src/components/editor/PublishForm.tsx`.
 
+## Ctrl+K 검색 팝업 — `Modal`을 쓰지 않은 이유 (2026-09-03, Notion 스타일 재구성)
+
+`docs/superpowers/tasks/P1-1a-content-search-ctrlk/`에서 만든 첫 버전은 `@sfood/ui`의 `Modal`
+없이 시작했다가, 사용자가 Notion의 실제 Ctrl+K 검색 화면 캡처를 보여주며 "결과 목록(좌) + 선택한
+문서의 미리보기(우)"가 나란히 보이는 2단 레이아웃으로 재구성해 달라고 요청했다(`GlobalSearchModal.tsx`,
+`docs/superpowers/tasks/P1-1a-search-notion-style-redesign/`). 이때 `Modal`을 다시 검토했다.
+
+- **`Modal`의 `size`는 `sm`/`md`/`lg` 세 단계뿐이고, 가장 큰 `lg`도 `max-w-2xl`(42rem)에 그친다.**
+  좌측 결과 목록(최소 `min-w-[220px]`, 폭의 2/5)과 우측 미리보기 패널을 나란히 둔 채 문서 제목·
+  태그·본문 스니펫까지 읽을 수 있게 하려면 `max-w-4xl`(56rem) 이상이 필요해, `Modal`이 지원하는
+  범위를 벗어난다.
+- 그래서 위 문서 상단 "① 대응 요소 없으면 대체 구성" 원칙에 따라 커스텀 오버레이(`<div
+  className="fixed inset-0 ...">`)를 직접 만들되, `Modal`이 내부적으로 제공하는 접근성 동작—
+  Escape로 닫기, 배경(backdrop) 클릭으로 닫기, 포커스 트랩(Tab이 패널 밖으로 나가지 않게),
+  열려 있는 동안 `body` 스크롤 잠금, 닫힐 때 이전 포커스 복원—은 그대로 재현했다.
+- 커스텀 오버레이 안에서 쓰는 개별 요소는 여전히 `@sfood/ui`를 우선했다: 태그 표시는 `Tag`,
+  색상·간격·radius는 전부 CSS Variables 토큰 클래스(`bg-surface`, `border-border`, `rounded-card`,
+  `rounded-btn`, `text-muted`, `bg-brand-subtle`/`text-brand` 등)로만 참조하고 하드코딩하지 않았다.
+- **"제목만" 필터**는 클라이언트에서 이미 받아온 결과를 `title` 기준으로 다시 거르는 로컬 상태
+  (`titleOnly`)이고, 서버 재조회를 유발하지 않는다. **결과 그룹핑(오늘/어제/최근 7일/이전)**은
+  `updatedAt`을 오늘 자정 기준으로 비교해 4개 구간으로 나눈 뒤 빈 구간은 숨긴다.
+- Notion 캡처에는 있지만 이번에 반영하지 않은 것: "생성자"/"검색 범위" 필터(이 앱은 계정별 개인
+  폴더 구조라 여러 사용자 문서를 넘나들며 찾을 일이 없음), 즐겨찾기/북마크(이 앱에 없는 기능).
+
 ## 문서-코드 드리프트 방지 (2026-08-25, UI 진단 Phase 3)
 
 이 문서의 "Task 14/15 검증" 절들은 `@sfood/ui`의 특정 시점 타입 정의(`node_modules/@sfood/ui/dist/index.d.ts`)를
