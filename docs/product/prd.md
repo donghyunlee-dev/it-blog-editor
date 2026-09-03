@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 66 / 85 항목 완료 (최근 갱신: 2026-09-03 — 사용자 계정 관리·페이지 공유 두 기능을 새 Phase 5·6(총 14개 항목)으로 계획에 반영했다. 신규 가입자 기본 접속 허용(Y), 관리자의 접속 권한 변경은 별도 화면 없이 수동 스크립트로 운영, 계정 검색은 최상단 "계정 관리" 페이지 기반, 동시 편집 충돌은 기존 버전 충돌 감지(P0-3)에 마지막 수정자 표시만 추가 — 이 4가지를 사용자와의 대화로 먼저 확정한 뒤 계획을 세웠다(체크리스트 개수 71 → 85, 완료 수는 그대로). 이전 갱신: P1-1a 본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7)) 완료 — "Ctrl+K 전역 검색 팝업으로 개별 구현"이라는 결정대로 `GlobalSearchModal`과 `GET /api/editor/documents/search`를 추가했다. P2-3(AWS Lambda·시크릿 관리 결정) 완료, P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소, Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
+> 전체 진행률: 67 / 85 항목 완료 (최근 갱신: 2026-09-03 — Phase 5 P5-1(계정 데이터 모델 확장) 완료. 이전 갱신: 사용자 계정 관리·페이지 공유 두 기능을 새 Phase 5·6(총 14개 항목)으로 계획에 반영했다. 신규 가입자 기본 접속 허용(Y), 관리자의 접속 권한 변경은 별도 화면 없이 수동 스크립트로 운영, 계정 검색은 최상단 "계정 관리" 페이지 기반, 동시 편집 충돌은 기존 버전 충돌 감지(P0-3)에 마지막 수정자 표시만 추가 — 이 4가지를 사용자와의 대화로 먼저 확정한 뒤 계획을 세웠다(체크리스트 개수 71 → 85, 완료 수는 그대로). 이전 갱신: P1-1a 본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7)) 완료 — "Ctrl+K 전역 검색 팝업으로 개별 구현"이라는 결정대로 `GlobalSearchModal`과 `GET /api/editor/documents/search`를 추가했다. P2-3(AWS Lambda·시크릿 관리 결정) 완료, P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소, Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -319,7 +319,7 @@
 ### Phase 5 — 사용자 계정 관리 (신규, 2026-09-03 계획)
 각 항목의 산출물은 `docs/superpowers/tasks/{ID}-{slug}/{task,plan,result,test}.md` 4파일이다. 항목마다 GitHub에 개별 PR을 올려 머지·확인 후 다음 항목을 진행한다(CLAUDE.md "작업 루틴" 참고). P5-1 → (P5-2, P5-3, P5-6 순서 무관하게 병행 가능) → P5-4 → P5-5 → P5-7 순서를 권장한다(뒤 항목이 앞 항목의 데이터 모델·화면에 의존).
 
-- [ ] (P5-1) 계정 데이터 모델 확장 — 계정 폴더 생성 시 `accountMeta`(기본값 `{ name: "", team: "", accessEnabled: true }`) 함께 생성, 조회/저장 도메인 함수(`src/lib/editor/account.ts`) 신설. 기존 계정(마이그레이션 대상)은 조회 시점에 기본값으로 보정. 검증: 신규 계정 생성 시 기본 `accountMeta` 확인, 기존 계정(속성 없음) 조회 시 하위 호환 기본값 확인하는 유닛 테스트.
+- [x] (완료, P5-1) 계정 데이터 모델 확장 — 계정 폴더 생성 시 `accountMeta`(기본값 `{ name: "", team: "", accessEnabled: true }`) 함께 생성, 조회/저장 도메인 함수(`src/lib/editor/account.ts`) 신설. 기존 계정(속성 없음)은 조회 시점에 기본값으로 보정(쓰기 없음). `saveAccountMeta`로는 `accessEnabled`를 바꿀 수 없게 해, 접속 권한 변경은 관리자 스크립트(P5-6)만의 몫이라는 설계를 코드로 강제했다. 산출물: `docs/superpowers/tasks/P5-1-account-data-model/{task,plan,result,test}.md`, src/lib/editor/account.ts, src/lib/editor/account.test.ts, src/lib/editor/folder.ts, src/lib/editor/folder.test.ts
 - [ ] (P5-2) 온보딩 팝업 — `accountMeta.name`/`team`이 비어 있으면 `/editor` 진입 직후 이름·팀 입력 Modal을 띄우고, 저장 전까지 닫을 수 없게 한다. `GET /api/editor/account`, `PUT /api/editor/account` 추가.
 - [ ] (P5-3) 접속 권한 게이트 — `/editor` 진입 시 서버 측에서 `accountMeta.accessEnabled`를 확인해 `false`면 접속 차단 안내 화면을 렌더링하고, `/api/editor/**` 공통 처리에도 같은 검사를 추가해 403(`ACCESS_DISABLED`)을 반환한다. 검증: `accessEnabled=false` 계정으로 접근 시 차단 화면·403, `true`인 계정은 정상 통과하는 자동화 테스트.
 - [ ] (P5-4) 계정 정보 수정 팝업 — 사이드바 계정 표시 영역에 진입점을 추가하고, `Modal`+`FormField`로 이름·팀을 수정해 `PUT /api/editor/account`로 저장(성공/실패 `Toast` 안내).

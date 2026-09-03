@@ -1,0 +1,140 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as client from "@/lib/confluence/client";
+import {
+  DEFAULT_ACCOUNT_META,
+  getAccountMeta,
+  initializeAccountMeta,
+  needsOnboarding,
+  saveAccountMeta,
+} from "./account";
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe("getAccountMeta", () => {
+  it("accountMeta property가 없으면 기본값(접속 허용, 이름·팀 빈 값)을 반환한다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+
+    await expect(getAccountMeta("account-1")).resolves.toEqual(DEFAULT_ACCOUNT_META);
+  });
+
+  it("accountMeta property가 있으면 그 값을 그대로 반환한다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "홍길동", team: "IT팀", accessEnabled: false, onboardedAt: "2026-09-01T00:00:00.000Z" },
+      version: { number: 2 },
+    });
+
+    await expect(getAccountMeta("account-1")).resolves.toEqual({
+      name: "홍길동",
+      team: "IT팀",
+      accessEnabled: false,
+      onboardedAt: "2026-09-01T00:00:00.000Z",
+    });
+  });
+});
+
+describe("needsOnboarding", () => {
+  it("이름·팀이 모두 채워져 있으면 false를 반환한다", () => {
+    expect(
+      needsOnboarding({ name: "홍길동", team: "IT팀", accessEnabled: true })
+    ).toBe(false);
+  });
+
+  it("이름 또는 팀이 비어 있으면 true를 반환한다", () => {
+    expect(needsOnboarding({ name: "", team: "IT팀", accessEnabled: true })).toBe(true);
+    expect(needsOnboarding({ name: "홍길동", team: "", accessEnabled: true })).toBe(true);
+    expect(needsOnboarding({ name: "  ", team: "IT팀", accessEnabled: true })).toBe(true);
+  });
+});
+
+describe("saveAccountMeta", () => {
+  it("처음 저장할 때 onboardedAt을 채운다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "홍길동", team: "IT팀", accessEnabled: true, onboardedAt: "2026-09-03T00:00:00.000Z" },
+      version: { number: 1 },
+    });
+
+    const result = await saveAccountMeta("account-1", { name: "홍길동", team: "IT팀" });
+
+    expect(result.onboardedAt).toBeDefined();
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "account-1",
+      "accountMeta",
+      expect.objectContaining({ name: "홍길동", team: "IT팀", accessEnabled: true })
+    );
+  });
+
+  it("이미 onboardedAt이 있으면 재수정 시에도 그 값을 그대로 유지한다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {
+        name: "홍길동",
+        team: "IT팀",
+        accessEnabled: true,
+        onboardedAt: "2026-09-01T00:00:00.000Z",
+      },
+      version: { number: 2 },
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 3 },
+    });
+
+    const result = await saveAccountMeta("account-1", { name: "홍길동2", team: "IT팀" });
+
+    expect(result.onboardedAt).toBe("2026-09-01T00:00:00.000Z");
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "account-1",
+      "accountMeta",
+      expect.objectContaining({ onboardedAt: "2026-09-01T00:00:00.000Z" })
+    );
+  });
+
+  it("accessEnabled는 저장 대상에서 그대로 보존한다(이 함수로 바꿀 수 없음)", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "홍길동", team: "IT팀", accessEnabled: false },
+      version: { number: 1 },
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 2 },
+    });
+
+    await saveAccountMeta("account-1", { name: "홍길동", team: "디자인팀" });
+
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "account-1",
+      "accountMeta",
+      expect.objectContaining({ accessEnabled: false, team: "디자인팀" })
+    );
+  });
+});
+
+describe("initializeAccountMeta", () => {
+  it("기본값으로 accountMeta property를 생성한다", async () => {
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: DEFAULT_ACCOUNT_META,
+      version: { number: 1 },
+    });
+
+    const result = await initializeAccountMeta("account-1");
+
+    expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", DEFAULT_ACCOUNT_META);
+    expect(result).toEqual(DEFAULT_ACCOUNT_META);
+  });
+});
