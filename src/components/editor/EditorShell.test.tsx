@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorShell } from "./EditorShell";
@@ -13,21 +13,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => null,
 }));
-
-// EditorShell이 마운트하는 OnboardingModal(P5-2)이 곧바로 `GET /api/editor/account`를
-// 호출한다 — 실제 네트워크 요청이 나가지 않도록(테스트 환경에서 느려지거나 실패할 수
-// 있음) needsOnboarding: false로 응답해 이 파일의 기존 테스트들이 영향받지 않게 한다.
-beforeEach(() => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      new Response(
-        JSON.stringify({ email: "user@s-food.com", name: "홍길동", team: "IT팀", needsOnboarding: false }),
-        { status: 200 }
-      )
-    )
-  );
-});
 
 const DOCS: DocumentSummary[] = [
   {

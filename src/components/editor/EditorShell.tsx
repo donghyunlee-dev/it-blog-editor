@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { EditorSidebar } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
-import { OnboardingModal } from "./OnboardingModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
@@ -155,7 +154,6 @@ export function EditorShell({ documents, children, userEmail, onLogout }: Editor
   return (
     <UnsavedChangesProvider>
     <GlobalSearchModal />
-    <OnboardingModal />
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button

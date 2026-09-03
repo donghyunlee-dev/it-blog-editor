@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import type { ConfluencePage } from "@/lib/confluence/client";
-import { createPersonalFolder, findPersonalFolder } from "./folder";
+import { createPersonalFolder, ensurePersonalFolder, findPersonalFolder } from "./folder";
 import { ConflictError } from "./errors";
 
 const EMAIL = "user@s-food.com";
@@ -88,5 +88,56 @@ describe("createPersonalFolder", () => {
     );
 
     await expect(createPersonalFolder(EMAIL)).rejects.toThrow(ConflictError);
+  });
+});
+
+describe("ensurePersonalFolder", () => {
+  it("계정 폴더가 이미 있으면 그대로 반환하고 새로 만들지 않는다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(
+      page("account-1", EMAIL, "home-1")
+    );
+    const createSpy = vi.spyOn(client, "createPage");
+
+    const folder = await ensurePersonalFolder(EMAIL);
+
+    expect(folder).toEqual({ accountFolderId: "account-1", spaceKey: "SFOODIT" });
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it("계정 폴더가 없으면 새로 만들어 반환한다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
+    vi.spyOn(client, "createPage").mockResolvedValue(page("account-1", EMAIL, "home-1"));
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "", team: "", accessEnabled: true },
+      version: { number: 1 },
+    });
+
+    const folder = await ensurePersonalFolder(EMAIL);
+
+    expect(folder).toEqual({ accountFolderId: "account-1", spaceKey: "SFOODIT" });
+  });
+
+  it("동시 생성 경쟁으로 ConflictError가 나면 다시 조회해 반환한다", async () => {
+    let findCallCount = 0;
+    vi.spyOn(client, "findChildPageByTitle").mockImplementation(async () => {
+      findCallCount += 1;
+      // 처음(생성 시도 전 확인)엔 없다가, 다른 요청이 먼저 만들어 두 번째(재조회)엔 있다.
+      return findCallCount === 1 ? null : page("account-1", EMAIL, "home-1");
+    });
+    vi.spyOn(client, "createPage").mockRejectedValue(new ConflictError("개인 폴더가 이미 존재합니다."));
+
+    const folder = await ensurePersonalFolder(EMAIL);
+
+    expect(folder).toEqual({ accountFolderId: "account-1", spaceKey: "SFOODIT" });
+  });
+
+  it("경쟁 상황에서도 재조회에 실패하면 원래 오류를 그대로 전파한다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
+    vi.spyOn(client, "createPage").mockRejectedValue(new ConflictError("개인 폴더가 이미 존재합니다."));
+
+    await expect(ensurePersonalFolder(EMAIL)).rejects.toThrow(ConflictError);
   });
 });
