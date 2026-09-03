@@ -64,7 +64,7 @@ describe("PublishForm", () => {
     );
 
     expect(screen.getByText("Tech Blog")).toBeInTheDocument();
-    expect(screen.getByLabelText("공개 경로(slug)")).toHaveValue("saved-post");
+    expect(screen.getByLabelText("공개 주소 키워드")).toHaveValue("saved-post");
     expect(screen.getByLabelText("메타 설명")).toHaveValue("저장된 설명");
     // 최상위 게시 스위치는 initial.isPublished를 반영한다. Checkbox로 바꿨다가
     // "설정 팝업에 체크박스는 안 맞다"는 피드백으로 다시 Switch로 되돌렸다
@@ -144,7 +144,7 @@ describe("PublishForm", () => {
       <PublishForm pageId="doc-1" initial={{ isPublished: false, viewers: {} }} />
     );
 
-    await userEvent.type(screen.getByLabelText("공개 경로(slug)"), "my-post");
+    await userEvent.type(screen.getByLabelText("공개 주소 키워드"), "my-post");
     expect(fetchMock).not.toHaveBeenCalled();
     await userEvent.tab(); // blur
 
