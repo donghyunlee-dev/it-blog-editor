@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 66 / 71 항목 완료 (최근 갱신: 2026-09-03 — P2-3(AWS 배포·시크릿 관리 결정) 완료. [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 "1차 개발은 Lambda와 Lambda의 Secret value 설정으로 진행"으로 확정돼, 원래 항목이 전제한 "별도 시크릿 매니저로 이전"은 하지 않는 것으로 결론 났다 — 현재 `process.env` 기반 코드가 그대로 호환돼 코드 변경 없이 architecture.md만 갱신했다. 이전 갱신: P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소(실제 Confluence 인스턴스 API로 재확인), Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
+> 전체 진행률: 66 / 71 항목 완료 (최근 갱신: 2026-09-03 — P1-1a 본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7)) 완료. "Ctrl+K 전역 검색 팝업으로 개별 구현"이라는 결정대로 `GlobalSearchModal`과 `GET /api/editor/documents/search`를 추가했다 — `listDocuments()`가 이미 문서 본문을 조회하면서 버리고 있었다는 것을 확인해, 원래 우려했던 N+1 비용 증가 없이 그 조회를 재사용했다. 이 항목은 이미 완료 표시돼 있던 P1-1a에 딸린 후속 결정이라 체크리스트 개수(71개)에는 변화가 없다. 이전 갱신: P2-3(AWS Lambda·시크릿 관리 결정) 완료, P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소, Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -10,7 +10,7 @@
 - 관련 문서: [requirements.md](./requirements.md), [architecture.md](./architecture.md), [design.md](./design.md), Phase 4의 근거가 된 [프로덕션 준비도 감사 리포트](https://claude.ai/code/artifact/87302c07-68d6-42ed-8712-9345547cb659)(2026-08-27)
 
 ## 🖥️ 화면 정의
-`/editor`로 시작하는 모든 화면은 좌측 사이드바(문서 목록·태그 필터·"새 문서" 버튼)가 있는 공통 앱 셸 레이아웃(`src/app/editor/layout.tsx`) 안에서 렌더링된다. 상세 상호작용은 [docs/superpowers/specs/2026-08-21-editor-ui-ux-design.md](../superpowers/specs/2026-08-21-editor-ui-ux-design.md) 참고.
+`/editor`로 시작하는 모든 화면은 좌측 사이드바(문서 목록·태그 필터·"새 문서" 버튼)가 있는 공통 앱 셸 레이아웃(`src/app/editor/layout.tsx`) 안에서 렌더링된다. `Ctrl+K`/`Cmd+K`로 어느 화면에서든 제목·태그·본문을 함께 검색하는 전역 검색 팝업(`GlobalSearchModal.tsx`, [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7), 2026-09-03)도 이 앱 셸에 포함된다 — 사이드바 자체의 검색은 여전히 제목·태그만 본다. 상세 상호작용은 [docs/superpowers/specs/2026-08-21-editor-ui-ux-design.md](../superpowers/specs/2026-08-21-editor-ui-ux-design.md) 참고.
 
 | 화면 | 목적 | 주요 구성 요소 | 진입 경로 |
 |---|---|---|---|
@@ -48,6 +48,15 @@
 - 데이터 저장 여부: 예 — data-spec.md의 "계정 폴더"/"문서" 참고
 - API 필요 여부: 예 — `GET /api/editor/folder`, `GET /api/editor/documents`
 - 상태: 완료 — 산출물: src/lib/editor/folder.ts, src/lib/editor/folder.test.ts, src/lib/editor/documents.ts, src/lib/editor/documents.test.ts, src/app/api/editor/folder/route.ts, src/app/api/editor/documents/route.ts, src/app/editor/layout.tsx, src/lib/editor/tag-suggestions.ts
+
+### 기능 — 문서 전체 검색(Ctrl+K)
+- 설명: 사이드바의 상시 검색(제목·태그, 클라이언트 필터)과 별개로, `Ctrl+K`/`Cmd+K`로 여는 전역 팝업에서 제목·태그·본문(TipTap 문서에서 추출한 순수 텍스트)을 함께 검색한다([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7), P1-1a 후속, 2026-09-03 결정·구현). `/editor/*` 어느 화면에서든 열 수 있다.
+- 입력: 검색어(자유 텍스트, 300ms 디바운스 후 서버에 전송)
+- 출력·동작: 일치하는 문서 목록(제목, 태그, 게시 상태). 클릭하거나 방향키로 고른 뒤 Enter를 누르면 그 문서 편집 화면으로 이동
+- 예외 상황: 검색 API 실패 시 오류 메시지 표시. 개인 폴더가 없으면 빈 목록
+- 데이터 저장 여부: 아니오(조회 전용)
+- API 필요 여부: 예 — `GET /api/editor/documents/search?q=...`(신규, 사용자가 팝업을 열고 입력할 때만 호출되는 온디맨드 API — 사이드바가 매 렌더링마다 쓰는 `listDocuments()`와는 별개)
+- 상태: 완료 — `listDocuments()`가 이미 문서마다 본문(`sourceDocument.doc`)을 조회하면서 제목만 쓰고 버리고 있었다는 것을 확인해 그 조회를 재사용했다(원래 우려했던 "N+1 비용을 배로 늘린다"는 문제가 실제로는 없음). 산출물: `docs/superpowers/tasks/P1-1a-content-search-ctrlk/{task,plan,result,test}.md`, src/lib/editor/documents.ts, src/lib/editor/documents.test.ts, src/app/api/editor/documents/search/route.ts, src/app/api/editor/documents/search/route.test.ts, src/components/editor/GlobalSearchModal.tsx, src/components/editor/GlobalSearchModal.test.tsx, src/components/editor/EditorShell.tsx, src/components/editor/EditorSidebar.tsx
 
 ### 기능 — 문서 작성·수정·삭제
 - 설명: TipTap 기반 WYSIWYG 에디터로 문서를 작성/수정하고, 필요 시 삭제(Confluence 휴지통 이동)한다. 삭제는 `window.confirm()`이 아니라 `Modal` 확인창으로 처리한다.
@@ -202,7 +211,7 @@
 - [x] (완료, P0-8) 게시 여부를 폴더 이동이 아니라 property만으로 관리하도록 단순화했다 — P0-7 직후 사용자가 "계정별 초안/게시 폴더를 나눠 이동시킬 필요가 있냐, property로 게시 여부만 관리하면 되지 않냐"고 제안해 착수. 기존 설계([2026-08-21 콘텐츠 구조 설계](../superpowers/specs/2026-08-21-confluence-content-structure-design.md))를 재검토한 결과 폴더 이동이 필요했던 세 이유(①사람이 Confluence 트리를 직접 탐색한다는 전제 ②`listDocuments()`가 위치로 게시 여부를 공짜로 판단 ③메타데이터 쓰기 실패에도 재시도가 안전하도록 위치를 진실로 삼음) 모두 이번 "Confluence는 아무도 안 본다" 결정 이후 사라졌거나(①), P0-7로 이미 무너졌거나(②, 문서마다 sourceDocument를 추가 조회하고 있어), restriction의 멱등성으로 대체 가능(③)하다고 판단했다. 계정 폴더 하위 "초안"/"게시" 서브폴더를 완전히 제거하고, 게시/게시취소는 이제 restriction 토글(먼저) + `publishMetadata.isPublished` 기록(나중)만으로 이뤄진다. 복구(P1-2b)도 계정 폴더 하나로만 이동하면 되고, 복구 시 `publishMetadata.isPublished`를 명시적으로 `false`로 되돌리도록 함께 고쳤다(안 하면 restriction은 비공개인데 표시는 "게시됨"인 자기모순 상태가 됨 — 새로 발견한 요구사항). 이미 완료 표시됐던 Phase 1 기능("초안-게시 생명주기")을 되돌리는 리팩터이지만, "개발 초기 단계에서 규칙을 바로잡아야 한다"는 사용자 판단에 따라 진행했다. 산출물: `docs/superpowers/tasks/P0-8-remove-draft-published-folder-move/{task,plan,result,test}.md`, src/lib/editor/folder.ts, src/lib/editor/documents.ts, src/lib/editor/publish.ts, src/lib/editor/deleted-documents.ts, src/lib/editor/tag-suggestions.ts, src/app/editor/layout.tsx, src/app/api/editor/documents/route.ts, src/app/api/editor/folder/route.ts
 
 **P1 — 실사용 확장 전 필요**
-- [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 🔶 본문 검색은 `listDocuments()`의 기존 N+1 조회 비용을 배로 늘리는 아키텍처 트레이드오프라 별도 결정 필요 — [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7). 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
+- [x] (완료, P1-1a) 사이드바 검색을 태그까지 확장한다 — `DocumentSummary.tags`가 이미 클라이언트에 있어 추가 조회 없이 가능했다. 산출물: `docs/superpowers/tasks/P1-1a-search-by-tag-and-content/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx. **본문 검색 후속([Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7), 2026-09-03 완료)**: "Ctrl+K 전역 검색 팝업으로 개별 구현, 사이드바 검색은 제목·태그만 유지"로 결정됐다. `listDocuments()`가 이미 문서마다 본문(`sourceDocument.doc`)을 조회하면서 제목만 쓰고 버리고 있었다는 것을 확인해, 그 조회를 재사용하는 `searchDocuments()`(제목·태그·본문 텍스트 매칭)를 추가했다 — 원래 우려했던 "N+1 비용을 배로 늘린다"는 문제가 실제로는 발생하지 않는다. `GET /api/editor/documents/search`(온디맨드, `listDocuments()`와 별개) + `Ctrl+K`/`Cmd+K` 전역 검색 팝업(`GlobalSearchModal.tsx`, `/editor/*` 어디서든 열림, 클릭·방향키+Enter로 이동)을 추가했다. 사이드바의 기존 제목·태그 검색은 그대로 뒀다. 상세는 "문서 전체 검색(Ctrl+K)" 기능 정의와 `docs/superpowers/tasks/P1-1a-content-search-ctrlk/{task,plan,result,test}.md` 참고.
 - [x] (완료, P1-1b) 문서 목록 정렬 옵션(최신순/제목순)을 추가한다 — 기본값 최신순, 태그·검색어 필터 적용 후 정렬. 산출물: `docs/superpowers/tasks/P1-1b-document-list-sort/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다 — 화면(사이드바) 쪽만 "더 보기" 버튼으로 30개씩 점진적으로 그린다. 서버 조회 범위(`listDocuments()`) 자체의 페이지네이션은 다루지 않았다 — 태그 자동완성(`tag-suggestions.ts`)이 같은 함수로 전체 목록을 필요로 해서 P0-5a/P1-1a와 같은 종류의 아키텍처 결정이 필요하다(`task.md` 참고, 별도 이슈 없이 알려진 위험으로 남김). 산출물: `docs/superpowers/tasks/P1-1c-document-list-pagination/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가했다 — 문서 편집 화면 헤더의 "이력" 버튼 → Modal. `GET /api/v2/pages/{id}/versions` 응답 형태는 처음엔 실제 인스턴스로 검증하지 못한 채 PR로 올렸으나, 2026-08-28 사용자 승인 하에 실제(미사용) Confluence 인스턴스로 직접 확인했다(`number`/`createdAt` 필드명 일치, 서버가 이미 최신순 반환 — `docs/superpowers/tasks/P1-2a-revision-history-view/test.md` 참고). [PR #8](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/8) 머지 완료. 산출물: `docs/superpowers/tasks/P1-2a-revision-history-view/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts, src/app/api/editor/documents/[pageId]/versions/route.ts, src/components/editor/VersionHistory.tsx, src/components/editor/DocumentEditor.tsx

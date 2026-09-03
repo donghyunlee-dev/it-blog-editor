@@ -77,6 +77,14 @@ function isEmptyDoc(doc: JSONContent | undefined | null): boolean {
   return !doc || !hasMeaningfulContent(doc);
 }
 
+/** TipTap 문서의 텍스트 노드를 전부 이어붙인다(본문 검색용 — 서식·구조는 버리고 순수 텍스트만). */
+function extractPlainText(node: JSONContent): string {
+  if (node.type === "text") {
+    return node.text ?? "";
+  }
+  return (node.content ?? []).map(extractPlainText).join(" ");
+}
+
 async function getPageOrThrow(pageId: string) {
   try {
     return await getPage(pageId);
@@ -115,32 +123,79 @@ async function readAuthorEmail(pageId: string): Promise<string | null> {
  * 요청(같은 서버 렌더 트리) 안에서는 동일 인자 호출이 중복 실행되지 않고 메모이즈되도록 한다
  * — Next.js App Router의 요청 스코프 dedup 패턴
  * (https://react.dev/reference/react/cache)을 그대로 따른다.
+ *
+ * `sourceDocument` property는 본문(TipTap JSON)까지 통째로 담고 있어(제목만 쓰려고 읽어도
+ * 본문까지 함께 내려온다), `searchDocuments`(P1-1a 후속, Ctrl+K 전체 검색)가 별도로 문서
+ * 본문을 다시 조회하지 않고 이 함수와 같은 조회 결과를 재사용할 수 있다 — `fetchDocumentEntry`
+ * 참고.
  */
+interface DocumentEntry {
+  summary: DocumentSummary;
+  bodyText: string;
+}
+
+async function fetchDocumentEntry(page: {
+  id: string;
+  title: string;
+  version: { createdAt: string };
+}): Promise<DocumentEntry> {
+  const [tagList, sourceProperty, publishProperty] = await Promise.all([
+    getTags(page.id),
+    getPageProperty<{ title?: string; doc: JSONContent }>(
+      page.id,
+      SOURCE_DOCUMENT_PROPERTY_KEY
+    ),
+    getPageProperty<PublishMetadata>(page.id, PUBLISH_PROPERTY_KEY),
+  ]);
+
+  return {
+    summary: {
+      pageId: page.id,
+      title: sourceProperty?.value?.title ?? page.title,
+      updatedAt: page.version.createdAt,
+      isPublished: publishProperty?.value?.isPublished ?? false,
+      tags: tagList,
+    },
+    bodyText: sourceProperty?.value?.doc ? extractPlainText(sourceProperty.value.doc) : "",
+  };
+}
+
 export const listDocuments = cache(async function listDocuments(
   accountFolderId: string
 ): Promise<DocumentSummary[]> {
   const pages = await listChildPages(accountFolderId);
-
-  return Promise.all(
-    pages.map(async (page) => {
-      const [tagList, sourceProperty, publishProperty] = await Promise.all([
-        getTags(page.id),
-        getPageProperty<{ title?: string; doc: JSONContent }>(
-          page.id,
-          SOURCE_DOCUMENT_PROPERTY_KEY
-        ),
-        getPageProperty<PublishMetadata>(page.id, PUBLISH_PROPERTY_KEY),
-      ]);
-      return {
-        pageId: page.id,
-        title: sourceProperty?.value?.title ?? page.title,
-        updatedAt: page.version.createdAt,
-        isPublished: publishProperty?.value?.isPublished ?? false,
-        tags: tagList,
-      };
-    })
-  );
+  const entries = await Promise.all(pages.map(fetchDocumentEntry));
+  return entries.map((entry) => entry.summary);
 });
+
+/**
+ * 계정 폴더의 모든 문서를 대상으로 제목·태그·본문 텍스트를 함께 검색한다(Ctrl+K 전체 검색,
+ * [Issue #7](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/7) 결정 — 사이드바의
+ * 상시 필터(제목·태그만, `EditorSidebar.tsx`)와 별개로, 이 검색은 사용자가 명시적으로 열었을
+ * 때만 호출되는 온디맨드 API라 문서마다 본문까지 함께 조회하는 비용(N+1)을 감당할 수 있다고
+ * 판단했다 — `listDocuments()`가 애초에 이 본문을 이미 조회하고 있었다는 것도 이 판단의 근거다
+ * (제목만 쓰고 버리고 있었을 뿐, 추가 조회가 아니라 이미 하던 조회의 재사용에 가깝다).
+ */
+export async function searchDocuments(
+  accountFolderId: string,
+  query: string
+): Promise<DocumentSummary[]> {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return [];
+  }
+
+  const pages = await listChildPages(accountFolderId);
+  const entries = await Promise.all(pages.map(fetchDocumentEntry));
+
+  return entries
+    .filter(({ summary, bodyText }) => {
+      if (summary.title.toLowerCase().includes(normalized)) return true;
+      if (summary.tags.some((tag) => tag.toLowerCase().includes(normalized))) return true;
+      return bodyText.toLowerCase().includes(normalized);
+    })
+    .map((entry) => entry.summary);
+}
 
 /**
  * 문서의 실제 작성자가 로그인 사용자인지 확인한다. authorMeta가 없거나 이메일이 다르면

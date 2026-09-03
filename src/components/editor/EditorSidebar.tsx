@@ -36,7 +36,7 @@ export interface EditorSidebarProps {
  * 아이콘 제거하고 게시 아이콘을 넣어달라"는 요청으로 제목 옆 자리를 이걸로 대체했다
  * (2026-08-26).
  */
-function StatusIcon({ isPublished }: { isPublished: boolean }) {
+export function StatusIcon({ isPublished }: { isPublished: boolean }) {
   if (isPublished) {
     return (
       <svg
@@ -288,6 +288,13 @@ export function EditorSidebar({
             onChange={(event) => setQuery(event.target.value)}
             className="w-full rounded-input border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
           />
+          {/*
+            이 검색창은 제목·태그만 본다(위 label 참고). 본문까지 찾고 싶을 때 쓸 수 있는
+            Ctrl+K 전체 검색(GlobalSearchModal.tsx, P1-1a 후속)이 있다는 걸 알리는 힌트다 —
+            그 모달은 자체적으로 열림 상태를 관리해(EditorShell.tsx에 한 번만 마운트) 여기서
+            직접 열 수는 없다.
+          */}
+          <p className="text-xs text-muted">본문까지 찾으려면 Ctrl+K(Mac: ⌘K)</p>
           <label className="sr-only" htmlFor="sidebar-doc-sort">
             문서 정렬
           </label>
