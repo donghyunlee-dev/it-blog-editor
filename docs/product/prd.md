@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 65 / 71 항목 완료 (최근 갱신: 2026-09-03 — P1-5(민감 API 레이트리밋) 완료. [Issue #5](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/5)의 방식 결정(단일 인메모리)에 이어, 이슈 답변에 없던 임계값(사용자당 분당 30회)을 대화로 확정하고 구현했다. 이전 갱신: P1-10 완료, P1-11 코드 측면 해소(같은 실제 문서에서 발견된 두 사례를 실제 Confluence 인스턴스 API로 재확인 — P1-10 위치 문제는 이미 해소돼 있었고, P1-11 slug 값 문제는 실제로 남아있어 사용자가 직접 정정함). Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료, PR 병합 순서에 따른 문서 충돌로 되돌아갔던 완료 표시를 `git log` 근거로 복원함)
+> 전체 진행률: 66 / 71 항목 완료 (최근 갱신: 2026-09-03 — P2-3(AWS 배포·시크릿 관리 결정) 완료. [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 "1차 개발은 Lambda와 Lambda의 Secret value 설정으로 진행"으로 확정돼, 원래 항목이 전제한 "별도 시크릿 매니저로 이전"은 하지 않는 것으로 결론 났다 — 현재 `process.env` 기반 코드가 그대로 호환돼 코드 변경 없이 architecture.md만 갱신했다. 이전 갱신: P1-5(민감 API 레이트리밋, 사용자당 분당 30회) 완료, P1-10 완료·P1-11 코드 측면 해소(실제 Confluence 인스턴스 API로 재확인), Phase 4 P1-8·P1-9a~f 7개 항목 병합 완료)
 >
 > **이 문서는 항상 최종 결과물과 동일해야 한다.** 코드가 바뀌면 이 문서도 같은 커밋 흐름 안에서 갱신한다 — 작업 진행 방식(task/plan/result/test 4파일 루틴)은 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴" 절 참고.
 
@@ -234,7 +234,7 @@
 - [ ] (P2-1b) 사이드바 리사이즈 핸들에 키보드 조작(방향키)을 추가한다.
 - [ ] (P2-1c) 모바일 오프캔버스 드로어에 포커스 트랩을 추가한다.
 - [ ] (P2-2) 문서-코드 드리프트 잔여 항목 정리 — 이번 갱신으로 prd.md의 게시 설정 라우트 서술은 반영됨. `EditorSidebar.tsx`의 `extractPageIdFromPathname`이 여전히 다루는 존재하지 않는 `/editor/{pageId}/publish` 경로 처리와 design.md 쪽 서술까지 확인·정리한다.
-- [ ] 🔶 (P2-3) 비밀값을 AWS Secrets Manager 또는 SSM Parameter Store로 옮긴다 — architecture.md의 AWS 배포 방식(컨테이너/서버리스) 결정에 의존하므로, [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 배포 방식과 시크릿 매니저 종류를 먼저 확정한다.
+- [x] (완료, P2-3) 비밀값을 AWS Secrets Manager 또는 SSM Parameter Store로 옮긴다 — [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 2026-08-30 "1차 개발은 Lambda와 Lambda의 Secret value 설정으로 진행"으로 결정돼, 원래 항목이 전제한 "별도 시크릿 매니저로 이전"은 하지 않는 것으로 확정됐다. 배포 서비스도 AWS Lambda로 확정됐다. 현재 코드(`src/lib/env.ts`의 `requireEnv`)는 `process.env`만 읽으므로 Lambda 환경변수와 코드 변경 없이 그대로 호환됨을 확인했다 — 코드 변경 없음, `architecture.md`에 결정 반영. Next.js를 Lambda에 올리는 구체적인 어댑터·빌드 구성·도메인/HTTPS는 이 결정과 별개로 실제 배포 착수 시점에 따로 정한다(범위 밖). 산출물: `docs/superpowers/tasks/P2-3-lambda-secrets/{task,plan,result,test}.md`, docs/product/architecture.md
 
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)

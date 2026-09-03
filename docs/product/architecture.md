@@ -37,7 +37,7 @@
 - **UI 컴포넌트/스타일**: 사내 디자인 시스템 `@sfood/ui` + Tailwind CSS(이번에 신규 도입). 화면을 직접 마크업하지 않고 `@sfood/ui`의 컴포넌트·템플릿을 우선 사용한다. 상세는 [design.md](./design.md) 참고. `@sfood/ui@0.1.2`는 React 19와 호환되지 않는 버그(번들에 인라인된 jsx-runtime이 React 19에서 이름이 바뀐 내부 API를 읽어 import 시점에 크래시)가 있어 `patch-package`로 임시 패치를 적용 중이다 — 패치 내용·제거 조건은 [`patches/README.md`](../../patches/README.md) 참고.
 - **인증**: next-auth(Auth.js) v5, Credentials 프로바이더로 AX Auth와 연동. 세션에는 이메일만 저장하고, 그 외 개인정보는 다루지 않는다.
 - **데이터 저장소**: 별도 DB 없음. Confluence Cloud REST API가 저장소 역할을 겸한다 — 서버 운영 부담과 데이터 이중화 문제를 줄이는 대신, Confluence API 제약(GDPR상 이메일 기반 계정 조회 불가, v1/v2 API 기능 차이 등)을 그대로 감당해야 한다는 트레이드오프가 있다.
-- **배포**: AWS. Next.js 앱을 컨테이너 또는 서버리스(Amplify/ECS/Lambda 등) 중 하나로 배포하는 것을 권장하며, 구체적인 서비스 선택은 팀의 AWS 운영 경험에 따라 정한다(이 문서에서는 특정 서비스로 고정하지 않는다 — 추후 배포 단계에서 결정).
+- **배포**: AWS Lambda([Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 2026-08-30 확정, P2-3). 컨테이너(ECS)/Amplify 등 다른 서버리스 옵션은 기각됐다. Next.js를 Lambda에 올리는 구체적인 어댑터(OpenNext 등)·빌드 출력 모드·IaC 구성은 이 결정과 별개의 문제로 실제 배포 착수 시점에 정한다(범위 밖, `docs/superpowers/tasks/P2-3-lambda-secrets/task.md` 참고).
 - **CI**: GitHub Actions로 lint/build 검증(이미 구성됨, `ci: add lint/build GitHub Actions workflow`).
 
 ## 데이터 및 인증
@@ -78,7 +78,7 @@ Confluence Cloud가 유일한 저장소다. 문서 관련 데이터는 페이지
   - 제한 대상은 직원 개인 계정이 아니라 서비스 계정 자신(`getCurrentConfluenceUser()`로 얻은 accountId)이다 — Confluence Cloud가 GDPR 정책상 이메일로 계정을 조회하는 기능을 서비스 계정 권한으로 지원하지 않기 때문에, 직원별 개별 제한 대신 이 방식을 택했다.
   - 게시 시 제한을 해제해 Space 구성원 전체에게 공개하고, 게시 취소 시 다시 제한을 건다.
   - 계정 폴더(이메일이 제목)는 제한 없이 노출된다 — "이 직원이 서비스를 쓰고 있다"는 사실은 알 수 있지만, 초안 "내용"은 그 문서 자체에 걸린 제한으로 노출되지 않는다.
-- Confluence 서비스 계정 자격증명(`CONFLUENCE_API_TOKEN`), AX Auth 클라이언트 시크릿, Slack Webhook URL은 모두 환경변수로 관리하며(`.env`, 저장소에 커밋하지 않음), AWS 배포 시에는 시크릿 매니저(예: AWS Secrets Manager, SSM Parameter Store) 사용을 권장한다.
+- Confluence 서비스 계정 자격증명(`CONFLUENCE_API_TOKEN`), AX Auth 클라이언트 시크릿, Slack Webhook URL은 모두 환경변수로 관리한다(`.env`, 저장소에 커밋하지 않음, `.gitignore`에 등록됨). **2026-08-30 결정(Issue #6, P2-3)**: 1차 개발에서는 AWS Secrets Manager·SSM Parameter Store 같은 별도 시크릿 매니저 서비스를 도입하지 않고, Lambda 함수 자체의 환경변수(Secret value) 설정 기능을 그대로 쓴다 — 애플리케이션 코드(`src/lib/env.ts`의 `requireEnv`)는 `process.env`만 읽으므로 로컬 `.env`든 Lambda 환경변수든 코드 변경 없이 동일하게 동작한다. 시크릿 매니저 도입은 필요해지면(예: 시크릿 로테이션 자동화, 여러 서비스 간 공유) 별도로 재논의한다.
 
 ## 배포 전략
 - **배포 위치**: AWS. 별도 스테이징 없이 단일 프로덕션 환경으로 운영한다.
@@ -89,7 +89,7 @@ Confluence Cloud가 유일한 저장소다. 문서 관련 데이터는 페이지
      - 서비스 계정이 자기 자신에게 건 제한이 자신의 API 호출을 막지 않는지 → ✅
      - 제한 없는 계정 폴더 하위에서 "초안"만 제한된 상태일 때, 제한 없는 "게시" 서브페이지·문서가 형제 페이지의 제한과 무관하게 독립적으로 유지되는지 → ✅(2026-08-25 확인)
   2. 2단계 — 개인 에디터 기능 강화(상세 요구사항은 별도 논의).
-  3. 이후 — 실제 AWS 배포 구성(컨테이너/서버리스 선택, 시크릿 관리, 도메인·HTTPS 설정) 확정.
+  3. 이후 — 실제 AWS 배포 구성 확정. 배포 서비스(AWS Lambda)와 시크릿 관리 방식(Lambda 환경변수, 별도 시크릿 매니저 없음)은 2026-08-30([Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6), P2-3)에 이미 결정됐다 — 남은 것은 Next.js를 Lambda에 올리는 구체적인 어댑터·빌드 구성·도메인/HTTPS 설정뿐이다.
 - **개발 방식**: AI(Claude)와 개발자가 병행 — Claude가 코드/설계 초안을 만들고 개발자가 검증·다듬는 흐름을 유지한다.
 
 ## 트레이드오프 및 대안
