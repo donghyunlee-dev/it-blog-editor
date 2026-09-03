@@ -40,7 +40,14 @@ describe("GET /api/editor/documents/search", () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
     vi.mocked(findPersonalFolder).mockResolvedValue({ accountFolderId: "folder-1", spaceKey: "SF" });
     vi.mocked(searchDocuments).mockResolvedValue([
-      { pageId: "doc-1", title: "React 19 정리", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
+      {
+        pageId: "doc-1",
+        title: "React 19 정리",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+        isPublished: false,
+        tags: [],
+        snippet: "본문 일부",
+      },
     ]);
 
     const request = new Request("http://localhost/api/editor/documents/search?q=react%2019");
@@ -50,7 +57,14 @@ describe("GET /api/editor/documents/search", () => {
     expect(vi.mocked(searchDocuments)).toHaveBeenCalledWith("folder-1", "react 19");
     expect(body).toEqual({
       documents: [
-        { pageId: "doc-1", title: "React 19 정리", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
+        {
+          pageId: "doc-1",
+          title: "React 19 정리",
+          updatedAt: "2026-09-01T00:00:00.000Z",
+          isPublished: false,
+          tags: [],
+          snippet: "본문 일부",
+        },
       ],
     });
   });

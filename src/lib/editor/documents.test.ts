@@ -318,6 +318,58 @@ describe("searchDocuments(P1-1a 후속, Ctrl+K 전체 검색)", () => {
 
     expect(result).toEqual([]);
   });
+
+  it("본문에 검색어가 있으면 그 앞뒤 문맥을 snippet으로 반환한다(미리보기 패널용)", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": {
+        sourceDocument: {
+          title: "제목",
+          doc: {
+            type: "doc",
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "이것은 kubernetes 배포 노트입니다" }] },
+            ],
+          },
+        },
+      },
+    });
+
+    const result = await searchDocuments("account-1", "kubernetes");
+
+    expect(result[0].snippet).toContain("kubernetes");
+  });
+
+  it("검색어가 제목에만 있고 본문에는 없으면 본문 맨 앞을 snippet으로 반환한다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "React 19 정리", doc: SAMPLE_DOC } },
+    });
+
+    const result = await searchDocuments("account-1", "react");
+
+    expect(result[0].snippet).toBe("본문");
+  });
+
+  it("본문이 비어 있으면 snippet은 빈 문자열이다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+    ]);
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    stubProperties({
+      "doc-1": { sourceDocument: { title: "React 19 정리" } },
+    });
+
+    const result = await searchDocuments("account-1", "react");
+
+    expect(result[0].snippet).toBe("");
+  });
 });
 
 describe("requireDocumentOwner", () => {
