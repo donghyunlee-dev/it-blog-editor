@@ -1,4 +1,5 @@
 import { getPageProperty, upsertPageProperty } from "@/lib/confluence/client";
+import { ValidationError } from "./errors";
 
 export const ACCOUNT_META_PROPERTY_KEY = "accountMeta";
 
@@ -43,11 +44,17 @@ export async function saveAccountMeta(
   accountFolderId: string,
   updates: { name: string; team: string }
 ): Promise<AccountMeta> {
+  const name = updates.name.trim();
+  const team = updates.team.trim();
+  if (!name || !team) {
+    throw new ValidationError("이름과 팀을 모두 입력해주세요.");
+  }
+
   const current = await getAccountMeta(accountFolderId);
   const next: AccountMeta = {
     ...current,
-    name: updates.name,
-    team: updates.team,
+    name,
+    team,
     onboardedAt: current.onboardedAt ?? new Date().toISOString(),
   };
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
