@@ -248,7 +248,10 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
             라벨마다 "Tech Blog"를 반복하지 않는다 — 필드가 이미 "Tech Blog"라는
             섹션 제목 아래 명확히 묶여 있어 뷰어 이름을 또 반복하는 게 중복이었다.
           */}
-          <FormField label="공개 경로(slug)">
+          <FormField
+            label="공개 주소 키워드"
+            hint="다른 사람이 링크만 보고도 무슨 글인지 짐작할 수 있도록, 공개 주소에 넣을 핵심 단어를 적어주세요. 소문자, 숫자, 하이픈(-)만 사용할 수 있어요."
+          >
             <Input
               value={viewerFields[option.value].slug}
               onChange={(event) =>
@@ -262,7 +265,7 @@ export function PublishForm({ pageId, initial }: PublishFormProps) {
                 저장된 적이 있을 때만(publicSlug가 있을 때만) 실제 값을 보여준다. */}
             {viewerFields[option.value].publicSlug && (
               <p className="mt-1 text-xs text-muted">
-                실제 공개 경로: {viewerFields[option.value].publicSlug}
+                실제 공개 주소: {viewerFields[option.value].publicSlug}
               </p>
             )}
           </FormField>
