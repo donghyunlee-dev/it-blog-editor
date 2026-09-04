@@ -7,6 +7,7 @@ import {
   initializeAccountMeta,
   needsOnboarding,
   saveAccountMeta,
+  setAccessEnabled,
 } from "./account";
 
 beforeEach(() => {
@@ -136,6 +137,52 @@ describe("saveAccountMeta", () => {
       "accountMeta",
       expect.objectContaining({ accessEnabled: false, team: "디자인팀" })
     );
+  });
+});
+
+describe("setAccessEnabled", () => {
+  it("accessEnabled만 바꾸고 이름·팀 등 나머지 필드는 그대로 유지한다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "홍길동", team: "IT팀", accessEnabled: true, onboardedAt: "2026-09-01T00:00:00.000Z" },
+      version: { number: 2 },
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 3 },
+    });
+
+    const result = await setAccessEnabled("account-1", false);
+
+    expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", {
+      name: "홍길동",
+      team: "IT팀",
+      accessEnabled: false,
+      onboardedAt: "2026-09-01T00:00:00.000Z",
+    });
+    expect(result.accessEnabled).toBe(false);
+  });
+
+  it("accountMeta가 없던 계정(하위 호환 기본값)도 accessEnabled를 바꿀 수 있다", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 1 },
+    });
+
+    const result = await setAccessEnabled("account-1", false);
+
+    expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", {
+      name: "",
+      team: "",
+      accessEnabled: false,
+    });
+    expect(result.accessEnabled).toBe(false);
   });
 });
 
