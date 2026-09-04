@@ -231,17 +231,43 @@ export async function searchDocuments(
     }));
 }
 
+async function isDocumentOwner(pageId: string, email: string): Promise<boolean> {
+  const authorEmail = await readAuthorEmail(pageId);
+  return authorEmail === email;
+}
+
 /**
  * 문서의 실제 작성자가 로그인 사용자인지 확인한다. authorMeta가 없거나 이메일이 다르면
- * UnauthorizedError(401)를 던져, pageId만 알아낸 다른 직원이 남의 문서를 수정·게시·삭제하는
- * 것을 막는다.
+ * UnauthorizedError(401)를 던져, pageId만 알아낸 다른 직원이 남의 문서를 삭제하는 것을
+ * 막는다. 삭제처럼 소유자 전용으로 남겨야 하는 동작에만 쓴다 — 조회·수정에는 공유받은
+ * 사람도 통과해야 하므로 `requireDocumentAccess`를 쓴다(P6-6).
  */
 export async function requireDocumentOwner(
   pageId: string,
   email: string
 ): Promise<void> {
-  const authorEmail = await readAuthorEmail(pageId);
-  if (!authorEmail || authorEmail !== email) {
+  if (!(await isDocumentOwner(pageId, email))) {
+    throw new UnauthorizedError("이 문서에 대한 권한이 없습니다.");
+  }
+}
+
+/**
+ * 문서 소유자이거나 `sharingMeta.sharedWith`에 포함된 공유 대상이면 통과한다(P6-6) —
+ * "공유받은 사람도 소유자와 동일하게 조회·편집할 수 있다"는 결정(prd.md "페이지 공유")을
+ * 코드로 반영한다. 조회(`/editor/[pageId]`)·저장·게시 설정·이미지 업로드·버전 히스토리·
+ * 태그 설정에 쓴다. 삭제는 여기 포함하지 않는다 — 공유받은 사람이 남의 문서를 휴지통으로
+ * 보낼 수는 없어야 한다는 판단으로 `requireDocumentOwner`를 그대로 쓴다(task.md "결정이
+ * 필요한 사항" 참고).
+ */
+export async function requireDocumentAccess(
+  pageId: string,
+  email: string
+): Promise<void> {
+  if (await isDocumentOwner(pageId, email)) {
+    return;
+  }
+  const { sharedWith } = await getSharingMeta(pageId);
+  if (!sharedWith.includes(email)) {
     throw new UnauthorizedError("이 문서에 대한 권한이 없습니다.");
   }
 }

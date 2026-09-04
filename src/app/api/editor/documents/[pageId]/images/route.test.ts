@@ -5,7 +5,7 @@ vi.mock("@/lib/auth-guard", () => ({
 }));
 
 vi.mock("@/lib/editor/documents", () => ({
-  requireDocumentOwner: vi.fn(),
+  requireDocumentAccess: vi.fn(),
 }));
 
 vi.mock("@/lib/editor/images", () => ({
@@ -17,7 +17,7 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 import { requireSessionEmail } from "@/lib/auth-guard";
-import { requireDocumentOwner } from "@/lib/editor/documents";
+import { requireDocumentAccess } from "@/lib/editor/documents";
 import { registerImage } from "@/lib/editor/images";
 import { RateLimitError, UnauthorizedError, ValidationError } from "@/lib/editor/errors";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
-  vi.mocked(requireDocumentOwner).mockResolvedValue(undefined);
+  vi.mocked(requireDocumentAccess).mockResolvedValue(undefined);
 });
 
 function postRequest(formData: FormData) {
@@ -51,14 +51,14 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     const response = await POST(postRequest(formData), { params: Promise.resolve({ pageId: "doc-1" }) });
     const body = await response.json();
 
-    expect(vi.mocked(requireDocumentOwner)).toHaveBeenCalledWith("doc-1", "user@s-food.com");
+    expect(vi.mocked(requireDocumentAccess)).toHaveBeenCalledWith("doc-1", "user@s-food.com");
     expect(vi.mocked(registerImage)).toHaveBeenCalledWith("doc-1", file);
     expect(response.status).toBe(201);
     expect(body).toEqual({ attachmentId: "att-1", url: "https://example.com/photo.png" });
   });
 
-  it("소유자가 아니면 401을 반환하고 registerImage를 호출하지 않는다", async () => {
-    vi.mocked(requireDocumentOwner).mockRejectedValue(new UnauthorizedError("이 문서에 대한 권한이 없습니다."));
+  it("소유자도 공유받은 사람도 아니면 401을 반환하고 registerImage를 호출하지 않는다", async () => {
+    vi.mocked(requireDocumentAccess).mockRejectedValue(new UnauthorizedError("이 문서에 대한 권한이 없습니다."));
 
     const formData = new FormData();
     formData.append("file", new File(["x"], "photo.png", { type: "image/png" }));
@@ -67,6 +67,21 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
 
     expect(response.status).toBe(401);
     expect(vi.mocked(registerImage)).not.toHaveBeenCalled();
+  });
+
+  it("공유받은 사람이면(소유자가 아니어도) 이미지를 올릴 수 있다(P6-6)", async () => {
+    vi.mocked(registerImage).mockResolvedValue({
+      attachmentId: "att-1",
+      url: "https://example.com/photo.png",
+    });
+
+    const formData = new FormData();
+    formData.append("file", new File(["x"], "photo.png", { type: "image/png" }));
+
+    const response = await POST(postRequest(formData), { params: Promise.resolve({ pageId: "doc-1" }) });
+
+    expect(response.status).toBe(201);
+    expect(vi.mocked(registerImage)).toHaveBeenCalled();
   });
 
   it("formData에 file 필드가 없으면 registerImage를 null 파일로 호출한다", async () => {
@@ -104,7 +119,7 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
 
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("30");
-    expect(vi.mocked(requireDocumentOwner)).not.toHaveBeenCalled();
+    expect(vi.mocked(requireDocumentAccess)).not.toHaveBeenCalled();
     expect(vi.mocked(registerImage)).not.toHaveBeenCalled();
   });
 });
