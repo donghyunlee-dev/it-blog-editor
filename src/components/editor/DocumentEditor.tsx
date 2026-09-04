@@ -16,6 +16,8 @@ import {
   writeAutosaveSnapshot,
   type AutosaveSnapshot,
 } from "@/lib/editor/autosave-storage";
+import type { SharingLastEditedBy } from "@/lib/editor/sharing";
+import { formatAccountLabel } from "@/lib/account-display";
 
 /** Issue #1(P0-1b)에서 결정된 주기 — "1분마다 체크해서 저장한다". */
 const AUTOSAVE_INTERVAL_MS = 60_000;
@@ -32,6 +34,8 @@ interface DocumentEditorProps {
   initialPublishState?: PublishFormInitial;
   /** 문서 하단 풋터에 표시할 마지막 수정일(ISO). mode="edit"일 때만 서버에서 내려준다. */
   initialUpdatedAt?: string;
+  /** 공유 기능(P6-7)의 마지막 수정자. 공유되거나 저장된 적 없으면 서버가 내려주지 않는다. */
+  initialLastEditedBy?: SharingLastEditedBy;
 }
 
 const EMPTY_DOC: JSONContent = {
@@ -224,6 +228,7 @@ export function DocumentEditor({
   tagSuggestions = [],
   initialPublishState,
   initialUpdatedAt,
+  initialLastEditedBy,
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -232,6 +237,7 @@ export function DocumentEditor({
   const [doc, setDoc] = useState<JSONContent>(withAtLeastOneBlock(initialDoc));
   const [tags, setTags] = useState<string[]>(initialTags);
   const [version, setVersion] = useState(initialVersion);
+  const [lastEditedBy, setLastEditedBy] = useState(initialLastEditedBy);
   const [status, setStatus] = useState<"idle" | "saving" | "deleting">("idle");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
@@ -421,6 +427,7 @@ export function DocumentEditor({
       }
       const data = await response.json();
       setVersion(data.version);
+      setLastEditedBy(data.lastEditedBy);
       setDirty(false);
       clearAutosaveSnapshot(pageId);
       setAutosaveStatus("saved");
@@ -481,6 +488,7 @@ export function DocumentEditor({
         }
         const data = await response.json();
         setVersion(data.version);
+        setLastEditedBy(data.lastEditedBy);
       }
 
       // 문서 본문 저장이 성공한 시점부터 다시 "저장하지 않은 변경사항 없음"으로
@@ -723,7 +731,16 @@ export function DocumentEditor({
         */}
         {mode === "edit" && initialUpdatedAt && (
           <footer className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted">
-            <span>최종 수정: {formatUpdatedAt(initialUpdatedAt)}</span>
+            <span>
+              최종 수정: {formatUpdatedAt(initialUpdatedAt)}
+              {/* P6-7: 생성 직후(아직 한 번도 수정 저장을 거치지 않은 문서) 또는 이 기능
+                  이전에 마지막으로 저장된 문서는 lastEditedBy가 없어 표시되지 않는다 —
+                  updateDocument(수정 저장)만 이 값을 채우고, createDocument(최초 생성)는
+                  채우지 않는다. */}
+              {lastEditedBy && (
+                <> · 마지막 수정자: {formatAccountLabel(lastEditedBy.email, lastEditedBy.name)}</>
+              )}
+            </span>
             {/* 자동 저장(P0-1b)은 매번 "저장되었습니다" 토스트를 띄우지 않는다(1분마다
                 뜨면 방해가 된다) — 대신 이 조용한 상태 표시만 남긴다. */}
             <span role="status" aria-live="polite">

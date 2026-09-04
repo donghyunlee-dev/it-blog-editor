@@ -183,6 +183,48 @@ describe("DocumentEditor", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("마지막 수정자가 있으면 풋터에 표시한다(P6-7)", () => {
+    renderEditor(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        initialUpdatedAt="2026-09-01T00:00:00.000Z"
+        initialLastEditedBy={{
+          email: "other@s-food.com",
+          name: "김철수",
+          editedAt: "2026-09-01T00:00:00.000Z",
+        }}
+      />
+    );
+
+    expect(screen.getByText(/마지막 수정자: 김철수\(other@s-food\.com\)/)).toBeInTheDocument();
+  });
+
+  it("마지막 수정자가 없으면 풋터에 그 항목을 표시하지 않는다", () => {
+    renderEditor(<DocumentEditor {...EDIT_PROPS} initialUpdatedAt="2026-09-01T00:00:00.000Z" />);
+
+    expect(screen.queryByText(/마지막 수정자/)).not.toBeInTheDocument();
+  });
+
+  it("저장 성공 시 응답의 lastEditedBy로 풋터를 갱신한다(P6-7)", async () => {
+    stubFetch(() =>
+      jsonResponse({
+        pageId: "page-1",
+        version: 2,
+        lastEditedBy: {
+          email: "me@s-food.com",
+          name: "이영희",
+          editedAt: "2026-09-04T00:00:00.000Z",
+        },
+      })
+    );
+
+    renderEditor(<DocumentEditor {...EDIT_PROPS} initialUpdatedAt="2026-09-01T00:00:00.000Z" />);
+
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(await screen.findByText(/마지막 수정자: 이영희\(me@s-food\.com\)/)).toBeInTheDocument();
+  });
+
   it("삭제 성공 시 사이드바를 새로고침하고 문서 탐색기로 이동한다", async () => {
     stubFetch(() => new Response(null, { status: 204 }));
 

@@ -175,20 +175,21 @@
 
 **Response Body (성공)**
 ```json
-{ "pageId": "111", "version": 2 }
+{ "pageId": "111", "version": 2, "lastEditedBy": { "email": "user@s-food.com", "name": "홍길동", "editedAt": "2026-09-04T05:45:02.431Z" } }
 ```
+**2026-09-04 갱신(P6-7, 구현 완료)**: 저장 성공 시 `sharingMeta.lastEditedBy`(이메일·이름·수정 시각)를 저장자로 갱신하고, 그 값을 응답에도 함께 내려준다(생성 직후 아직 한 번도 수정 저장을 거치지 않은 문서는 `lastEditedBy`가 없다). 편집 화면 하단 풋터에 "마지막 수정자"로 표시된다.
 
-> **2026-09-03 갱신(페이지 공유)**: 저장 성공 시 `sharingMeta.lastEditedBy`(이메일·이름·수정 시각)를 함께 갱신한다. 소유권 검사(`requireDocumentOwner`)는 문서 소유자 또는 `sharingMeta.sharedWith`에 포함된 계정 모두 통과하도록 확장됐다 — 공유받은 사람도 소유자와 동일하게 저장할 수 있다(읽기 전용 공유는 없음).
+> **2026-09-03 계획(P6-6, 아직 미구현)**: 소유권 검사(`requireDocumentOwner`)를 문서 소유자 또는 `sharingMeta.sharedWith`에 포함된 계정 모두 통과하도록 확장할 예정이다 — 공유받은 사람도 소유자와 동일하게 저장할 수 있게 하려는 목적(읽기 전용 공유는 없음)이나, 이 항목은 아직 착수 전이라 현재는 소유자만 저장할 수 있고 소유자가 아니면 401(UNAUTHORIZED)을 반환한다(아래 "Response (실패)"의 403 FORBIDDEN 행도 이 항목이 끝나야 실제로 쓰인다).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
-| 401 | UNAUTHORIZED | 로그인 필요 |
+| 401 | UNAUTHORIZED | 로그인 필요, 또는(P6-6 이전 현재) 문서 소유자가 아님 |
 | 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
-| 403 | FORBIDDEN | 문서 소유자도 공유 대상도 아님 |
+| 403 | FORBIDDEN | (P6-6 예정) 문서 소유자도 공유 대상도 아님 |
 | 400 | INVALID_REQUEST | version 누락, 제목/본문 누락 |
 | 404 | NOT_FOUND | 문서 없음 |
-| 409 | CONFLICT | 요청한 version이 최신이 아님(동시 수정) — 응답 본문에 `lastEditedBy`를 함께 내려보내 "누가 먼저 저장했는지" 화면에서 안내할 수 있게 한다 |
+| 409 | CONFLICT | 요청한 version이 최신이 아님(동시 수정) — 응답 본문에 `lastEditedBy`를 함께 내려보내 "누가 먼저 저장했는지" 화면에서 안내한다(P6-7, 구현 완료) |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 ### DELETE /api/editor/documents/{pageId} — 문서 삭제

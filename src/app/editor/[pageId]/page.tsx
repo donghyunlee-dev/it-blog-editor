@@ -74,6 +74,7 @@ export default async function EditDocumentPage({
         initialVersion={document.version}
         initialPublishState={publishState}
         initialUpdatedAt={document.updatedAt}
+        initialLastEditedBy={document.lastEditedBy}
       />
     </main>
   );
