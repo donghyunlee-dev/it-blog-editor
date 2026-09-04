@@ -4,6 +4,7 @@ import { ensurePersonalFolder } from "@/lib/editor/folder";
 import { listDocuments } from "@/lib/editor/documents";
 import { getAccountMeta, needsOnboarding } from "@/lib/editor/account";
 import { EditorShell } from "@/components/editor/EditorShell";
+import { AccessBlockedScreen } from "@/components/AccessBlockedScreen";
 import { logoutAction } from "@/lib/actions/logout";
 
 export default async function EditorLayout({
@@ -18,11 +19,18 @@ export default async function EditorLayout({
   }
 
   const folder = await ensurePersonalFolder(email);
+  const accountMeta = await getAccountMeta(folder.accountFolderId);
+
+  // 접속 차단(P5-3)이 온보딩보다 우선한다 — 관리자가 막은 계정은 온보딩 여부와 무관하게
+  // 메인 진입 자체가 막혀야 한다(prd.md "접속 권한 게이트" 예외 상황 참고). 다른 URL로
+  // 옮기지 않고 이 자리에서 곧바로 차단 화면을 렌더링한다.
+  if (!accountMeta.accessEnabled) {
+    return <AccessBlockedScreen email={email} onLogout={logoutAction} />;
+  }
 
   // 이름·팀 온보딩이 끝나지 않은 계정은 메인으로 들어오지 못하고 전용 환영 페이지로
   // 리다이렉트된다(P5-2, 2026-09-03 — 처음엔 메인 화면 위 Modal이었으나 "메인에서 팝업으로
-  // 받는 방식은 아닌 것 같다"는 피드백으로 별도 페이지 전환 흐름으로 바꿨다).
-  const accountMeta = await getAccountMeta(folder.accountFolderId);
+  // 받는 방식은 아니다"는 피드백으로 별도 페이지 전환 흐름으로 바꿨다).
   if (needsOnboarding(accountMeta)) {
     redirect("/welcome");
   }
