@@ -24,7 +24,7 @@ async function main() {
     return;
   }
 
-  const updated = await setAccessEnabled(folder.accountFolderId, mode === "on");
+  const updated = await setAccessEnabled(folder.accountFolderId, email, mode === "on");
   console.log(
     `${email} 계정의 접속 권한을 ${updated.accessEnabled ? "허용(Y)" : "차단(N)"}으로 변경했습니다.`
   );

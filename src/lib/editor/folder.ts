@@ -53,7 +53,7 @@ export async function createPersonalFolder(email: string): Promise<PersonalFolde
     bodyValue: `<p>${email}님의 문서함입니다.</p>`,
   });
 
-  await initializeAccountMeta(accountFolder.id);
+  await initializeAccountMeta(accountFolder.id, email);
 
   return { accountFolderId: accountFolder.id, spaceKey: space.key };
 }

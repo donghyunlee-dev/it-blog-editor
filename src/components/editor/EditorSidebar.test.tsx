@@ -341,6 +341,12 @@ describe("EditorSidebar", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("사이드바 메뉴에는 '계정 관리' 진입점이 없다(P5-7, 화면은 유지하되 메뉴 연결은 끊음 — 사용자 피드백)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByRole("link", { name: "계정 관리" })).not.toBeInTheDocument();
+  });
 });
 
 describe("extractPageIdFromPathname", () => {

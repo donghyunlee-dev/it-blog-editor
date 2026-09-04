@@ -321,9 +321,9 @@
 
 **Response Body (성공)**
 ```json
-{ "accounts": [ { "email": "user2@s-food.com", "name": "김철수", "team": "디자인팀" } ] }
+{ "accounts": [ { "email": "user2@s-food.com", "name": "김철수", "team": "디자인팀", "accessEnabled": true } ] }
 ```
-"계정 관리" 페이지의 `accountIndex` property만 읽어 서버에서 필터링한다(Space 전체 재조회 없음). 접속이 차단(`accessEnabled=false`)된 계정도 결과에 포함된다 — 검색 자체는 공유 대상을 찾기 위한 것이라 접속 가능 여부와 무관하다.
+"계정 관리" 페이지의 `accountIndex` property만 읽어 서버에서 필터링한다(Space 전체 재조회 없음). 접속이 차단(`accessEnabled=false`)된 계정도 결과에 포함된다 — 검색 자체는 공유 대상을 찾기 위한 것이라 접속 가능 여부와 무관하다. `accountFolderId`는 내부 식별자라 응답에 노출하지 않는다. `q`가 빈 문자열이면 전체 목록을 반환한다(`/editor/accounts` 화면의 최초 진입 시 사용) — `q` 파라미터 자체가 없을 때만 400이다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |

@@ -88,7 +88,7 @@ describe("PUT /api/editor/account", () => {
     const response = await PUT(putRequest({ name: "홍길동", team: "IT팀" }));
     const body = await response.json();
 
-    expect(vi.mocked(saveAccountMeta)).toHaveBeenCalledWith("account-1", {
+    expect(vi.mocked(saveAccountMeta)).toHaveBeenCalledWith("account-1", "user@s-food.com", {
       name: "홍길동",
       team: "IT팀",
     });
