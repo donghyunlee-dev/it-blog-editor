@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
@@ -127,6 +128,9 @@ export function EditorSidebar({
   // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
   // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
   const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
+  // P5-4: 계정 정보를 스스로 열고 닫아 확인·수정하는 팝업. 온보딩(P5-2, `/welcome`)과
+  // 달리 강제 흐름이 아니라 사용자가 원할 때만 여는 것이라 Modal로 유지한다.
+  const [accountInfoOpen, setAccountInfoOpen] = useState(false);
 
   const [activeTag, setActiveTag] = useState<string | null>(null);
   // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
@@ -449,9 +453,19 @@ export function EditorSidebar({
           action={onLogout}
           className="flex items-center gap-1 border-t border-border p-3"
         >
-          <span className="min-w-0 flex-1 truncate text-xs text-muted" title={userEmail}>
+          {/*
+            P5-4: 이메일 표시 자체를 계정 정보 팝업 진입점으로 쓴다 — 별도 아이콘을
+            더하지 않고, 로그아웃 버튼과 같은 hover 스타일(hover:bg-surface-raised
+            hover:text-foreground)을 줘서 클릭 가능하다는 것을 알린다.
+          */}
+          <button
+            type="button"
+            onClick={() => setAccountInfoOpen(true)}
+            title="계정 정보"
+            className="min-w-0 flex-1 truncate rounded-btn px-1 py-0.5 text-left text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+          >
             {userEmail}
-          </span>
+          </button>
           <ThemeToggle />
           <button
             type="submit"
@@ -478,6 +492,14 @@ export function EditorSidebar({
         title="삭제된 문서"
       >
         <DeletedDocumentsModal onRestored={() => router.refresh()} />
+      </Modal>
+
+      <Modal
+        open={accountInfoOpen}
+        onClose={() => setAccountInfoOpen(false)}
+        title="계정 정보"
+      >
+        <AccountInfoModal />
       </Modal>
     </aside>
   );
