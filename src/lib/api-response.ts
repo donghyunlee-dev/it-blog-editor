@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  AccessDisabledError,
   ConflictError,
   NotFoundError,
   RateLimitError,
@@ -34,6 +35,11 @@ export async function toErrorResponse(error: unknown): Promise<NextResponse> {
   if (error instanceof UnauthorizedError) {
     return NextResponse.json(errorBody("UNAUTHORIZED", error.message), {
       status: 401,
+    });
+  }
+  if (error instanceof AccessDisabledError) {
+    return NextResponse.json(errorBody("ACCESS_DISABLED", error.message), {
+      status: 403,
     });
   }
   if (error instanceof ValidationError) {

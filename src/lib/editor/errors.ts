@@ -12,6 +12,18 @@ export class UnauthorizedError extends Error {
   }
 }
 
+/**
+ * 로그인은 됐지만 관리자가 계정 접속을 차단(`accountMeta.accessEnabled = false`)한
+ * 경우에 던진다(P5-3). `UnauthorizedError`(로그인 자체가 안 됨)와는 별개 — 인증은
+ * 성공했지만 사용이 허가되지 않은 상태다. `toErrorResponse`가 403으로 매핑한다.
+ */
+export class AccessDisabledError extends Error {
+  constructor(message = "이 계정은 접속이 제한되어 있습니다.") {
+    super(message);
+    this.name = "AccessDisabledError";
+  }
+}
+
 export class ValidationError extends Error {
   constructor(message: string) {
     super(message);
