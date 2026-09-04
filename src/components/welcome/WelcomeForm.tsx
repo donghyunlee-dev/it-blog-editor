@@ -61,25 +61,38 @@ export function WelcomeForm({ email }: WelcomeFormProps) {
 
   return (
     <AuthSplitShell leftSubtitle="당신만의 문서 공간">
-      <div className="flex w-full max-w-[22rem] flex-col gap-6">
-        <div className="flex flex-col gap-3 text-center">
+      {/*
+        첫 버전은 인사말·계정 확인·폼을 전부 가운데 정렬 + 좁은 폭(22rem)에 몰아넣었다가
+        "텍스트가 줄바꿈이 지저분해서 읽기 싫고, 계정 정보가 눈에 안 띄고, 간격이 좁아서
+        뭘 해야 할지 한눈에 안 들어온다"는 지적을 받았다(2026-09-03). 가운데 정렬은 한두
+        줄짜리 헤드라인엔 어울리지만, 두세 줄로 꺾이는 본문에서는 줄 시작 위치가 매번
+        달라져 눈이 다음 줄을 찾기 어렵다 — 그래서 전부 왼쪽 정렬로 바꾸고, 폭을 넓히고
+        (22rem → 28rem), 각 블록(인사말/계정 확인/폼) 사이 간격을 크게 벌려 위에서
+        아래로 훑을 때 "지금 뭘 봐야 하는지"가 분명하게 했다. 계정 확인은 테두리 있는
+        카드로 감싸 눈에 띄게 만들었다.
+      */}
+      <div className="flex w-full max-w-md flex-col gap-8">
+        <div className="flex flex-col gap-3">
           <Typography variant="h2" className="text-2xl font-semibold tracking-normal">
             반가워요!
           </Typography>
           <p className="text-sm leading-relaxed text-muted">
-            여기서는 나만의 문서를 편하게 쓰고 관리할 수 있어요. 아직 다른 사람에게 보여주고
-            싶지 않은 내용은 나만 볼 수 있게 남겨두고, 준비가 되면 팀원과 공유할 수 있어요.
+            나만의 문서를 편하게 쓰고 관리해보세요.
+            <br />
+            아직 다른 사람에게 보여주고 싶지 않은 내용은 나만 볼 수 있게 남겨두었다가, 준비가
+            되면 팀원과 공유할 수 있어요.
           </p>
         </div>
 
-        <div className="flex items-center justify-center gap-3">
+        <div className="flex items-center gap-3 rounded-card border border-border bg-surface px-4 py-3">
           <Avatar alt={email} initials={initialsFromEmail(email)} size="sm" />
-          <p className="text-sm text-muted">
-            <span className="font-medium text-foreground">{email}</span> 계정으로 오셨어요
-          </p>
+          <div className="min-w-0">
+            <p className="text-xs text-muted">로그인 계정</p>
+            <p className="truncate text-sm font-medium text-foreground">{email}</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <FormField
             label="이름을 알고 싶어요"
             hint="동료들이 문서함에서 이름으로 바로 알아볼 수 있도록 사용해요."
