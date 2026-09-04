@@ -10,8 +10,18 @@ vi.mock("@/lib/editor/documents", () => ({
   requireDocumentOwner: vi.fn(),
 }));
 
+vi.mock("@/lib/editor/folder", () => ({
+  findPersonalFolder: vi.fn(),
+}));
+
+vi.mock("@/lib/editor/account", () => ({
+  getAccountMeta: vi.fn(),
+}));
+
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { updateDocument, deleteDocument, requireDocumentOwner } from "@/lib/editor/documents";
+import { findPersonalFolder } from "@/lib/editor/folder";
+import { getAccountMeta } from "@/lib/editor/account";
 import { ConflictError, NotFoundError, UnauthorizedError } from "@/lib/editor/errors";
 import { PUT, DELETE } from "./route";
 
@@ -20,6 +30,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
   vi.mocked(requireDocumentOwner).mockResolvedValue(undefined);
+  vi.mocked(findPersonalFolder).mockResolvedValue({ accountFolderId: "account-1", spaceKey: "SF" });
+  vi.mocked(getAccountMeta).mockResolvedValue({ name: "홍길동", team: "IT팀", accessEnabled: true });
 });
 
 function putRequest(body: unknown) {
@@ -31,7 +43,7 @@ function putRequest(body: unknown) {
 
 describe("PUT /api/editor/documents/[pageId]", () => {
   it("정상 요청이면 소유자를 확인하고 updateDocument에 그대로 위임해 200을 반환한다", async () => {
-    vi.mocked(updateDocument).mockResolvedValue({ pageId: "doc-1", version: 3 });
+    vi.mocked(updateDocument).mockResolvedValue({ pageId: "doc-1", version: 3, lastEditedBy: undefined });
 
     const doc = { type: "doc", content: [] };
     const response = await PUT(putRequest({ title: "제목", doc, version: 2 }), {
@@ -45,8 +57,23 @@ describe("PUT /api/editor/documents/[pageId]", () => {
       title: "제목",
       doc,
       expectedVersion: 2,
+      editor: { email: "user@s-food.com", name: "홍길동" },
     });
     expect(body).toEqual({ pageId: "doc-1", version: 3 });
+  });
+
+  it("계정 폴더가 없으면(방어적 처리) 이름 없이 이메일만으로 editor를 채운다", async () => {
+    vi.mocked(findPersonalFolder).mockResolvedValue(null);
+    vi.mocked(updateDocument).mockResolvedValue({ pageId: "doc-1", version: 3, lastEditedBy: undefined });
+
+    await PUT(putRequest({ title: "제목", doc: { type: "doc", content: [] }, version: 2 }), {
+      params: Promise.resolve({ pageId: "doc-1" }),
+    });
+
+    expect(vi.mocked(getAccountMeta)).not.toHaveBeenCalled();
+    expect(vi.mocked(updateDocument)).toHaveBeenCalledWith(
+      expect.objectContaining({ editor: { email: "user@s-food.com", name: "" } })
+    );
   });
 
   it("소유자가 아니면 401을 반환하고 updateDocument를 호출하지 않는다", async () => {

@@ -53,9 +53,10 @@ export async function toErrorResponse(error: unknown): Promise<NextResponse> {
     });
   }
   if (error instanceof ConflictError) {
-    return NextResponse.json(errorBody("CONFLICT", error.message), {
-      status: 409,
-    });
+    return NextResponse.json(
+      { ...errorBody("CONFLICT", error.message), ...error.details },
+      { status: 409 }
+    );
   }
   if (error instanceof RateLimitError) {
     return NextResponse.json(errorBody("RATE_LIMITED", error.message), {

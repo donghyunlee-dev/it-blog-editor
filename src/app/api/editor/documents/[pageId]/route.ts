@@ -6,6 +6,8 @@ import {
   requireDocumentOwner,
   updateDocument,
 } from "@/lib/editor/documents";
+import { getAccountMeta } from "@/lib/editor/account";
+import { findPersonalFolder } from "@/lib/editor/folder";
 import { ValidationError } from "@/lib/editor/errors";
 import type { JSONContent } from "@/lib/editor/tiptap-to-storage";
 
@@ -29,11 +31,17 @@ export async function PUT(request: Request, { params }: RouteContext) {
       throw new ValidationError("version 값은 필수입니다.");
     }
 
+    // 마지막 수정자 표시(P6-7)에 쓸 저장자 이름 — 문서 소유권 검사를 이미 통과했으므로
+    // 계정 폴더는 항상 있다고 가정할 수 있지만, 방어적으로 없으면 이름 없이(이메일만) 기록한다.
+    const folder = await findPersonalFolder(email);
+    const name = folder ? (await getAccountMeta(folder.accountFolderId)).name : "";
+
     const result = await updateDocument({
       pageId,
       title: payload.title ?? "",
       doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       expectedVersion: payload.version,
+      editor: { email, name },
     });
 
     return NextResponse.json(result);

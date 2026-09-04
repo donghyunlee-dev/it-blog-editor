@@ -38,10 +38,19 @@ export class NotFoundError extends Error {
   }
 }
 
+/**
+ * `details`는 `toErrorResponse`가 409 응답 본문에 그대로 병합해 내려보낸다(P6-7) — 문서
+ * 버전 충돌 시 "누가 먼저 저장했는지"(`lastEditedBy`)를 클라이언트에 구조화된 데이터로
+ * 함께 전달하기 위해서다. 다른 `ConflictError` 사용처(개인 폴더 중복 생성 등)는 이 값을
+ * 생략하면 기존과 동일하게 동작한다.
+ */
 export class ConflictError extends Error {
-  constructor(message: string) {
+  details?: Record<string, unknown>;
+
+  constructor(message: string, details?: Record<string, unknown>) {
     super(message);
     this.name = "ConflictError";
+    this.details = details;
   }
 }
 

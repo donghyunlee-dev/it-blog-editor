@@ -574,12 +574,16 @@ describe("getDocumentDetail", () => {
 
     const detail = await getDocumentDetail("doc-1");
 
+    // getPageProperty가 pageId/key와 무관하게 같은 값을 돌려주는 블랭킷 mock이라
+    // sharingMeta 조회도 이 sourceDocument 값을 그대로 받는다 — `lastEditedBy` 필드가
+    // 없는 값이라 undefined로 떨어지는 것이 이 테스트의 관심사와 무관해 그대로 둔다.
     expect(detail).toEqual({
       pageId: "doc-1",
       title: "제목",
       doc: SAMPLE_DOC,
       version: 2,
       updatedAt: "",
+      lastEditedBy: undefined,
     });
   });
 });
@@ -620,6 +624,7 @@ describe("updateDocument", () => {
       title: "새 제목",
       doc: SAMPLE_DOC,
       expectedVersion: 1,
+      editor: { email: "editor@s-food.com", name: "김철수" },
     });
 
     // P0-3: sourceDocument 저장 시점에도, 저장을 시작할 때 읽어 둔 속성 버전(5)을
@@ -636,7 +641,59 @@ describe("updateDocument", () => {
     expect(client.updatePage).toHaveBeenCalledWith(
       expect.objectContaining({ title: "제목" })
     );
-    expect(result).toEqual({ pageId: "doc-1", version: 2 });
+    // P6-7: 저장 성공 시 sharingMeta.lastEditedBy를 저장자로 갱신하고, 그 값을 응답에도 포함한다.
+    expect(result).toEqual({
+      pageId: "doc-1",
+      version: 2,
+      lastEditedBy: {
+        email: "editor@s-food.com",
+        name: "김철수",
+        editedAt: expect.any(String),
+      },
+    });
+  });
+
+  it("요청한 버전이 최신이 아니면 ConflictError를 던지고 마지막 수정자 정보를 메시지·details에 포함한다(P6-7)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 3, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "sharingMeta",
+      value: {
+        sharedWith: [],
+        lastEditedBy: {
+          email: "other@s-food.com",
+          name: "김철수",
+          editedAt: "2026-09-04T00:00:00.000Z",
+        },
+      },
+      version: { number: 1 },
+    });
+
+    await expect(
+      updateDocument({
+        pageId: "doc-1",
+        title: "새 제목",
+        doc: SAMPLE_DOC,
+        expectedVersion: 1,
+        editor: { email: "editor@s-food.com", name: "이영희" },
+      })
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("김철수(other@s-food.com)"),
+      details: {
+        lastEditedBy: {
+          email: "other@s-food.com",
+          name: "김철수",
+          editedAt: "2026-09-04T00:00:00.000Z",
+        },
+      },
+    });
   });
 
   it("본문 저장 중 다른 요청이 sourceDocument를 먼저 갱신했으면(속성 버전 드리프트) ConflictError를 던진다(P0-3)", async () => {
@@ -674,6 +731,7 @@ describe("updateDocument", () => {
         title: "새 제목",
         doc: SAMPLE_DOC,
         expectedVersion: 1,
+        editor: { email: "editor@s-food.com", name: "김철수" },
       })
     ).rejects.toThrow(ConflictError);
   });
@@ -685,6 +743,7 @@ describe("updateDocument", () => {
         title: "새 제목",
         doc: EMPTY_PARAGRAPH_DOC,
         expectedVersion: 1,
+        editor: { email: "editor@s-food.com", name: "김철수" },
       })
     ).rejects.toThrow(ValidationError);
   });
@@ -696,6 +755,7 @@ describe("updateDocument", () => {
         title: "새 제목",
         doc: WHITESPACE_ONLY_DOC,
         expectedVersion: 1,
+        editor: { email: "editor@s-food.com", name: "김철수" },
       })
     ).rejects.toThrow(ValidationError);
   });
@@ -707,6 +767,7 @@ describe("updateDocument", () => {
         title: "가".repeat(201),
         doc: SAMPLE_DOC,
         expectedVersion: 1,
+        editor: { email: "editor@s-food.com", name: "김철수" },
       })
     ).rejects.toThrow(ValidationError);
   });
@@ -746,9 +807,18 @@ describe("updateDocument", () => {
       title: "가".repeat(200),
       doc: SAMPLE_DOC,
       expectedVersion: 1,
+      editor: { email: "editor@s-food.com", name: "김철수" },
     });
 
-    expect(result).toEqual({ pageId: "doc-1", version: 2 });
+    expect(result).toEqual({
+      pageId: "doc-1",
+      version: 2,
+      lastEditedBy: {
+        email: "editor@s-food.com",
+        name: "김철수",
+        editedAt: expect.any(String),
+      },
+    });
   });
 });
 

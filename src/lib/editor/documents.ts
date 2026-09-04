@@ -22,9 +22,12 @@ import {
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
+import { getSharingMeta, updateLastEditedBy } from "./sharing";
+import type { SharingLastEditedBy } from "./sharing";
 import { getTags } from "./tags";
 import type { PublishMetadata } from "./publish";
 import { logger, serializeError } from "@/lib/logger";
+import { formatAccountLabel } from "@/lib/account-display";
 
 const SOURCE_DOCUMENT_PROPERTY_KEY = "sourceDocument";
 const AUTHOR_PROPERTY_KEY = "authorMeta";
@@ -55,6 +58,8 @@ export interface DocumentDetail {
   doc: JSONContent;
   version: number;
   updatedAt: string;
+  /** 공유 기능(P6-7)의 마지막 수정자 — 한 번도 공유되지 않았거나 수정 이력이 없으면 undefined. */
+  lastEditedBy?: SharingLastEditedBy;
 }
 
 /**
@@ -250,11 +255,14 @@ export async function requireDocumentOwner(
 export async function getDocumentDetail(
   pageId: string
 ): Promise<DocumentDetail> {
-  const page = await getPageOrThrow(pageId);
-  const sourceProperty = await getPageProperty<{ title?: string; doc: JSONContent }>(
-    pageId,
-    SOURCE_DOCUMENT_PROPERTY_KEY
-  );
+  const [page, sourceProperty, sharingMeta] = await Promise.all([
+    getPageOrThrow(pageId),
+    getPageProperty<{ title?: string; doc: JSONContent }>(
+      pageId,
+      SOURCE_DOCUMENT_PROPERTY_KEY
+    ),
+    getSharingMeta(pageId),
+  ]);
 
   return {
     pageId: page.id,
@@ -262,6 +270,7 @@ export async function getDocumentDetail(
     doc: sourceProperty?.value?.doc ?? { type: "doc", content: [] },
     version: page.version.number,
     updatedAt: page.version.createdAt,
+    lastEditedBy: sharingMeta.lastEditedBy,
   };
 }
 
@@ -323,6 +332,8 @@ export interface UpdateDocumentInput {
   title: string;
   doc: JSONContent;
   expectedVersion: number;
+  /** 저장을 요청한 사람(P6-7) — 성공 시 `sharingMeta.lastEditedBy`를 이 값으로 갱신한다. */
+  editor: { email: string; name: string };
 }
 
 /**
@@ -355,8 +366,14 @@ export async function updateDocument(input: UpdateDocumentInput) {
     ),
   ]);
   if (current.version.number !== input.expectedVersion) {
+    const { lastEditedBy } = await getSharingMeta(input.pageId);
     throw new ConflictError(
-      `문서가 이미 최신 버전(${current.version.number})으로 변경되었습니다. 최신 내용을 확인한 뒤 다시 저장하세요.`
+      `문서가 이미 최신 버전(${current.version.number})으로 변경되었습니다.` +
+        (lastEditedBy
+          ? ` 마지막으로 저장한 사람: ${formatAccountLabel(lastEditedBy.email, lastEditedBy.name)}.`
+          : "") +
+        " 최신 내용을 확인한 뒤 다시 저장하세요.",
+      { lastEditedBy }
     );
   }
 
@@ -379,14 +396,22 @@ export async function updateDocument(input: UpdateDocumentInput) {
     );
   } catch (error) {
     if (error instanceof PropertyVersionConflictError) {
+      const { lastEditedBy } = await getSharingMeta(input.pageId);
       throw new ConflictError(
-        "문서 본문은 저장됐지만, 편집 원본이 동시에 다른 곳에서 변경되어 반영하지 못했습니다. 최신 내용을 다시 불러온 뒤 저장하세요."
+        "문서 본문은 저장됐지만, 편집 원본이 동시에 다른 곳에서 변경되어 반영하지 못했습니다. 최신 내용을 다시 불러온 뒤 저장하세요.",
+        { lastEditedBy }
       );
     }
     throw error;
   }
 
-  return { pageId: updated.id, version: updated.version.number };
+  const sharingMeta = await updateLastEditedBy(input.pageId, input.editor);
+
+  return {
+    pageId: updated.id,
+    version: updated.version.number,
+    lastEditedBy: sharingMeta.lastEditedBy,
+  };
 }
 
 /**
