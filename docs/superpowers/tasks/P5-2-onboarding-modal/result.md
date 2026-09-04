@@ -94,3 +94,60 @@
 #### 우려사항
 - 이번에도 AX Auth 로그인 제약으로 실제 브라우저에서 `/welcome` 페이지가 뜨는 것을 직접
   확인하지는 못했다 — `WelcomeForm.test.tsx`(4건)로 대체했다.
+
+## 2026-09-03 세 번째 갱신 — 환영 페이지 디자인 보강 (서비스 소개 + 대화체 문구)
+
+같은 날 위 재구성이 머지되기 전, 실제로 로그인해 화면을 본 사용자가 "환영 페이지가 너무
+심심하다, 서비스 소개·장점이 조금이라도 보이면 좋겠다, 필드 문구도 '왜 필요한지' 설명이
+있어야 한다, 메일 계정 표시도 해달라"는 구체적인 피드백을 줬다.
+
+### 구현 내용
+- `WelcomeForm`을 `@sfood/ui`의 `LandingSplit`(마케팅 랜딩 페이지 템플릿)로 다시 짰다 —
+  `headline`/`subheadline`으로 서비스를 한 줄 소개하고, `features`(3개, 이모지 아이콘)로
+  핵심 기능(초안 비공개, 원클릭 게시, WYSIWYG 에디터)을 보여준다. `ctaPrimary`/`ctaSecondary`
+  (마케팅 CTA)는 넘기지 않아 화면의 유일한 1차 액션이 폼의 "시작하기" 버튼 하나가 되게 했다.
+- `media` 슬롯에 우리 온보딩 폼을 넣었다 — `Card` 안에 `Avatar`(이메일 앞 두 글자 이니셜)로
+  로그인 계정 이메일을 먼저 보여주고, 그 아래 `FormField` 2개의 라벨을 "이름을 알고
+  싶어요"/"어디 소속인지 알려주세요"처럼 서비스가 직접 묻는 말투로, `hint`에는 왜
+  필요한지(문서함 표시용, Phase 6 공유 대상 검색용)를 붙였다.
+- 실제 브라우저(이 세션의 dev 서버, 임시 인증 우회 라우트로 렌더링 확인 후 삭제)로 라이트/
+  다크·데스크톱/모바일(375px) 4가지 조합을 스크린샷으로 직접 확인하는 과정에서, 이름
+  입력의 `autoFocus`가 마운트 즉시 포커스를 받으며 브라우저가 페이지를 아래로 스크롤시켜
+  헤더(브랜드 로고, "SFOOD IT Editor")가 뷰포트 밖(`top: -76px`)으로 밀려나는 버그를
+  발견해 `autoFocus`를 제거했다 — "화면 전체로 서비스를 소개한다"는 이번 개선의 목적과
+  정면으로 부딪히는 부작용이었다.
+- 제출 실패 안내를 인라인 `role="alert"` 텍스트에서 `Toast`(danger)로 바꿨다 — CLAUDE.md
+  "저장 성공/실패 안내는 인라인 텍스트 대신 Toast" 규칙에 맞춘 것으로, `PublishForm.tsx`가
+  이미 쓰는 패턴과 동일하게 통일했다(첫 Modal 버전과 첫 페이지 버전 모두 이 규칙을
+  놓치고 있었다).
+
+### 파일 변경 내역
+| 파일 | 변경 사항 |
+|------|---------|
+| `src/components/welcome/WelcomeForm.tsx` | `LandingSplit` 기반으로 재작성, `email` prop 추가, `autoFocus` 제거, 실패 안내를 Toast로 통일 |
+| `src/components/welcome/WelcomeForm.test.tsx` | 새 문구·구조에 맞춰 재작성 |
+| `src/app/welcome/page.tsx` | `WelcomeForm`에 `email` prop 전달 |
+| `docs/product/design.md` | "환영 페이지 — `LandingSplit` 재사용" 절 추가(이모지 아이콘·`autoFocus` 버그 등 결정 근거 포함) |
+| `docs/product/prd.md` | 화면 정의·기능 정의·체크리스트를 새 디자인 기준으로 갱신 |
+
+### 커밋 내역
+| SHA | 메시지 |
+|-----|--------|
+| (PR에서 확인) | feat: redesign the welcome page with a service intro and conversational copy (Phase 5, P5-2 second followup) |
+
+### 자체 검토 (Self-Review)
+#### 긍정 사항
+- `LandingSplit`이 폼의 존재를 전혀 강제하지 않는(순수 슬롯 기반) 컴포넌트라는 것을
+  타입·실제 구현(`index.js`) 양쪽으로 확인한 뒤 채택해, 로그인 화면처럼 레이아웃을 직접
+  복제해 그릴 필요가 없었다 — CLAUDE.md의 "`@sfood/ui` 우선" 원칙을 그대로 지켰다.
+- `autoFocus` 버그는 코드 리뷰만으로는 발견하기 어려웠고, 실제로 브라우저에 렌더링해
+  스크린샷을 찍어봤기 때문에 찾을 수 있었다 — 이 프로젝트의 다른 UI 작업들이 이미 같은
+  방식(Playwright 스크린샷)으로 잡아낸 버그들과 같은 종류다.
+
+#### 주의사항
+- `FeatureItem.icon`에 이모지를 쓰기로 한 결정은 `@sfood/ui`의 실제 구현(`text-2xl` 래퍼)에
+  근거했다 — `@sfood/ui`가 업그레이드되어 이 래퍼가 바뀌면(예: 고정 픽셀 크기의 아이콘
+  전용 슬롯으로 바뀌면) design.md의 이 결정도 다시 확인해야 한다.
+
+#### 우려사항
+- 없음 — 이번엔 실제 렌더링(4가지 뷰포트/테마 조합)까지 스크린샷으로 확인했다.
