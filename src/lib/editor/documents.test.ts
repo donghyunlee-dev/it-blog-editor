@@ -615,18 +615,17 @@ describe("getDocumentDetail", () => {
       parentId: "folder-1",
       version: { number: 2, createdAt: "" },
     });
-    vi.spyOn(client, "getPageProperty").mockResolvedValue({
-      id: "prop-1",
-      key: "sourceDocument",
-      value: { title: "제목", doc: SAMPLE_DOC },
-      version: { number: 1 },
+    // sharingMeta/authorMeta도 함께 읽으므로(P6-2/P6-3), 이 테스트의 관심사(sourceDocument)와
+    // 무관한 두 키는 key별로 구분해 없는 값(null → 기본값)으로 응답한다.
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "sourceDocument") {
+        return { id: "prop-1", key, value: { title: "제목", doc: SAMPLE_DOC }, version: { number: 1 } };
+      }
+      return null;
     });
 
     const detail = await getDocumentDetail("doc-1");
 
-    // getPageProperty가 pageId/key와 무관하게 같은 값을 돌려주는 블랭킷 mock이라
-    // sharingMeta 조회도 이 sourceDocument 값을 그대로 받는다 — `lastEditedBy` 필드가
-    // 없는 값이라 undefined로 떨어지는 것이 이 테스트의 관심사와 무관해 그대로 둔다.
     expect(detail).toEqual({
       pageId: "doc-1",
       title: "제목",
@@ -634,7 +633,61 @@ describe("getDocumentDetail", () => {
       version: 2,
       updatedAt: "",
       lastEditedBy: undefined,
+      ownerEmail: "",
+      sharedWith: [],
     });
+  });
+
+  it("공유된 대상이 있으면 accountIndex에서 이름을 채워 sharedWith로 반환한다(P6-2/P6-3)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "internal-key-1",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+      if (key === "sourceDocument") {
+        return { id: "prop-1", key, value: { title: "제목", doc: SAMPLE_DOC }, version: { number: 1 } };
+      }
+      if (key === "authorMeta") {
+        return { id: "prop-2", key, value: { actualAuthorEmail: "owner@s-food.com" }, version: { number: 1 } };
+      }
+      if (key === "sharingMeta") {
+        return { id: "prop-3", key, value: { sharedWith: ["a@s-food.com", "unknown@s-food.com"] }, version: { number: 1 } };
+      }
+      if (key === "accountIndex") {
+        return {
+          id: "prop-4",
+          key,
+          value: [{ email: "a@s-food.com", name: "김철수", team: "디자인팀", accessEnabled: true, accountFolderId: "account-a" }],
+          version: { number: 1 },
+        };
+      }
+      return null;
+    });
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue({
+      id: "index-1",
+      status: "current",
+      title: "계정 관리",
+      spaceId: "space-1",
+      parentId: "home-1",
+      version: { number: 1, createdAt: "" },
+    });
+
+    const detail = await getDocumentDetail("doc-1");
+
+    expect(detail.ownerEmail).toBe("owner@s-food.com");
+    expect(detail.sharedWith).toEqual([
+      { email: "a@s-food.com", name: "김철수" },
+      { email: "unknown@s-food.com", name: "" },
+    ]);
   });
 });
 

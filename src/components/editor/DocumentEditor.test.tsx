@@ -225,6 +225,29 @@ describe("DocumentEditor", () => {
     expect(await screen.findByText(/마지막 수정자: 이영희\(me@s-food\.com\)/)).toBeInTheDocument();
   });
 
+  it("소유자가 아니면 '공유' 버튼이 보이지 않는다(P6-2/P6-3)", () => {
+    renderEditor(<DocumentEditor {...EDIT_PROPS} isOwner={false} />);
+
+    expect(screen.queryByRole("button", { name: "공유" })).not.toBeInTheDocument();
+  });
+
+  it("소유자면 '공유' 버튼이 보이고, 누르면 공유 팝업이 열려 초기 공유 목록을 보여준다(P6-2/P6-3)", async () => {
+    renderEditor(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        isOwner
+        initialSharedWith={[{ email: "a@s-food.com", name: "김철수" }]}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "공유" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    // Tag(ShareForm)의 접근성 텍스트에는 제거(×) 버튼 문구도 같은 <span> 안에 섞여
+    // 들어가므로, 정확히 일치가 아니라 라벨로 시작하는지로 확인한다.
+    expect(screen.getByText(/^김철수\(a@s-food\.com\)/)).toBeInTheDocument();
+  });
+
   it("삭제 성공 시 사이드바를 새로고침하고 문서 탐색기로 이동한다", async () => {
     stubFetch(() => new Response(null, { status: 204 }));
 

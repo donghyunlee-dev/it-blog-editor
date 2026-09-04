@@ -65,12 +65,11 @@ export async function upsertAccountIndexEntry(entry: AccountIndexEntry): Promise
 }
 
 /**
- * 이름·이메일·팀 부분 일치(대소문자 무시)로 계정을 검색한다. 검색어가 빈 문자열이면 전체
- * 목록을 반환한다("계정 관리" 화면의 최초 진입 시 동작과 동일). "계정 관리" 페이지가 아직
- * 없으면(계정이 하나도 만들어지지 않은 초기 상태) 빈 배열을 반환한다 — 읽기 동작에서는
- * 페이지를 새로 만들지 않는다(쓰기 시점에만 생성, 위 Global Constraints 참고).
+ * "계정 관리" 페이지의 `accountIndex` 전체를 읽는다. 페이지가 아직 없으면(계정이 하나도
+ * 만들어지지 않은 초기 상태) 빈 배열을 반환한다 — 읽기 동작에서는 페이지를 새로 만들지
+ * 않는다(쓰기 시점에만 생성, 위 Global Constraints 참고).
  */
-export async function searchAccounts(query: string): Promise<AccountIndexEntry[]> {
+async function listAllEntries(): Promise<AccountIndexEntry[]> {
   const space = await getSpaceHomepageId();
   const page = await findChildPageByTitle(space.homepageId, ACCOUNT_INDEX_PAGE_TITLE);
   if (!page) return [];
@@ -79,7 +78,15 @@ export async function searchAccounts(query: string): Promise<AccountIndexEntry[]
     page.id,
     ACCOUNT_INDEX_PROPERTY_KEY
   );
-  const entries = property?.value ?? [];
+  return property?.value ?? [];
+}
+
+/**
+ * 이름·이메일·팀 부분 일치(대소문자 무시)로 계정을 검색한다. 검색어가 빈 문자열이면 전체
+ * 목록을 반환한다("계정 관리" 화면의 최초 진입 시 동작과 동일).
+ */
+export async function searchAccounts(query: string): Promise<AccountIndexEntry[]> {
+  const entries = await listAllEntries();
   const q = query.trim().toLowerCase();
   if (!q) return entries;
 
@@ -89,4 +96,19 @@ export async function searchAccounts(query: string): Promise<AccountIndexEntry[]
       entry.name.toLowerCase().includes(q) ||
       entry.team.toLowerCase().includes(q)
   );
+}
+
+/**
+ * 주어진 이메일 집합에 해당하는 계정만 골라 반환한다(P6-2/P6-3 — 공유 목록의 표시 이름을
+ * 채우는 용도). 순서는 보장하지 않는다 — 호출자가 필요하면 `emails` 순서대로 다시 매핑한다.
+ * 인덱스에 없는 이메일(예: `accountMeta`는 있지만 아직 한 번도 인덱스에 기록되지 않은 아주
+ * 오래된 계정)은 결과에서 조용히 빠진다 — 호출자가 이메일 자체로 대체 표시해야 한다.
+ */
+export async function getAccountsByEmails(
+  emails: string[]
+): Promise<AccountIndexEntry[]> {
+  if (emails.length === 0) return [];
+  const wanted = new Set(emails);
+  const entries = await listAllEntries();
+  return entries.filter((entry) => wanted.has(entry.email));
 }
