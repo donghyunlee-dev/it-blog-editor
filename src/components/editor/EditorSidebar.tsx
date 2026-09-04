@@ -444,25 +444,6 @@ export function EditorSidebar({
           </svg>
           삭제된 문서
         </button>
-        {/* P5-7: 전체 계정을 조회·검색하는 화면(조회 전용, 접속 권한 변경은 여전히 관리자
-            스크립트 전용). 모달이 아니라 별도 화면이라 Link로 이동한다. */}
-        <Link
-          href="/editor/accounts"
-          onClick={onNavigate}
-          onNavigate={(event) => guardNavigate(event, "/editor/accounts")}
-          className="flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
-        >
-          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <circle cx="10" cy="6.5" r="3" stroke="currentColor" strokeWidth="1.4" />
-            <path
-              d="M3.5 16.5c0-3.3 2.9-6 6.5-6s6.5 2.7 6.5 6"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-          </svg>
-          계정 관리
-        </Link>
       </div>
 
       {onLogout && (

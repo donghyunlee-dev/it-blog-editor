@@ -58,5 +58,18 @@ accessEnabled:true}`이고 "계정 관리" 페이지 자체가 아직 없는 상
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
+## 후속 재검증(2026-09-04, PR #51 머지 전 사용자 설계 검토로 사이드바 링크 제거)
+사용자가 이 화면을 사이드바 메뉴에서 제거해달라고 요청해(`task.md`/`result.md`의
+"2026-09-04 정정" 참고), `EditorSidebar.tsx`에서 "계정 관리" `Link` 블록을 제거하고(순
+변경 없이 원상태로 되돌림), 대신 그 링크가 없다는 것을 확인하는 회귀 테스트를
+`EditorSidebar.test.tsx`에 추가했다.
+| 커맨드 | 결과 |
+|---|---|
+| `npx vitest run src/components/editor/EditorSidebar.test.tsx` | 통과 (29/29) |
+| `npx vitest run`(전체 스위트) | 통과 (48 파일 / 421건) |
+| `npm run lint` | 통과(기존 경고 2건만) |
+| `npx tsc --noEmit` | 통과 |
+`/editor/accounts` 화면·API 자체는 변경하지 않아 재검증이 필요 없었다.
+
 ## 최종 판정
-- [x] 수용 기준(`task.md`)을 모두 만족함 — PRD 갱신 가능
+- [x] 수용 기준(`task.md`, 2026-09-04 정정 반영)을 모두 만족함 — PRD 갱신 가능

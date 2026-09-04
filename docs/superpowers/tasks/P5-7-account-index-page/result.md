@@ -19,7 +19,9 @@
   시 빈 검색어로 전체 목록을 불러오고, 검색어를 바꾸면 같은 API를 다시 호출한다. 조회
   전용이라 이 화면에서 접속 허용 여부를 바꾸는 액션은 없다(P5-6 결정 유지).
 - `EditorSidebar.tsx`의 "문서 관련 기능" 영역에 "계정 관리" 링크를 추가해 `/editor/accounts`로
-  이동할 수 있게 했다.
+  이동할 수 있게 했다. **2026-09-04 정정(PR #51 머지 전 사용자 설계 검토)**: 이 화면은 애초에
+  "공유 대상 검색 팝업"과 무관한 별도 요구였다는 것이 확인돼, 사이드바 링크는 다시 제거했다
+  (화면·API는 유지, 연결 고리만 끊음 — `task.md`의 "2026-09-04 정정" 참고).
 
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
@@ -29,8 +31,8 @@
 | `src/lib/editor/folder.ts` | `initializeAccountMeta` 호출에 `email` 전달 |
 | `src/app/api/editor/account/route.ts`, `.test.ts` | `saveAccountMeta` 호출부(email 추가) |
 | `src/app/api/editor/account/search/route.ts`, `.test.ts` | 신규 — 계정 검색 API |
-| `src/app/editor/accounts/page.tsx`, `.test.tsx` | 신규 — 계정 관리 화면 |
-| `src/components/editor/EditorSidebar.tsx`, `.test.tsx` | "계정 관리" 진입 링크 추가 |
+| `src/app/editor/accounts/page.tsx`, `.test.tsx` | 신규 — 계정 관리 화면(메뉴에서 연결하지 않음, 직접 URL로만 접근) |
+| `src/components/editor/EditorSidebar.test.tsx` | "계정 관리" 메뉴 링크가 없음을 확인하는 회귀 테스트 추가(2026-09-04 정정 — 링크를 추가했다가 사용자 피드백으로 다시 제거해 `EditorSidebar.tsx` 자체의 순 변경은 없음) |
 | `scripts/set-account-access.ts` | `setAccessEnabled` 호출부(email 추가) |
 | `docs/product/prd.md` | P5-7 체크리스트 완료 표시, Phase 5 완료 처리 |
 | `docs/product/api-spec.md` | 검색 응답 예시에 `accessEnabled` 필드 반영 |
@@ -70,3 +72,11 @@
 
 ### 우려사항
 - 없음.
+
+## 후속 정정(2026-09-04, PR #51 머지 전 사용자 설계 검토)
+최초 구현은 이 화면을 "사이드바에서 누구나 들어가는 계정 관리 메뉴"로 만들었는데, 사용자가
+"계정 관리라는 상시 화면은 원하지 않았다 — 원래 요청은 공유할 팀원을 찾는 심플한 검색+선택
+팝업이었다"고 정정했다. 화면과 API 자체는 향후 재사용을 위해 남겨두되, 사이드바 진입
+링크만 제거했다(`EditorSidebar.tsx` 자체는 최종적으로 main 대비 순 변경 없음). "공유 대상
+검색 팝업"은 이 작업의 범위가 아니며, 사용자가 명시적으로 요청할 때 별도로 다룬다
+(`docs/product/prd.md` Phase 6 절의 2026-09-04 정정 참고).
