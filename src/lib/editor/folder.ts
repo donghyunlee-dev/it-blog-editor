@@ -1,6 +1,11 @@
-import { createPage, findChildPageByTitle, getConfiguredSpace } from "@/lib/confluence/client";
+import {
+  createPage,
+  deletePage,
+  findChildPageByTitle,
+  getConfiguredSpace,
+} from "@/lib/confluence/client";
 import { initializeAccountMeta } from "./account";
-import { ConflictError } from "./errors";
+import { ConflictError, NotFoundError } from "./errors";
 
 export interface PersonalFolder {
   accountFolderId: string;
@@ -73,4 +78,18 @@ export async function ensurePersonalFolder(email: string): Promise<PersonalFolde
     }
     throw error;
   }
+}
+
+/**
+ * 계정 폴더(및 그 하위 문서 전체)를 Confluence 휴지통으로 이동한다 — 다음 로그인 때
+ * 완전히 새로 가입한 계정처럼 재현할 수 있게 하는 테스트/운영 도구다(`scripts/reset-account.ts`
+ * 전용, 애플리케이션 코드 경로에서는 호출하지 않는다). 영구 삭제가 아니라 휴지통 이동이라
+ * Confluence 관리자 화면에서 복구할 수 있다.
+ */
+export async function deletePersonalFolder(email: string): Promise<void> {
+  const folder = await findPersonalFolder(email);
+  if (!folder) {
+    throw new NotFoundError(`계정 폴더를 찾을 수 없습니다: ${email}`);
+  }
+  await deletePage(folder.accountFolderId);
 }

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
+    "reset-account": "tsx --env-file=.env scripts/reset-account.ts",
     "postinstall": "patch-package --error-on-warn"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "happy-dom": "^20.11.6",
     "postcss": "^8.5.26",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "5.9.3",
     "vitest": "^4.1.11"
   }
