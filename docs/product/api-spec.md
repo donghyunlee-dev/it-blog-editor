@@ -179,14 +179,13 @@
 ```
 **2026-09-04 갱신(P6-7, 구현 완료)**: 저장 성공 시 `sharingMeta.lastEditedBy`(이메일·이름·수정 시각)를 저장자로 갱신하고, 그 값을 응답에도 함께 내려준다(생성 직후 아직 한 번도 수정 저장을 거치지 않은 문서는 `lastEditedBy`가 없다). 편집 화면 하단 풋터에 "마지막 수정자"로 표시된다.
 
-> **2026-09-03 계획(P6-6, 아직 미구현)**: 소유권 검사(`requireDocumentOwner`)를 문서 소유자 또는 `sharingMeta.sharedWith`에 포함된 계정 모두 통과하도록 확장할 예정이다 — 공유받은 사람도 소유자와 동일하게 저장할 수 있게 하려는 목적(읽기 전용 공유는 없음)이나, 이 항목은 아직 착수 전이라 현재는 소유자만 저장할 수 있고 소유자가 아니면 401(UNAUTHORIZED)을 반환한다(아래 "Response (실패)"의 403 FORBIDDEN 행도 이 항목이 끝나야 실제로 쓰인다).
+> **2026-09-04 갱신(P6-6, 구현 완료)**: 소유권 검사를 `requireDocumentAccess`(문서 소유자 또는 `sharingMeta.sharedWith`에 포함된 계정 모두 통과)로 확장했다 — 공유받은 사람도 소유자와 동일하게 저장할 수 있다(읽기 전용 공유는 없음). 실패 시 응답 코드는 여전히 401(UNAUTHORIZED)이다 — 이 프로젝트의 문서 권한 오류는 처음부터 401로 통일돼 있고, 별도의 403 FORBIDDEN 코드를 쓰지 않는다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
-| 401 | UNAUTHORIZED | 로그인 필요, 또는(P6-6 이전 현재) 문서 소유자가 아님 |
+| 401 | UNAUTHORIZED | 로그인 필요, 또는 문서 소유자도 공유 대상도 아님 |
 | 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
-| 403 | FORBIDDEN | (P6-6 예정) 문서 소유자도 공유 대상도 아님 |
 | 400 | INVALID_REQUEST | version 누락, 제목/본문 누락 |
 | 404 | NOT_FOUND | 문서 없음 |
 | 409 | CONFLICT | 요청한 version이 최신이 아님(동시 수정) — 응답 본문에 `lastEditedBy`를 함께 내려보내 "누가 먼저 저장했는지" 화면에서 안내한다(P6-7, 구현 완료) |
@@ -334,7 +333,7 @@
 | 400 | INVALID_REQUEST | 검색어(`q`) 누락 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-### POST /api/editor/documents/{pageId}/share — 공유 대상 추가(2026-09-03 추가)
+### POST /api/editor/documents/{pageId}/share — 공유 대상 추가(2026-09-03 계획, 2026-09-04 구현 완료 — P6-2/P6-3)
 **Header**: Cookie(세션) 필수
 
 **Request Body**
@@ -344,34 +343,41 @@
 
 **Response Body (성공)**
 ```json
-{ "pageId": "111", "sharedWith": ["user2@s-food.com"] }
+{ "sharedWith": ["user2@s-food.com"] }
 ```
-문서의 `sharingMeta.sharedWith`에 이메일을 추가하고, 대상 계정 폴더의 `sharedDocumentRefs`에도 문서 참조를 함께 기록한다(두 쓰기 중 하나가 실패해도 재시도로 수렴할 수 있도록, 문서 쪽을 먼저 쓴 뒤 대상 계정 폴더를 쓴다 — 대상 계정 폴더 쓰기만 실패하면 "공유는 됐지만 상대방 목록에는 아직 안 보이는" 일시적 불일치가 남을 수 있음을 감수한다).
+대상의 `accountFolderId`는 클라이언트가 보내지 않는다 — 서버가 `email`로 직접 조회한다
+(내부 식별자를 클라이언트가 다루지 않게 하는 관례, 계정 검색 API가 `accountFolderId`를
+응답에서 뺀 것과 같은 이유). `sharing.ts`의 `shareDocument`(P6-1/P6-4)를 그대로 호출해
+문서의 `sharingMeta.sharedWith`와 대상 계정 폴더의 `sharedDocumentRefs`를 함께 갱신한다.
+이미 공유된 대상을 다시 지정해도 조용히 무시한다(멱등).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
-| 401 | UNAUTHORIZED | 로그인 필요 |
+| 401 | UNAUTHORIZED | 로그인 필요, 또는 문서 소유자가 아님(공유받은 사람은 재공유 불가 — 이 프로젝트의 문서 권한 오류는 처음부터 401로 통일돼 있다, `requireDocumentOwner` 재사용) |
 | 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
-| 400 | INVALID_REQUEST | 이메일 누락, 존재하지 않는 계정, 본인 자신을 공유 대상으로 지정 |
-| 403 | FORBIDDEN | 문서 소유자가 아님(공유받은 사람은 재공유 불가) |
-| 404 | NOT_FOUND | 문서 없음 |
+| 400 | INVALID_REQUEST | 이메일 누락, 본인 자신을 공유 대상으로 지정 |
+| 404 | NOT_FOUND | 문서 없음, 또는 대상 이메일의 계정 폴더를 찾을 수 없음 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-### DELETE /api/editor/documents/{pageId}/share/{email} — 공유 대상 제거(2026-09-03 추가)
+### DELETE /api/editor/documents/{pageId}/share/{email} — 공유 대상 제거(2026-09-03 계획, 2026-09-04 구현 완료 — P6-2/P6-3)
 **Header**: Cookie(세션) 필수
 
 **Request Body**: 해당 없음
 
-**Response**: 성공 시 204 No Content. `sharingMeta.sharedWith`와 대상 계정 폴더의 `sharedDocumentRefs` 양쪽에서 제거한다.
+**Response Body (성공)**
+```json
+{ "sharedWith": [] }
+```
+`sharingMeta.sharedWith`와 대상 계정 폴더의 `sharedDocumentRefs` 양쪽에서 제거한다. 원래
+공유돼 있지 않았던 이메일을 제거해도 에러 없이 그대로 둔다(멱등).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
-| 401 | UNAUTHORIZED | 로그인 필요 |
+| 401 | UNAUTHORIZED | 로그인 필요, 또는 문서 소유자가 아님 |
 | 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
-| 403 | FORBIDDEN | 문서 소유자가 아님 |
-| 404 | NOT_FOUND | 문서 없음 또는 해당 이메일이 공유 대상이 아님 |
+| 404 | NOT_FOUND | 문서 없음, 또는 대상 이메일의 계정 폴더를 찾을 수 없음 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 ### GET /api/editor/documents/shared — 나에게 공유된 문서 목록(2026-09-03 추가)

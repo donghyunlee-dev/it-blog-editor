@@ -76,6 +76,8 @@ export default async function EditDocumentPage({
         initialPublishState={publishState}
         initialUpdatedAt={document.updatedAt}
         initialLastEditedBy={document.lastEditedBy}
+        isOwner={document.ownerEmail === email}
+        initialSharedWith={document.sharedWith}
       />
     </main>
   );

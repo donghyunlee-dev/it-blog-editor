@@ -24,6 +24,7 @@ import { hidePageFromOthers } from "./access";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
 import { getSharingMeta, updateLastEditedBy } from "./sharing";
 import type { SharingLastEditedBy } from "./sharing";
+import { getAccountsByEmails } from "./account-index";
 import { getTags } from "./tags";
 import type { PublishMetadata } from "./publish";
 import { logger, serializeError } from "@/lib/logger";
@@ -52,6 +53,12 @@ export interface DocumentSummary {
   tags: string[];
 }
 
+/** 공유 목록 표시용 — accountIndex에 없는 이메일(아주 오래된 계정 등)은 `name`이 빈 문자열. */
+export interface SharedAccount {
+  email: string;
+  name: string;
+}
+
 export interface DocumentDetail {
   pageId: string;
   title: string;
@@ -60,6 +67,10 @@ export interface DocumentDetail {
   updatedAt: string;
   /** 공유 기능(P6-7)의 마지막 수정자 — 한 번도 공유되지 않았거나 수정 이력이 없으면 undefined. */
   lastEditedBy?: SharingLastEditedBy;
+  /** 실제 작성자 이메일(P6-2/P6-3) — "공유" 버튼을 소유자에게만 보이도록 화면에서 판단하는 데 쓴다. */
+  ownerEmail: string;
+  /** 현재 공유된 대상 목록(P6-2/P6-3), 이름까지 채워서 반환한다. */
+  sharedWith: SharedAccount[];
 }
 
 /**
@@ -281,14 +292,23 @@ export async function requireDocumentAccess(
 export async function getDocumentDetail(
   pageId: string
 ): Promise<DocumentDetail> {
-  const [page, sourceProperty, sharingMeta] = await Promise.all([
+  const [page, sourceProperty, sharingMeta, ownerEmail] = await Promise.all([
     getPageOrThrow(pageId),
     getPageProperty<{ title?: string; doc: JSONContent }>(
       pageId,
       SOURCE_DOCUMENT_PROPERTY_KEY
     ),
     getSharingMeta(pageId),
+    readAuthorEmail(pageId),
   ]);
+
+  // accountIndex에 없는 이메일(아주 오래된 계정 등)은 이름 없이 이메일만으로 대체한다 —
+  // 검색 결과에서 사라지는 것과 달리, 이미 공유된 목록에서는 조용히 빠지면 안 된다.
+  const knownAccounts = await getAccountsByEmails(sharingMeta.sharedWith);
+  const sharedWith: SharedAccount[] = sharingMeta.sharedWith.map((email) => ({
+    email,
+    name: knownAccounts.find((account) => account.email === email)?.name ?? "",
+  }));
 
   return {
     pageId: page.id,
@@ -297,6 +317,8 @@ export async function getDocumentDetail(
     version: page.version.number,
     updatedAt: page.version.createdAt,
     lastEditedBy: sharingMeta.lastEditedBy,
+    ownerEmail: ownerEmail ?? "",
+    sharedWith,
   };
 }
 

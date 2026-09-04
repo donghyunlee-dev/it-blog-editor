@@ -9,6 +9,7 @@ import { RichTextEditor } from "./RichTextEditor";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
 import { VersionHistory } from "./VersionHistory";
+import { ShareForm } from "./ShareForm";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import {
   clearAutosaveSnapshot,
@@ -17,6 +18,7 @@ import {
   type AutosaveSnapshot,
 } from "@/lib/editor/autosave-storage";
 import type { SharingLastEditedBy } from "@/lib/editor/sharing";
+import type { SharedAccount } from "@/lib/editor/documents";
 import { formatAccountLabel } from "@/lib/account-display";
 
 /** Issue #1(P0-1b)에서 결정된 주기 — "1분마다 체크해서 저장한다". */
@@ -36,6 +38,10 @@ interface DocumentEditorProps {
   initialUpdatedAt?: string;
   /** 공유 기능(P6-7)의 마지막 수정자. 공유되거나 저장된 적 없으면 서버가 내려주지 않는다. */
   initialLastEditedBy?: SharingLastEditedBy;
+  /** 로그인한 사람이 이 문서의 소유자인지(P6-2/P6-3) — "공유" 버튼은 소유자에게만 보인다. */
+  isOwner?: boolean;
+  /** 현재 공유된 대상 목록(P6-2/P6-3). mode="edit"일 때만 서버에서 내려준다. */
+  initialSharedWith?: SharedAccount[];
 }
 
 const EMPTY_DOC: JSONContent = {
@@ -138,6 +144,23 @@ function HistoryIcon() {
   );
 }
 
+/** 흔히 쓰는 "공유" 아이콘(연결된 점 3개) — iOS/Android 공유 아이콘과 같은 형태라 낯익다. */
+function ShareIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="15.5" cy="4.5" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="15.5" cy="15.5" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="4.5" cy="10" r="2" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M6.3 8.9l7.4-3.5M6.3 11.1l7.4 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function ArrowLeftIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -229,6 +252,8 @@ export function DocumentEditor({
   initialPublishState,
   initialUpdatedAt,
   initialLastEditedBy,
+  isOwner = false,
+  initialSharedWith = [],
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -242,6 +267,7 @@ export function DocumentEditor({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [versionHistoryModalOpen, setVersionHistoryModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
     "idle" | "saving" | "saved" | "failed"
   >("idle");
@@ -652,6 +678,22 @@ export function DocumentEditor({
               <HistoryIcon />
             </Button>
           )}
+          {/* "공유" 버튼은 소유자에게만 보인다(재공유 방지, P6-2/P6-3) — 공유받은
+              사람이 이 문서를 열어도 이 버튼 자체가 없어 재공유를 시도할 방법이 없다. */}
+          {mode === "edit" && pageId && isOwner && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              className="!px-2.5"
+              aria-label="공유"
+              title="공유"
+              onClick={() => setShareModalOpen(true)}
+              disabled={status !== "idle"}
+            >
+              <ShareIcon />
+            </Button>
+          )}
           {/*
             size="sm"(약 28px 높이)는 모바일 터치 타겟으로 여유가 없다(2026-08-26 UI 진단).
             EditorShell이 375px 폭 모바일 오프캔버스 드로어까지 지원하는데 헤더 액션만
@@ -830,6 +872,12 @@ export function DocumentEditor({
           title="이력"
         >
           <VersionHistory pageId={pageId} />
+        </Modal>
+      )}
+
+      {mode === "edit" && pageId && isOwner && (
+        <Modal open={shareModalOpen} onClose={() => setShareModalOpen(false)} title="문서 공유">
+          <ShareForm pageId={pageId} initialSharedWith={initialSharedWith} />
         </Modal>
       )}
     </form>
