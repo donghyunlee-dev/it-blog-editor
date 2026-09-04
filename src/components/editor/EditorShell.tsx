@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { EditorSidebar } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
-import type { DocumentSummary } from "@/lib/editor/documents";
+import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 
 const MOBILE_QUERY = "(max-width: 767px)";
 
@@ -32,6 +32,8 @@ function HamburgerIcon() {
 
 export interface EditorShellProps {
   documents: DocumentSummary[];
+  /** 나에게 공유된 문서 목록(P6-5). "내 문서" 목록과 분리해 사이드바 상단에 보여준다. */
+  sharedDocuments?: SharedDocumentSummary[];
   children: React.ReactNode;
   userEmail?: string;
   /** 계정 폴더의 accountMeta.name(P5-5). 있으면 "이름(이메일)" 형식으로 표시한다. */
@@ -52,6 +54,7 @@ export interface EditorShellProps {
  */
 export function EditorShell({
   documents,
+  sharedDocuments,
   children,
   userEmail,
   userName,
@@ -218,6 +221,7 @@ export function EditorShell({
         <div style={{ width: sidebarWidth, height: "100%" }}>
           <EditorSidebar
             documents={documents}
+            sharedDocuments={sharedDocuments}
             onNavigate={() => setOpen(false)}
             onCollapse={() => toggleCollapsed(true)}
             userEmail={userEmail}

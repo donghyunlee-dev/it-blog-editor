@@ -10,13 +10,15 @@ import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import { formatAccountLabel } from "@/lib/account-display";
-import type { DocumentSummary } from "@/lib/editor/documents";
+import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 
 /** P1-1c: 문서 목록을 이 개수만큼씩 점진적으로 보여준다("더 보기" 버튼). */
 const PAGE_SIZE = 30;
 
 export interface EditorSidebarProps {
   documents: DocumentSummary[];
+  /** 나에게 공유된 문서 목록(P6-5). 비어 있으면 이 영역 자체를 렌더링하지 않는다. */
+  sharedDocuments?: SharedDocumentSummary[];
   activePageId?: string;
   /** 모바일 오프캔버스 드로어에서 링크 클릭 시 드로어를 닫기 위한 콜백(데스크톱에서는 불필요). */
   onNavigate?: () => void;
@@ -108,6 +110,7 @@ export function extractPageIdFromPathname(
 
 export function EditorSidebar({
   documents,
+  sharedDocuments = [],
   activePageId,
   onNavigate,
   onCollapse,
@@ -282,6 +285,48 @@ export function EditorSidebar({
           새 문서
         </Link>
       </div>
+
+      {/*
+        "내 문서"와 섞이지 않도록 분리된 영역이다(P6-5, prd.md "공유받은 문서 목록 조회").
+        비어 있으면 영역 자체를 렌더링하지 않는다 — 빈 상태 문구도 두지 않는다(대부분의
+        사용자에게는 평생 안 보일 영역이라, 있지도 않은 걸 "없다"고 설명할 필요가 없다).
+      */}
+      {sharedDocuments.length > 0 && (
+        <div className="flex flex-col gap-1 border-b border-border p-3">
+          <p className="px-1 text-xs font-medium text-muted">공유받은 문서</p>
+          <ul className="flex flex-col gap-0.5">
+            {sharedDocuments.map((document) => {
+              const isActive = document.pageId === currentPageId;
+              const ownerLabel = formatAccountLabel(document.ownerEmail, document.ownerName);
+              return (
+                <li key={document.pageId}>
+                  <Link
+                    href={`/editor/${document.pageId}`}
+                    onClick={onNavigate}
+                    onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
+                    aria-current={isActive ? "page" : undefined}
+                    title={`공유자: ${ownerLabel}`}
+                    className={
+                      "block rounded-btn py-1.5 pl-2 pr-3 transition-colors duration-default " +
+                      (isActive
+                        ? "sidebar-row-active text-foreground"
+                        : "text-foreground hover:bg-surface-raised")
+                    }
+                  >
+                    <div className="flex items-start gap-1">
+                      <span className="mt-0.5">
+                        <StatusIcon isPublished={document.isPublished} />
+                      </span>
+                      <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
+                    </div>
+                    <p className="mt-0.5 truncate pl-[18px] text-xs text-muted">{ownerLabel}</p>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {documents.length > 0 && (
         <div className="flex flex-col gap-2 border-b border-border p-3">

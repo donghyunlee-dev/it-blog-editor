@@ -3,7 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
 import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
-import type { DocumentSummary } from "@/lib/editor/documents";
+import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
 // 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
@@ -346,6 +346,32 @@ describe("EditorSidebar", () => {
     render(<EditorSidebar documents={DOCS} />);
 
     expect(screen.queryByRole("link", { name: "계정 관리" })).not.toBeInTheDocument();
+  });
+
+  it("공유받은 문서가 없으면 '공유받은 문서' 영역을 렌더링하지 않는다(P6-5)", () => {
+    render(<EditorSidebar documents={DOCS} sharedDocuments={[]} />);
+
+    expect(screen.queryByText("공유받은 문서")).not.toBeInTheDocument();
+  });
+
+  it("공유받은 문서가 있으면 '내 문서'와 분리된 영역에 공유자와 함께 보여준다(P6-5)", async () => {
+    const shared: SharedDocumentSummary[] = [
+      {
+        pageId: "shared-1",
+        title: "공유받은 회의록",
+        updatedAt: "2026-09-04T00:00:00.000Z",
+        isPublished: true,
+        tags: [],
+        ownerEmail: "owner@s-food.com",
+        ownerName: "홍길동",
+      },
+    ];
+    render(<EditorSidebar documents={DOCS} sharedDocuments={shared} />);
+
+    expect(screen.getByText("공유받은 문서")).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /공유받은 회의록/ });
+    expect(link).toHaveAttribute("href", "/editor/shared-1");
+    expect(within(link).getByText("홍길동(owner@s-food.com)")).toBeInTheDocument();
   });
 });
 

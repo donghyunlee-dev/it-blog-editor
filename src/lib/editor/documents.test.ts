@@ -10,6 +10,7 @@ import {
   getDocumentDetail,
   getDocumentVersionHistory,
   listDocuments,
+  listSharedDocuments,
   requireDocumentAccess,
   requireDocumentOwner,
   searchDocuments,
@@ -239,6 +240,164 @@ describe("listDocuments 요청 내 중복 조회 방지 (React cache)", () => {
       vi.doUnmock("react");
       vi.resetModules();
     }
+  });
+});
+
+describe("listSharedDocuments", () => {
+  function stubFolder() {
+    return vi.spyOn(folder, "ensurePersonalFolder").mockResolvedValue({
+      accountFolderId: "my-account",
+      spaceKey: "SFOODIT",
+    });
+  }
+
+  function stubAccountIndexLookup() {
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue({
+      id: "index-1",
+      status: "current",
+      title: "계정 관리",
+      spaceId: "space-1",
+      parentId: "home-1",
+      version: { number: 1, createdAt: "" },
+    });
+  }
+
+  it("공유받은 문서가 없으면 빈 배열을 반환한다(계정 관리 페이지도 조회하지 않는다)", async () => {
+    stubFolder();
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const findChildSpy = vi.spyOn(client, "findChildPageByTitle");
+
+    await expect(listSharedDocuments("me@s-food.com")).resolves.toEqual([]);
+    expect(findChildSpy).not.toHaveBeenCalled();
+  });
+
+  it("공유받은 문서 목록을 현재 상태·소유자 이름과 함께 반환한다", async () => {
+    stubFolder();
+    stubAccountIndexLookup();
+    vi.spyOn(client, "getPage").mockImplementation(async (pageId) =>
+      page(pageId, `internal-${pageId}`, "owner-account")
+    );
+    vi.spyOn(client, "listChildPages").mockResolvedValue([]);
+    vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+      if (pageId === "my-account" && key === "sharedDocumentRefs") {
+        return {
+          id: "prop-refs",
+          key,
+          value: [
+            {
+              pageId: "doc-1",
+              ownerEmail: "owner@s-food.com",
+              documentTitle: "공유 시점 제목(무시됨)",
+              sharedAt: "2026-09-01T00:00:00.000Z",
+            },
+          ],
+          version: { number: 1 },
+        };
+      }
+      if (pageId === "doc-1" && key === "sourceDocument") {
+        return {
+          id: "prop-source",
+          key,
+          value: { title: "최신 제목", doc: { type: "doc", content: [] } },
+          version: { number: 1 },
+        };
+      }
+      if (pageId === "doc-1" && key === "publishMetadata") {
+        return {
+          id: "prop-publish",
+          key,
+          value: { isPublished: true },
+          version: { number: 1 },
+        };
+      }
+      if (pageId === "index-1" && key === "accountIndex") {
+        return {
+          id: "prop-index",
+          key,
+          value: [
+            {
+              email: "owner@s-food.com",
+              name: "홍길동",
+              team: "IT팀",
+              accessEnabled: true,
+              accountFolderId: "owner-account",
+            },
+          ],
+          version: { number: 1 },
+        };
+      }
+      return null;
+    });
+
+    const result = await listSharedDocuments("me@s-food.com");
+
+    expect(result).toEqual([
+      {
+        pageId: "doc-1",
+        title: "최신 제목",
+        updatedAt: "2026-08-21T00:00:00.000Z",
+        isPublished: true,
+        tags: ["React"],
+        ownerEmail: "owner@s-food.com",
+        ownerName: "홍길동",
+      },
+    ]);
+  });
+
+  it("참조된 문서가 더 이상 존재하지 않으면(드리프트) 조용히 제외한다", async () => {
+    stubFolder();
+    stubAccountIndexLookup();
+    vi.spyOn(client, "getPage").mockImplementation(async (pageId) => {
+      if (pageId === "gone-doc") {
+        throw new client.ConfluenceApiError(404, "찾을 수 없음");
+      }
+      return page(pageId, `internal-${pageId}`, "owner-account");
+    });
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+      if (pageId === "my-account" && key === "sharedDocumentRefs") {
+        return {
+          id: "prop-refs",
+          key,
+          value: [
+            {
+              pageId: "gone-doc",
+              ownerEmail: "owner@s-food.com",
+              documentTitle: "삭제된 문서",
+              sharedAt: "2026-09-01T00:00:00.000Z",
+            },
+            {
+              pageId: "doc-2",
+              ownerEmail: "owner@s-food.com",
+              documentTitle: "남은 문서",
+              sharedAt: "2026-09-01T00:00:00.000Z",
+            },
+          ],
+          version: { number: 1 },
+        };
+      }
+      if (pageId === "doc-2" && key === "sourceDocument") {
+        return {
+          id: "prop-source",
+          key,
+          value: { title: "남은 문서", doc: { type: "doc", content: [] } },
+          version: { number: 1 },
+        };
+      }
+      return null;
+    });
+
+    const result = await listSharedDocuments("me@s-food.com");
+
+    expect(result).toEqual([
+      expect.objectContaining({ pageId: "doc-2", title: "남은 문서" }),
+    ]);
   });
 });
 
