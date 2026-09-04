@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import type { ConfluencePage } from "@/lib/confluence/client";
-import { createPersonalFolder, ensurePersonalFolder, findPersonalFolder } from "./folder";
-import { ConflictError } from "./errors";
+import {
+  createPersonalFolder,
+  deletePersonalFolder,
+  ensurePersonalFolder,
+  findPersonalFolder,
+} from "./folder";
+import { ConflictError, NotFoundError } from "./errors";
 
 const EMAIL = "user@s-food.com";
 
@@ -139,5 +144,26 @@ describe("ensurePersonalFolder", () => {
     vi.spyOn(client, "createPage").mockRejectedValue(new ConflictError("개인 폴더가 이미 존재합니다."));
 
     await expect(ensurePersonalFolder(EMAIL)).rejects.toThrow(ConflictError);
+  });
+});
+
+describe("deletePersonalFolder", () => {
+  it("계정 폴더를 휴지통으로 이동한다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(
+      page("account-1", EMAIL, "home-1")
+    );
+    const deleteSpy = vi.spyOn(client, "deletePage").mockResolvedValue(undefined);
+
+    await deletePersonalFolder(EMAIL);
+
+    expect(deleteSpy).toHaveBeenCalledWith("account-1");
+  });
+
+  it("계정 폴더가 없으면 NotFoundError를 던진다", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(null);
+    const deleteSpy = vi.spyOn(client, "deletePage");
+
+    await expect(deletePersonalFolder(EMAIL)).rejects.toThrow(NotFoundError);
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 });
