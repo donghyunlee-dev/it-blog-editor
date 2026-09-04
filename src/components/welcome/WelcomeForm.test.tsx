@@ -35,13 +35,10 @@ beforeEach(() => {
 });
 
 describe("WelcomeForm", () => {
-  it("서비스 소개(제목·기능 3가지)와 로그인 계정 이메일, 이름·팀 입력 폼을 함께 보여준다", () => {
+  it("인사말과 로그인 계정 이메일, 이름·팀 입력 폼을 함께 보여준다", () => {
     renderForm();
 
-    expect(screen.getByText("SFOOD IT Editor에 오신 걸 환영해요!")).toBeInTheDocument();
-    expect(screen.getByText("초안은 나만 볼 수 있어요")).toBeInTheDocument();
-    expect(screen.getByText("원할 때 바로 게시")).toBeInTheDocument();
-    expect(screen.getByText("편하게 쓰는 에디터")).toBeInTheDocument();
+    expect(screen.getByText("반가워요!")).toBeInTheDocument();
     expect(screen.getByText(EMAIL)).toBeInTheDocument();
     expect(screen.getByLabelText(/^이름을 알고 싶어요/)).toBeInTheDocument();
     expect(screen.getByLabelText(/^어디 소속인지 알려주세요/)).toBeInTheDocument();
