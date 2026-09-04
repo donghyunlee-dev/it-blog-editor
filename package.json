@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "reset-account": "tsx --env-file=.env scripts/reset-account.ts",
+    "set-account-access": "tsx --env-file=.env scripts/set-account-access.ts",
     "postinstall": "patch-package --error-on-warn"
   },
   "dependencies": {

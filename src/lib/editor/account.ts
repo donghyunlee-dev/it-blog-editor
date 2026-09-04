@@ -66,3 +66,17 @@ export async function initializeAccountMeta(accountFolderId: string): Promise<Ac
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, DEFAULT_ACCOUNT_META);
   return DEFAULT_ACCOUNT_META;
 }
+
+/**
+ * 계정의 접속 허용 여부만 바꾼다(P5-6, `scripts/set-account-access.ts` 전용 — 사용자가
+ * 스스로 호출할 수 있는 API에는 노출하지 않는다). 이름·팀 등 나머지 필드는 건드리지 않는다.
+ */
+export async function setAccessEnabled(
+  accountFolderId: string,
+  accessEnabled: boolean
+): Promise<AccountMeta> {
+  const current = await getAccountMeta(accountFolderId);
+  const next: AccountMeta = { ...current, accessEnabled };
+  await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
+  return next;
+}
