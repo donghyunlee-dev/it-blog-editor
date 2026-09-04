@@ -236,6 +236,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 저장 성공/실패 알림 | `Toast`(`useToast()`) | 기존 인라인 `<p className="error-text">`를 대체 |
 | 게시 설정의 뷰어별 카드 | `Card` | 뷰어(Tech Blog 등)마다 하나씩 |
 | 버블 툴바 / 슬래시 메뉴 위치 지정 | `Popover` | 텍스트 선택 위치·커서 위치에 뜨는 오버레이의 기반으로 사용 |
+| 최상단 계정 관리 화면(P5-7) | `ListSearchTable` | "목록+검색" 요구사항과 정확히 일치하는 템플릿이라 그대로 씀(전체 화면 템플릿, `min-h-screen` 포함). 컬럼 렌더러 안에서 접속 허용/차단 표시에 `StatusBadge`(`status="active"/"inactive"`)를 함께 씀. 제네릭 제약(`T extends Record<string, unknown>`) 때문에 행 타입은 인터페이스가 아니라 `Record<string, unknown> & {...}` 교차 타입으로 선언해야 한다(`src/app/editor/accounts/page.tsx` 참고) |
 
 ## 사이드바 앱 셸 — `Sidebar`/`List`를 쓰지 않은 이유 (Task 14 검증)
 

@@ -34,7 +34,7 @@ export async function PUT(request: Request) {
     }
 
     const payload = (await request.json()) as { name?: string; team?: string };
-    const meta = await saveAccountMeta(folder.accountFolderId, {
+    const meta = await saveAccountMeta(folder.accountFolderId, email, {
       name: payload.name ?? "",
       team: payload.team ?? "",
     });

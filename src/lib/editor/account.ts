@@ -1,4 +1,5 @@
 import { getPageProperty, upsertPageProperty } from "@/lib/confluence/client";
+import { upsertAccountIndexEntry } from "./account-index";
 import { ValidationError } from "./errors";
 
 export const ACCOUNT_META_PROPERTY_KEY = "accountMeta";
@@ -36,12 +37,33 @@ export function needsOnboarding(meta: AccountMeta): boolean {
 }
 
 /**
+ * `accountMeta`를 바꿀 때마다(P5-7) "계정 관리" 페이지의 `accountIndex` 항목도 같은 최신
+ * 값으로 함께 upsert한다 — 이 인덱스가 계정 검색의 유일한 조회 대상이라, 호출자가 개별적으로
+ * 동기화를 챙기게 두면 언젠가 빠뜨리기 쉽다. 그래서 `accountMeta`를 쓰는 세 함수(아래) 안에
+ * 공통으로 넣어 설계를 코드로 강제한다.
+ */
+async function syncAccountIndex(
+  accountFolderId: string,
+  email: string,
+  meta: AccountMeta
+): Promise<void> {
+  await upsertAccountIndexEntry({
+    email,
+    name: meta.name,
+    team: meta.team,
+    accessEnabled: meta.accessEnabled,
+    accountFolderId,
+  });
+}
+
+/**
  * 이름·팀을 저장한다(온보딩 최초 완료·이후 수정 공용). `accessEnabled`는 이 함수로 바꿀 수
  * 없다 — 관리자 전용 스크립트(P5-6)만 변경한다. `onboardedAt`은 최초 저장 시점에만 채우고
  * 이후 재수정에서는 그대로 유지한다.
  */
 export async function saveAccountMeta(
   accountFolderId: string,
+  email: string,
   updates: { name: string; team: string }
 ): Promise<AccountMeta> {
   const name = updates.name.trim();
@@ -58,12 +80,17 @@ export async function saveAccountMeta(
     onboardedAt: current.onboardedAt ?? new Date().toISOString(),
   };
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
+  await syncAccountIndex(accountFolderId, email, next);
   return next;
 }
 
 /** 계정 폴더 생성 직후 기본 `accountMeta`를 명시적으로 기록한다(`folder.ts`에서 호출). */
-export async function initializeAccountMeta(accountFolderId: string): Promise<AccountMeta> {
+export async function initializeAccountMeta(
+  accountFolderId: string,
+  email: string
+): Promise<AccountMeta> {
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, DEFAULT_ACCOUNT_META);
+  await syncAccountIndex(accountFolderId, email, DEFAULT_ACCOUNT_META);
   return DEFAULT_ACCOUNT_META;
 }
 
@@ -73,10 +100,12 @@ export async function initializeAccountMeta(accountFolderId: string): Promise<Ac
  */
 export async function setAccessEnabled(
   accountFolderId: string,
+  email: string,
   accessEnabled: boolean
 ): Promise<AccountMeta> {
   const current = await getAccountMeta(accountFolderId);
   const next: AccountMeta = { ...current, accessEnabled };
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
+  await syncAccountIndex(accountFolderId, email, next);
   return next;
 }

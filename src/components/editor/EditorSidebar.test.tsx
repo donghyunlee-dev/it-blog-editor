@@ -341,6 +341,15 @@ describe("EditorSidebar", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("'계정 관리' 링크는 /editor/accounts로 이동한다(P5-7)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.getByRole("link", { name: "계정 관리" })).toHaveAttribute(
+      "href",
+      "/editor/accounts"
+    );
+  });
 });
 
 describe("extractPageIdFromPathname", () => {

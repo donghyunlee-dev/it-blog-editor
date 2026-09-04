@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
+import * as accountIndex from "./account-index";
 import { ValidationError } from "./errors";
 import {
   DEFAULT_ACCOUNT_META,
@@ -10,8 +11,11 @@ import {
   setAccessEnabled,
 } from "./account";
 
+const EMAIL = "user@s-food.com";
+
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.spyOn(accountIndex, "upsertAccountIndexEntry").mockResolvedValue(undefined);
 });
 
 describe("getAccountMeta", () => {
@@ -56,15 +60,15 @@ describe("saveAccountMeta", () => {
   it("이름 또는 팀이 비어 있으면(공백만 있는 경우 포함) ValidationError를 던진다", async () => {
     const upsertSpy = vi.spyOn(client, "upsertPageProperty");
 
-    await expect(saveAccountMeta("account-1", { name: "", team: "IT팀" })).rejects.toThrow(
-      ValidationError
-    );
-    await expect(saveAccountMeta("account-1", { name: "홍길동", team: "" })).rejects.toThrow(
-      ValidationError
-    );
-    await expect(saveAccountMeta("account-1", { name: "  ", team: "IT팀" })).rejects.toThrow(
-      ValidationError
-    );
+    await expect(
+      saveAccountMeta("account-1", EMAIL, { name: "", team: "IT팀" })
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      saveAccountMeta("account-1", EMAIL, { name: "홍길동", team: "" })
+    ).rejects.toThrow(ValidationError);
+    await expect(
+      saveAccountMeta("account-1", EMAIL, { name: "  ", team: "IT팀" })
+    ).rejects.toThrow(ValidationError);
     expect(upsertSpy).not.toHaveBeenCalled();
   });
 
@@ -77,7 +81,7 @@ describe("saveAccountMeta", () => {
       version: { number: 1 },
     });
 
-    const result = await saveAccountMeta("account-1", { name: "홍길동", team: "IT팀" });
+    const result = await saveAccountMeta("account-1", EMAIL, { name: "홍길동", team: "IT팀" });
 
     expect(result.onboardedAt).toBeDefined();
     expect(upsertSpy).toHaveBeenCalledWith(
@@ -106,7 +110,7 @@ describe("saveAccountMeta", () => {
       version: { number: 3 },
     });
 
-    const result = await saveAccountMeta("account-1", { name: "홍길동2", team: "IT팀" });
+    const result = await saveAccountMeta("account-1", EMAIL, { name: "홍길동2", team: "IT팀" });
 
     expect(result.onboardedAt).toBe("2026-09-01T00:00:00.000Z");
     expect(upsertSpy).toHaveBeenCalledWith(
@@ -130,13 +134,34 @@ describe("saveAccountMeta", () => {
       version: { number: 2 },
     });
 
-    await saveAccountMeta("account-1", { name: "홍길동", team: "디자인팀" });
+    await saveAccountMeta("account-1", EMAIL, { name: "홍길동", team: "디자인팀" });
 
     expect(upsertSpy).toHaveBeenCalledWith(
       "account-1",
       "accountMeta",
       expect.objectContaining({ accessEnabled: false, team: "디자인팀" })
     );
+  });
+
+  it("저장 직후 계정 관리 페이지의 accountIndex 항목도 같은 값으로 upsert한다(P5-7)", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    const indexSpy = vi.spyOn(accountIndex, "upsertAccountIndexEntry").mockResolvedValue(undefined);
+
+    await saveAccountMeta("account-1", EMAIL, { name: "홍길동", team: "IT팀" });
+
+    expect(indexSpy).toHaveBeenCalledWith({
+      email: EMAIL,
+      name: "홍길동",
+      team: "IT팀",
+      accessEnabled: true,
+      accountFolderId: "account-1",
+    });
   });
 });
 
@@ -155,7 +180,7 @@ describe("setAccessEnabled", () => {
       version: { number: 3 },
     });
 
-    const result = await setAccessEnabled("account-1", false);
+    const result = await setAccessEnabled("account-1", EMAIL, false);
 
     expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", {
       name: "홍길동",
@@ -175,7 +200,7 @@ describe("setAccessEnabled", () => {
       version: { number: 1 },
     });
 
-    const result = await setAccessEnabled("account-1", false);
+    const result = await setAccessEnabled("account-1", EMAIL, false);
 
     expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", {
       name: "",
@@ -183,6 +208,32 @@ describe("setAccessEnabled", () => {
       accessEnabled: false,
     });
     expect(result.accessEnabled).toBe(false);
+  });
+
+  it("변경 직후 accountIndex 항목도 같은 값으로 upsert한다(P5-7)", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: { name: "홍길동", team: "IT팀", accessEnabled: true },
+      version: { number: 1 },
+    });
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 2 },
+    });
+    const indexSpy = vi.spyOn(accountIndex, "upsertAccountIndexEntry").mockResolvedValue(undefined);
+
+    await setAccessEnabled("account-1", EMAIL, false);
+
+    expect(indexSpy).toHaveBeenCalledWith({
+      email: EMAIL,
+      name: "홍길동",
+      team: "IT팀",
+      accessEnabled: false,
+      accountFolderId: "account-1",
+    });
   });
 });
 
@@ -195,9 +246,29 @@ describe("initializeAccountMeta", () => {
       version: { number: 1 },
     });
 
-    const result = await initializeAccountMeta("account-1");
+    const result = await initializeAccountMeta("account-1", EMAIL);
 
     expect(upsertSpy).toHaveBeenCalledWith("account-1", "accountMeta", DEFAULT_ACCOUNT_META);
     expect(result).toEqual(DEFAULT_ACCOUNT_META);
+  });
+
+  it("accountIndex 항목도 기본값으로 upsert한다(P5-7)", async () => {
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: DEFAULT_ACCOUNT_META,
+      version: { number: 1 },
+    });
+    const indexSpy = vi.spyOn(accountIndex, "upsertAccountIndexEntry").mockResolvedValue(undefined);
+
+    await initializeAccountMeta("account-1", EMAIL);
+
+    expect(indexSpy).toHaveBeenCalledWith({
+      email: EMAIL,
+      name: "",
+      team: "",
+      accessEnabled: true,
+      accountFolderId: "account-1",
+    });
   });
 });
