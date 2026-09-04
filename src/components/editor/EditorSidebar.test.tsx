@@ -186,6 +186,19 @@ describe("EditorSidebar", () => {
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
   });
 
+  it("userName이 있으면 '이름(이메일)' 형식으로 표시한다(P5-5)", () => {
+    render(
+      <EditorSidebar
+        documents={DOCS}
+        userEmail="pioneer@s-food.com"
+        userName="홍길동"
+        onLogout={() => {}}
+      />
+    );
+
+    expect(screen.getByText("홍길동(pioneer@s-food.com)")).toBeInTheDocument();
+  });
+
   it("검색어가 제목에 포함된 문서를 보여준다", async () => {
     render(<EditorSidebar documents={DOCS} />);
 

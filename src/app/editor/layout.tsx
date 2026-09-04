@@ -25,7 +25,7 @@ export default async function EditorLayout({
   // 메인 진입 자체가 막혀야 한다(prd.md "접속 권한 게이트" 예외 상황 참고). 다른 URL로
   // 옮기지 않고 이 자리에서 곧바로 차단 화면을 렌더링한다.
   if (!accountMeta.accessEnabled) {
-    return <AccessBlockedScreen email={email} onLogout={logoutAction} />;
+    return <AccessBlockedScreen email={email} name={accountMeta.name} onLogout={logoutAction} />;
   }
 
   // 이름·팀 온보딩이 끝나지 않은 계정은 메인으로 들어오지 못하고 전용 환영 페이지로
@@ -42,7 +42,12 @@ export default async function EditorLayout({
     // 여기서 또 <main>을 쓰면 페이지마다 role="main" 랜드마크가 두 개가 되어 스크린리더
     // 탐색을 깨뜨린다. EditorShell은 반응형 사이드바 셸(모바일 오프캔버스 토글 포함)만
     // 담당하는 순수 레이아웃 컨테이너다.
-    <EditorShell documents={documents} userEmail={email} onLogout={logoutAction}>
+    <EditorShell
+      documents={documents}
+      userEmail={email}
+      userName={accountMeta.name}
+      onLogout={logoutAction}
+    >
       {children}
     </EditorShell>
   );

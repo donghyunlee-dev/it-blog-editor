@@ -12,6 +12,14 @@ describe("AccessBlockedScreen", () => {
     expect(screen.getByRole("button", { name: "로그아웃" })).toBeInTheDocument();
   });
 
+  it("name이 있으면 '이름(이메일)' 형식으로 표시한다(P5-5)", () => {
+    render(
+      <AccessBlockedScreen email="user@s-food.com" name="홍길동" onLogout={() => {}} />
+    );
+
+    expect(screen.getByText("홍길동(user@s-food.com)")).toBeInTheDocument();
+  });
+
   it("로그아웃 버튼을 누르면 onLogout 폼 액션이 호출된다", async () => {
     const user = userEvent.setup();
     const onLogout = vi.fn();

@@ -34,6 +34,8 @@ export interface EditorShellProps {
   documents: DocumentSummary[];
   children: React.ReactNode;
   userEmail?: string;
+  /** 계정 폴더의 accountMeta.name(P5-5). 있으면 "이름(이메일)" 형식으로 표시한다. */
+  userName?: string;
   onLogout?: () => void | Promise<void>;
 }
 
@@ -48,7 +50,13 @@ export interface EditorShellProps {
  * 오프캔버스 드로어로 여닫히므로(위 `open`/`isMobile`) 이 둘은 건드리지 않는다 — 별개의
  * 상태(`collapsed`)로 관리한다.
  */
-export function EditorShell({ documents, children, userEmail, onLogout }: EditorShellProps) {
+export function EditorShell({
+  documents,
+  children,
+  userEmail,
+  userName,
+  onLogout,
+}: EditorShellProps) {
   const [open, setOpen] = useState(false);
   // Tailwind의 `translate-x-0`/`-translate-x-full` 조합을 이 프로젝트의 Tailwind v4 설정
   // (v3 프리셋을 `@config`로 불러오는 호환 모드, design.md의 C1 참고)에서 토글해 보니
@@ -213,6 +221,7 @@ export function EditorShell({ documents, children, userEmail, onLogout }: Editor
             onNavigate={() => setOpen(false)}
             onCollapse={() => toggleCollapsed(true)}
             userEmail={userEmail}
+            userName={userName}
             onLogout={onLogout}
           />
         </div>
