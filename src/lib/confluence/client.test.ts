@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -64,6 +64,47 @@ describe("movePage", () => {
     expect(putCall).toBeDefined();
     const body = JSON.parse((putCall![1] as RequestInit).body as string);
     expect(body.parentId).toBe("999");
+    expect(body.version.number).toBe(4);
+  });
+});
+
+describe("replacePageBody", () => {
+  it("현재 페이지를 조회한 뒤 title은 유지하고 body만 바꿔 PUT 요청을 보낸다", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      if (!init || init.method === undefined) {
+        return new Response(
+          JSON.stringify({
+            id: "111",
+            status: "current",
+            title: "user@s-food.com",
+            spaceId: "1",
+            parentId: "222",
+            version: { number: 3, createdAt: "2026-08-21T00:00:00.000Z" },
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: "111",
+          status: "current",
+          title: "user@s-food.com",
+          spaceId: "1",
+          parentId: "222",
+          version: { number: 4, createdAt: "2026-08-21T00:00:00.000Z" },
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await replacePageBody("111", "<p>새 본문</p>");
+
+    const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+    expect(putCall).toBeDefined();
+    const body = JSON.parse((putCall![1] as RequestInit).body as string);
+    expect(body.title).toBe("user@s-food.com");
+    expect(body.body).toEqual({ representation: "storage", value: "<p>새 본문</p>" });
     expect(body.version.number).toBe(4);
   });
 });

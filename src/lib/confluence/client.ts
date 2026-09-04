@@ -123,6 +123,31 @@ export async function movePage(
   });
 }
 
+/**
+ * 페이지의 title은 그대로 두고 본문(body)만 통째로 교체한다(2026-09-04) — 계정 폴더/
+ * "계정 관리" 페이지처럼 "진짜 데이터는 content property, 화면에 보이는 본문은 관리자가
+ * Confluence에서 직접 열어볼 수 있게 매번 다시 그리는 참고용 스냅샷"인 페이지에서 쓴다.
+ * `movePage`와 같은 "현재 페이지를 읽고 특정 필드만 바꿔 PUT" 패턴을 그대로 따른다.
+ */
+export async function replacePageBody(
+  pageId: string,
+  bodyValue: string
+): Promise<ConfluencePage> {
+  const current = await getPage(pageId);
+
+  return confluenceRequest<ConfluencePage>(`/api/v2/pages/${pageId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      id: pageId,
+      status: "current",
+      title: current.title,
+      body: { representation: "storage", value: bodyValue },
+      version: { number: current.version.number + 1 },
+    }),
+  });
+}
+
 // ── Space ──────────────────────────────────────────────
 
 export interface ConfluenceSpace {

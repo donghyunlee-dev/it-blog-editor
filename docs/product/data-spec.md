@@ -26,6 +26,7 @@
 | restriction | Confluence Restriction | 없음(생성하지 않음) | Space 기본 권한 그대로 — 이메일이 Space 구성원에게 노출됨(수용된 트레이드오프) |
 | property: `accountMeta`(2026-09-03 추가) | `{ name: string; team: string; accessEnabled: boolean; onboardedAt?: string }` | 계정 폴더 생성 시 기본값 `{ name: "", team: "", accessEnabled: true }`로 생성 | 이름·팀은 온보딩 완료 전까지 빈 문자열이고, 클라이언트는 둘 중 하나라도 비어 있으면 온보딩 미완료로 판단한다. `accessEnabled=false`면 로그인은 되지만 `/editor` 진입이 차단된다(관리자가 `scripts/set-account-access.ts`로 직접 변경, UI 없음). `onboardedAt`은 온보딩 완료 시 1회 기록 |
 | property: `sharedDocumentRefs`(2026-09-03 추가) | `{ pageId: string; ownerEmail: string; documentTitle: string; sharedAt: string }[]` | 없으면 빈 배열로 간주 | 다른 사람이 나에게 공유한 문서의 참조 캐시(P1-2b의 `deletedDocuments`와 동일한 패턴). 공유 추가/해제 시점에 갱신되며, "공유받은 문서" 목록 조회가 이 property만 읽으면 되도록 한다 — 실시간 동기화가 아니라 쓰기 시점에 갱신되는 캐시임에 유의 |
+| body(페이지 본문, 2026-09-04 추가, P5-8) | Confluence storage format(XHTML) | `accountMeta`가 바뀔 때마다 관리자 열람용으로 다시 그려짐(best-effort) | 이름·팀·접속 허용·온보딩 완료 시각을 표로 보여준다 — **진짜 데이터가 아니라 참고용 스냅샷**이다(사용자가 Confluence에서 페이지를 직접 열어봐도 데이터를 확인할 수 있게 해달라고 요청, `accountMeta` property가 여전히 유일한 기준). 이름·팀은 `escapeHtml`로 이스케이프해 삽입한다. 본문을 직접 고쳐도 반영되지 않고 다음 `accountMeta` 갱신 시 덮어써진다 |
 
 관리자의 사전 수동 작업은 필요 없다 — 계정 폴더가 없는 사용자가 처음 접근하면 코드가 자동으로 만든다.
 
@@ -35,6 +36,7 @@
 | pageId | string | Confluence 발급 | Space 홈페이지 바로 하위, Space 전체에서 1개만 존재 |
 | title | string | 고정("계정 관리") | — |
 | property: `accountIndex` | `{ email: string; name: string; team: string; accessEnabled: boolean; accountFolderId: string }[]` | 계정 생성·온보딩 완료·계정 정보 수정·접속 권한 변경 시마다 해당 이메일 항목을 upsert | 계정 검색(공유 대상 검색, 관리자 조회)의 유일한 조회 대상 — Space 전체를 스캔하지 않는다. 이 페이지가 없으면 최초 접근 시 코드가 자동 생성한다(계정 폴더 자동 생성과 동일한 패턴) |
+| body(페이지 본문, 2026-09-04 추가, P5-8) | Confluence storage format(XHTML) | `accountIndex`가 바뀔 때마다 관리자 열람용으로 다시 그려짐(best-effort) | 전체 계정(이메일·이름·팀·접속 허용)을 표로 보여준다 — AccountFolder의 body와 같은 이유·같은 "참고용 스냅샷" 원칙(`accountIndex` property가 기준). 이름·팀은 `escapeHtml`로 이스케이프한다 |
 
 ### 테이블 — Document (Confluence Page + Content Property + Label)
 | 속성 | 타입 | 제약조건 | 설명 |

@@ -3,8 +3,11 @@ import {
   findChildPageByTitle,
   getConfiguredSpace,
   getPageProperty,
+  replacePageBody,
   upsertPageProperty,
 } from "@/lib/confluence/client";
+import { escapeHtml } from "@/lib/html-escape";
+import { logger, serializeError } from "@/lib/logger";
 
 export const ACCOUNT_INDEX_PAGE_TITLE = "계정 관리";
 export const ACCOUNT_INDEX_PROPERTY_KEY = "accountIndex";
@@ -62,6 +65,52 @@ export async function upsertAccountIndexEntry(entry: AccountIndexEntry): Promise
     entry,
   ];
   await upsertPageProperty(pageId, ACCOUNT_INDEX_PROPERTY_KEY, next);
+  await syncAccountIndexBody(pageId, next);
+}
+
+/**
+ * "계정 관리" 페이지 본문을 accountIndex의 최신 스냅샷(표)으로 다시 그린다(2026-09-04,
+ * 사용자 요청 — 관리자가 Confluence에서 이 페이지를 직접 열어봐도 전체 계정 목록을 확인할
+ * 수 있어야 한다). 진짜 데이터는 여전히 `accountIndex` property이고, 본문은 참고용이다.
+ */
+function renderAccountIndexBody(entries: AccountIndexEntry[]): string {
+  const rows = entries
+    .slice()
+    .sort((a, b) => a.email.localeCompare(b.email))
+    .map(
+      (entry) =>
+        "<tr>" +
+        `<td>${escapeHtml(entry.email)}</td>` +
+        `<td>${entry.name.trim() ? escapeHtml(entry.name) : "-"}</td>` +
+        `<td>${entry.team.trim() ? escapeHtml(entry.team) : "-"}</td>` +
+        `<td>${entry.accessEnabled ? "허용" : "차단"}</td>` +
+        "</tr>"
+    )
+    .join("");
+  return (
+    "<p>전체 계정의 이름·팀·접속 허용 여부를 조회하는 페이지입니다.</p>" +
+    "<p>아래 표는 이 페이지의 accountIndex property를 관리자가 한눈에 볼 수 있도록 갱신 " +
+    `시점마다 다시 그리는 참고용 스냅샷입니다(총 ${entries.length}건) — 실제 값은 ` +
+    "accountIndex property가 기준이고, 이 표를 직접 고쳐도 반영되지 않습니다.</p>" +
+    "<table>" +
+    "<tr><th>이메일</th><th>이름</th><th>팀</th><th>접속</th></tr>" +
+    rows +
+    "</table>"
+  );
+}
+
+/** 본문 갱신을 best-effort로 시도한다 — 실패해도 accountIndex 저장(진짜 데이터)은 이미 끝난 뒤다. */
+async function syncAccountIndexBody(
+  pageId: string,
+  entries: AccountIndexEntry[]
+): Promise<void> {
+  try {
+    await replacePageBody(pageId, renderAccountIndexBody(entries));
+  } catch (error) {
+    logger.error("계정 관리 페이지 본문 갱신 실패(관리자 열람용 — accountIndex 자체는 정상 저장됨)", {
+      error: serializeError(error),
+    });
+  }
 }
 
 /**

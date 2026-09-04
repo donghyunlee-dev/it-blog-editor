@@ -16,6 +16,17 @@ const EMAIL = "user@s-food.com";
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.spyOn(accountIndex, "upsertAccountIndexEntry").mockResolvedValue(undefined);
+  // 계정 폴더 본문 갱신(2026-09-04, 관리자 열람용)은 대부분의 테스트 관심사가 아니므로
+  // 기본적으로 성공하는 것으로 미리 막아둔다 — 본문 내용 자체를 검증하는 테스트만 개별적으로
+  // spy를 덮어쓴다.
+  vi.spyOn(client, "replacePageBody").mockResolvedValue({
+    id: "account-1",
+    status: "current",
+    title: EMAIL,
+    spaceId: "space-1",
+    parentId: null,
+    version: { number: 2, createdAt: "" },
+  });
 });
 
 describe("getAccountMeta", () => {
@@ -162,6 +173,51 @@ describe("saveAccountMeta", () => {
       accessEnabled: true,
       accountFolderId: "account-1",
     });
+  });
+
+  it("저장 직후 계정 폴더 페이지 본문도 관리자가 볼 수 있는 표로 갱신한다(이름·팀은 HTML 이스케이프)(2026-09-04)", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    const bodySpy = vi.spyOn(client, "replacePageBody").mockResolvedValue({
+      id: "account-1",
+      status: "current",
+      title: EMAIL,
+      spaceId: "space-1",
+      parentId: null,
+      version: { number: 2, createdAt: "" },
+    });
+
+    await saveAccountMeta("account-1", EMAIL, { name: "<b>홍길동</b>", team: "IT&개발팀" });
+
+    expect(bodySpy).toHaveBeenCalledTimes(1);
+    const [pageId, body] = bodySpy.mock.calls[0];
+    expect(pageId).toBe("account-1");
+    expect(body).toContain("&lt;b&gt;홍길동&lt;/b&gt;");
+    expect(body).toContain("IT&amp;개발팀");
+    expect(body).not.toContain("<b>홍길동</b>");
+    expect(body).toContain("허용");
+  });
+
+  it("본문 갱신이 실패해도 accountMeta 저장 자체는 그대로 성공한다(2026-09-04)", async () => {
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    vi.spyOn(client, "replacePageBody").mockRejectedValue(new Error("일시적 오류"));
+
+    await expect(
+      saveAccountMeta("account-1", EMAIL, { name: "홍길동", team: "IT팀" })
+    ).resolves.toEqual(
+      expect.objectContaining({ name: "홍길동", team: "IT팀" })
+    );
   });
 });
 
