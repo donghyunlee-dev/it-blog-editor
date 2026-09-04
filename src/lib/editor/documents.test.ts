@@ -10,6 +10,7 @@ import {
   getDocumentDetail,
   getDocumentVersionHistory,
   listDocuments,
+  requireDocumentAccess,
   requireDocumentOwner,
   searchDocuments,
   updateDocument,
@@ -403,6 +404,55 @@ describe("requireDocumentOwner", () => {
 
     await expect(
       requireDocumentOwner("doc-1", "user@s-food.com")
+    ).rejects.toThrow(UnauthorizedError);
+  });
+});
+
+describe("requireDocumentAccess", () => {
+  /** authorMeta(소유자)와 sharingMeta(공유 대상 목록)를 함께 대역으로 세운다(P6-6). */
+  function stubOwnerAndSharedWith(ownerEmail: string | null, sharedWith: string[]) {
+    return vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "authorMeta") {
+        return ownerEmail
+          ? { id: "prop-1", key, value: { actualAuthorEmail: ownerEmail }, version: { number: 1 } }
+          : null;
+      }
+      if (key === "sharingMeta") {
+        return { id: "prop-2", key, value: { sharedWith }, version: { number: 1 } };
+      }
+      return null;
+    });
+  }
+
+  it("작성자 본인이면 통과한다(공유 목록을 확인할 필요조차 없음)", async () => {
+    stubOwnerAndSharedWith("owner@s-food.com", []);
+
+    await expect(
+      requireDocumentAccess("doc-1", "owner@s-food.com")
+    ).resolves.toBeUndefined();
+  });
+
+  it("공유받은 계정이면 통과한다", async () => {
+    stubOwnerAndSharedWith("owner@s-food.com", ["shared@s-food.com"]);
+
+    await expect(
+      requireDocumentAccess("doc-1", "shared@s-food.com")
+    ).resolves.toBeUndefined();
+  });
+
+  it("공유받지 않은 제3자는 UnauthorizedError를 던진다", async () => {
+    stubOwnerAndSharedWith("owner@s-food.com", ["shared@s-food.com"]);
+
+    await expect(
+      requireDocumentAccess("doc-1", "outsider@s-food.com")
+    ).rejects.toThrow(UnauthorizedError);
+  });
+
+  it("authorMeta가 없고 공유 목록에도 없으면 UnauthorizedError를 던진다", async () => {
+    stubOwnerAndSharedWith(null, []);
+
+    await expect(
+      requireDocumentAccess("doc-1", "user@s-food.com")
     ).rejects.toThrow(UnauthorizedError);
   });
 });

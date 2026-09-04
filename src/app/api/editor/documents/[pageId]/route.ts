@@ -3,6 +3,7 @@ import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
 import {
   deleteDocument,
+  requireDocumentAccess,
   requireDocumentOwner,
   updateDocument,
 } from "@/lib/editor/documents";
@@ -19,7 +20,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
   try {
     const email = await requireSessionEmail();
     const { pageId } = await params;
-    await requireDocumentOwner(pageId, email);
+    // 소유자뿐 아니라 공유받은 사람도 저장할 수 있다(P6-6) — 삭제(DELETE, 아래)는 여전히
+    // 소유자 전용이라 requireDocumentOwner를 그대로 쓴다.
+    await requireDocumentAccess(pageId, email);
 
     const payload = (await request.json()) as {
       title?: string;

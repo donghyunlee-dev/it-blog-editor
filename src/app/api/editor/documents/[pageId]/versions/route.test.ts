@@ -5,13 +5,13 @@ vi.mock("@/lib/auth-guard", () => ({
 }));
 
 vi.mock("@/lib/editor/documents", () => ({
-  requireDocumentOwner: vi.fn(),
+  requireDocumentAccess: vi.fn(),
   getDocumentVersionHistory: vi.fn(),
 }));
 
 import { requireSessionEmail } from "@/lib/auth-guard";
 import {
-  requireDocumentOwner,
+  requireDocumentAccess,
   getDocumentVersionHistory,
 } from "@/lib/editor/documents";
 import { UnauthorizedError } from "@/lib/editor/errors";
@@ -20,7 +20,7 @@ import { GET } from "./route";
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
-  vi.mocked(requireDocumentOwner).mockResolvedValue(undefined);
+  vi.mocked(requireDocumentAccess).mockResolvedValue(undefined);
 });
 
 describe("GET /api/editor/documents/[pageId]/versions", () => {
@@ -48,9 +48,9 @@ describe("GET /api/editor/documents/[pageId]/versions", () => {
     });
   });
 
-  it("작성자가 아니면 401로 거부하고 버전 이력을 조회하지 않는다", async () => {
+  it("소유자도 공유받은 사람도 아니면 401로 거부하고 버전 이력을 조회하지 않는다", async () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("attacker@s-food.com");
-    vi.mocked(requireDocumentOwner).mockRejectedValue(
+    vi.mocked(requireDocumentAccess).mockRejectedValue(
       new UnauthorizedError("이 문서에 대한 권한이 없습니다.")
     );
 
@@ -63,5 +63,20 @@ describe("GET /api/editor/documents/[pageId]/versions", () => {
 
     expect(response.status).toBe(401);
     expect(vi.mocked(getDocumentVersionHistory)).not.toHaveBeenCalled();
+  });
+
+  it("공유받은 사람이면(소유자가 아니어도) 버전 이력을 볼 수 있다(P6-6)", async () => {
+    vi.mocked(requireSessionEmail).mockResolvedValue("shared@s-food.com");
+    vi.mocked(getDocumentVersionHistory).mockResolvedValue([]);
+
+    const request = new Request(
+      "http://localhost/api/editor/documents/doc-1/versions"
+    );
+    const response = await GET(request, {
+      params: Promise.resolve({ pageId: "doc-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(getDocumentVersionHistory)).toHaveBeenCalledWith("doc-1");
   });
 });

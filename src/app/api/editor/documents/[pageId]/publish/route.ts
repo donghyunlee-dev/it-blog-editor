@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { toErrorResponse } from "@/lib/api-response";
 import { setPublishState, type PublishViewerInput } from "@/lib/editor/publish";
-import { requireDocumentOwner } from "@/lib/editor/documents";
+import { requireDocumentAccess } from "@/lib/editor/documents";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 interface RouteContext {
@@ -14,7 +14,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     const email = await requireSessionEmail();
     enforceRateLimit("documents:publish", email);
     const { pageId } = await params;
-    await requireDocumentOwner(pageId, email);
+    await requireDocumentAccess(pageId, email); // 소유자뿐 아니라 공유받은 사람도 게시 설정을 바꿀 수 있다(P6-6)
 
     const payload = (await request.json()) as {
       isPublished?: boolean;

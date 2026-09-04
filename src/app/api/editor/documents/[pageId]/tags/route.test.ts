@@ -9,19 +9,19 @@ vi.mock("@/lib/editor/tags", () => ({
 }));
 
 vi.mock("@/lib/editor/documents", () => ({
-  requireDocumentOwner: vi.fn(),
+  requireDocumentAccess: vi.fn(),
 }));
 
 import { requireSessionEmail } from "@/lib/auth-guard";
 import { setTags } from "@/lib/editor/tags";
-import { requireDocumentOwner } from "@/lib/editor/documents";
+import { requireDocumentAccess } from "@/lib/editor/documents";
 import { UnauthorizedError } from "@/lib/editor/errors";
 import { PUT } from "./route";
 
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
-  vi.mocked(requireDocumentOwner).mockResolvedValue(undefined);
+  vi.mocked(requireDocumentAccess).mockResolvedValue(undefined);
 });
 
 describe("PUT /api/editor/documents/[pageId]/tags", () => {
@@ -41,9 +41,9 @@ describe("PUT /api/editor/documents/[pageId]/tags", () => {
     expect(body).toEqual({ pageId: "doc-1", tags: ["React", "Backend"] });
   });
 
-  it("작성자가 아니면 401로 거부하고 태그를 바꾸지 않는다", async () => {
+  it("소유자도 공유받은 사람도 아니면 401로 거부하고 태그를 바꾸지 않는다", async () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("attacker@s-food.com");
-    vi.mocked(requireDocumentOwner).mockRejectedValue(
+    vi.mocked(requireDocumentAccess).mockRejectedValue(
       new UnauthorizedError("이 문서에 대한 권한이 없습니다.")
     );
 
@@ -56,6 +56,21 @@ describe("PUT /api/editor/documents/[pageId]/tags", () => {
 
     expect(response.status).toBe(401);
     expect(vi.mocked(setTags)).not.toHaveBeenCalled();
+  });
+
+  it("공유받은 사람이면(소유자가 아니어도) 태그를 바꿀 수 있다(P6-6)", async () => {
+    vi.mocked(requireSessionEmail).mockResolvedValue("shared@s-food.com");
+    vi.mocked(setTags).mockResolvedValue(["React"]);
+
+    const request = new Request("http://localhost/api/editor/documents/doc-1/tags", {
+      method: "PUT",
+      body: JSON.stringify({ tags: ["React"] }),
+    });
+
+    const response = await PUT(request, { params: Promise.resolve({ pageId: "doc-1" }) });
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(setTags)).toHaveBeenCalledWith("doc-1", ["React"]);
   });
 
   it("tags가 없으면 빈 배열로 처리한다", async () => {
