@@ -21,8 +21,8 @@ import {
 } from "./errors";
 import { tiptapDocToStorageFormat, type JSONContent } from "./tiptap-to-storage";
 import { hidePageFromOthers } from "./access";
-import { createPersonalFolder, findPersonalFolder } from "./folder";
-import { getSharingMeta, updateLastEditedBy } from "./sharing";
+import { createPersonalFolder, ensurePersonalFolder, findPersonalFolder } from "./folder";
+import { getSharedDocumentRefs, getSharingMeta, updateLastEditedBy } from "./sharing";
 import type { SharingLastEditedBy } from "./sharing";
 import { getAccountsByEmails } from "./account-index";
 import { getTags } from "./tags";
@@ -183,6 +183,49 @@ export const listDocuments = cache(async function listDocuments(
   const entries = await Promise.all(pages.map(fetchDocumentEntry));
   return entries.map((entry) => entry.summary);
 });
+
+export interface SharedDocumentSummary extends DocumentSummary {
+  ownerEmail: string;
+  /** accountIndex에 없는 소유자(아주 오래된 계정 등)는 빈 문자열 — 이메일만으로 대체 표시. */
+  ownerName: string;
+}
+
+/**
+ * 나에게 공유된 문서 목록을 조회한다(P6-5). 내 계정 폴더의 `sharedDocumentRefs`(공유
+ * 추가/해제 시점에 갱신되는 캐시, P6-1/P6-4)를 근거로 삼되, 제목·게시 여부·태그·최종
+ * 수정일은 캐시에 기록된 스냅샷이 아니라 `listDocuments()`와 같은 방식(`fetchDocumentEntry`)
+ * 으로 매번 다시 읽어 최신 상태를 반환한다.
+ *
+ * `sharedDocumentRefs`는 실시간 동기화가 아닌 캐시라 실제와 어긋날 수 있다(data-spec.md
+ * 참고) — 참조된 문서가 이미 완전히 삭제됐거나(휴지통 보관 기간 만료 등) 더 이상 접근할 수
+ * 없으면 그 항목만 조용히 목록에서 제외한다(전체 조회가 깨지지 않는다).
+ */
+export async function listSharedDocuments(email: string): Promise<SharedDocumentSummary[]> {
+  const folder = await ensurePersonalFolder(email);
+  const refs = await getSharedDocumentRefs(folder.accountFolderId);
+  if (refs.length === 0) return [];
+
+  const owners = await getAccountsByEmails([
+    ...new Set(refs.map((ref) => ref.ownerEmail)),
+  ]);
+  const ownerName = (ownerEmail: string) =>
+    owners.find((owner) => owner.email === ownerEmail)?.name ?? "";
+
+  const entries = await Promise.all(
+    refs.map(async (ref): Promise<SharedDocumentSummary | null> => {
+      try {
+        const page = await getPageOrThrow(ref.pageId);
+        const { summary } = await fetchDocumentEntry(page);
+        return { ...summary, ownerEmail: ref.ownerEmail, ownerName: ownerName(ref.ownerEmail) };
+      } catch (error) {
+        if (error instanceof NotFoundError) return null;
+        throw error;
+      }
+    })
+  );
+
+  return entries.filter((entry): entry is SharedDocumentSummary => entry !== null);
+}
 
 /**
  * 계정 폴더의 모든 문서를 대상으로 제목·태그·본문 텍스트를 함께 검색한다(Ctrl+K 전체 검색,

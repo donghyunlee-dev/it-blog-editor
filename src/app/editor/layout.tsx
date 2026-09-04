@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { ensurePersonalFolder } from "@/lib/editor/folder";
-import { listDocuments } from "@/lib/editor/documents";
+import { listDocuments, listSharedDocuments } from "@/lib/editor/documents";
 import { getAccountMeta, needsOnboarding } from "@/lib/editor/account";
 import { EditorShell } from "@/components/editor/EditorShell";
 import { AccessBlockedScreen } from "@/components/AccessBlockedScreen";
@@ -35,7 +35,10 @@ export default async function EditorLayout({
     redirect("/welcome");
   }
 
-  const documents = await listDocuments(folder.accountFolderId);
+  const [documents, sharedDocuments] = await Promise.all([
+    listDocuments(folder.accountFolderId),
+    listSharedDocuments(email),
+  ]);
 
   return (
     // 각 하위 페이지(new/[pageId])가 이미 자기 <main>을 렌더링하므로,
@@ -44,6 +47,7 @@ export default async function EditorLayout({
     // 담당하는 순수 레이아웃 컨테이너다.
     <EditorShell
       documents={documents}
+      sharedDocuments={sharedDocuments}
       userEmail={email}
       userName={accountMeta.name}
       onLogout={logoutAction}

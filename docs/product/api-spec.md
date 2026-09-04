@@ -380,7 +380,7 @@
 | 404 | NOT_FOUND | 문서 없음, 또는 대상 이메일의 계정 폴더를 찾을 수 없음 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-### GET /api/editor/documents/shared — 나에게 공유된 문서 목록(2026-09-03 추가)
+### GET /api/editor/documents/shared — 나에게 공유된 문서 목록(2026-09-03 계획, 2026-09-04 구현 완료 — P6-5)
 **Header**: Cookie(세션) 필수
 
 **Request Body**: 해당 없음
@@ -401,7 +401,13 @@
   ]
 }
 ```
-내 계정 폴더의 `sharedDocumentRefs`를 근거로 각 문서를 조회한다(문서함 목록 조회와 동일하게 문서마다 `sourceDocument`/`publishMetadata`를 읽는다). 사이드바 상단의 "공유받은 문서" 영역이 이 API를 사용한다.
+내 계정 폴더의 `sharedDocumentRefs`를 근거로 각 문서를 조회하되, `title`/`updatedAt`/
+`isPublished`/`tags`는 캐시된 스냅샷이 아니라 매번 현재 문서 상태를 다시 읽는다(문서함
+목록 조회와 동일한 방식, `documents.ts`의 `fetchDocumentEntry` 재사용). 참조는 있지만
+문서가 더 이상 존재하지 않으면(소유자가 완전히 삭제한 뒤 등, 드리프트) 그 항목만 조용히
+목록에서 제외한다 — 전체 조회가 실패하지 않는다. `ownerName`은 accountIndex에 없는
+소유자(아주 오래된 계정 등)일 경우 빈 문자열이다. 사이드바 상단의 "공유받은 문서" 영역이
+이 API를 쓴다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
