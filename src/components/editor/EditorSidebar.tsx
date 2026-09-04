@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
+import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 /** P1-1c: 문서 목록을 이 개수만큼씩 점진적으로 보여준다("더 보기" 버튼). */
@@ -23,6 +24,8 @@ export interface EditorSidebarProps {
   onCollapse?: () => void;
   /** 로그인한 사용자 이메일. 있으면 사이드바 하단에 로그아웃과 함께 표시한다. */
   userEmail?: string;
+  /** 계정 폴더의 accountMeta.name(P5-5). 있으면 "이름(이메일)" 형식으로 표시한다. */
+  userName?: string;
   /** 로그아웃 서버 액션. 없으면 하단 로그아웃 영역 자체를 렌더링하지 않는다. */
   onLogout?: () => void | Promise<void>;
 }
@@ -109,6 +112,7 @@ export function EditorSidebar({
   onNavigate,
   onCollapse,
   userEmail,
+  userName,
   onLogout,
 }: EditorSidebarProps) {
   // layout.tsx는 서버 컴포넌트라 현재 경로를 직접 알 수 없으므로, activePageId가
@@ -464,7 +468,8 @@ export function EditorSidebar({
             title="계정 정보"
             className="min-w-0 flex-1 truncate rounded-btn px-1 py-0.5 text-left text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
           >
-            {userEmail}
+            {/* P5-5: 이름이 있으면 "이름(이메일)" 형식으로, 없으면(하위 호환) 이메일만. */}
+            {userEmail && formatAccountLabel(userEmail, userName)}
           </button>
           <ThemeToggle />
           <button
