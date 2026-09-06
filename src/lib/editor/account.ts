@@ -1,6 +1,8 @@
-import { getPageProperty, upsertPageProperty } from "@/lib/confluence/client";
+import { getPageProperty, replacePageBody, upsertPageProperty } from "@/lib/confluence/client";
 import { upsertAccountIndexEntry } from "./account-index";
 import { ValidationError } from "./errors";
+import { escapeHtml } from "@/lib/html-escape";
+import { logger, serializeError } from "@/lib/logger";
 
 export const ACCOUNT_META_PROPERTY_KEY = "accountMeta";
 
@@ -57,6 +59,50 @@ async function syncAccountIndex(
 }
 
 /**
+ * 계정 폴더 페이지 본문을 accountMeta의 최신 스냅샷(표)으로 다시 그린다(2026-09-04, 사용자
+ * 요청 — 관리자가 Confluence에서 이 페이지를 직접 열어봐도 값을 확인할 수 있어야 한다).
+ * 진짜 데이터는 여전히 `accountMeta` property이고, 본문은 참고용일 뿐이다 — 본문을 직접
+ * 고쳐도 property에는 반영되지 않고, 다음 갱신 시점에 다시 덮어써진다.
+ */
+function renderAccountFolderBody(email: string, meta: AccountMeta): string {
+  const name = meta.name.trim() ? escapeHtml(meta.name) : "(온보딩 전)";
+  const team = meta.team.trim() ? escapeHtml(meta.team) : "(온보딩 전)";
+  const access = meta.accessEnabled ? "허용" : "차단";
+  const onboardedAt = meta.onboardedAt ? escapeHtml(meta.onboardedAt) : "-";
+  return (
+    `<p>${escapeHtml(email)}님의 문서함입니다.</p>` +
+    "<p>아래 표는 이 페이지의 accountMeta property를 관리자가 한눈에 볼 수 있도록 저장 " +
+    "시점마다 다시 그리는 참고용 스냅샷입니다 — 실제 값은 accountMeta property가 기준이고, " +
+    "이 표를 직접 고쳐도 반영되지 않습니다.</p>" +
+    "<table>" +
+    `<tr><th>이름</th><td>${name}</td></tr>` +
+    `<tr><th>팀</th><td>${team}</td></tr>` +
+    `<tr><th>접속 허용</th><td>${access}</td></tr>` +
+    `<tr><th>온보딩 완료</th><td>${onboardedAt}</td></tr>` +
+    "</table>"
+  );
+}
+
+/**
+ * 위 본문 갱신을 best-effort로 시도한다 — 실패해도 `accountMeta` 저장(진짜 데이터)은 이미
+ * 끝난 뒤라 그대로 무시하고 로그만 남긴다(`documents.ts`의 `recordDeletedDocument`와 같은
+ * 원칙: 부가 기능의 실패가 핵심 동작을 막아서는 안 된다).
+ */
+async function syncAccountFolderBody(
+  accountFolderId: string,
+  email: string,
+  meta: AccountMeta
+): Promise<void> {
+  try {
+    await replacePageBody(accountFolderId, renderAccountFolderBody(email, meta));
+  } catch (error) {
+    logger.error("계정 폴더 본문 갱신 실패(관리자 열람용 — accountMeta 자체는 정상 저장됨)", {
+      error: serializeError(error),
+    });
+  }
+}
+
+/**
  * 이름·팀을 저장한다(온보딩 최초 완료·이후 수정 공용). `accessEnabled`는 이 함수로 바꿀 수
  * 없다 — 관리자 전용 스크립트(P5-6)만 변경한다. `onboardedAt`은 최초 저장 시점에만 채우고
  * 이후 재수정에서는 그대로 유지한다.
@@ -81,6 +127,7 @@ export async function saveAccountMeta(
   };
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
   await syncAccountIndex(accountFolderId, email, next);
+  await syncAccountFolderBody(accountFolderId, email, next);
   return next;
 }
 
@@ -91,6 +138,7 @@ export async function initializeAccountMeta(
 ): Promise<AccountMeta> {
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, DEFAULT_ACCOUNT_META);
   await syncAccountIndex(accountFolderId, email, DEFAULT_ACCOUNT_META);
+  await syncAccountFolderBody(accountFolderId, email, DEFAULT_ACCOUNT_META);
   return DEFAULT_ACCOUNT_META;
 }
 
@@ -107,5 +155,6 @@ export async function setAccessEnabled(
   const next: AccountMeta = { ...current, accessEnabled };
   await upsertPageProperty(accountFolderId, ACCOUNT_META_PROPERTY_KEY, next);
   await syncAccountIndex(accountFolderId, email, next);
+  await syncAccountFolderBody(accountFolderId, email, next);
   return next;
 }

@@ -30,6 +30,17 @@ beforeEach(() => {
     key: "SFOODIT",
     homepageId: "home-1",
   });
+  // "계정 관리" 페이지 본문 갱신(2026-09-04, 관리자 열람용)은 대부분의 테스트 관심사가
+  // 아니므로 기본적으로 성공하는 것으로 미리 막아둔다 — 본문 내용 자체를 검증하는 테스트만
+  // 개별적으로 spy를 덮어쓴다.
+  vi.spyOn(client, "replacePageBody").mockResolvedValue({
+    id: "index-1",
+    status: "current",
+    title: "계정 관리",
+    spaceId: "space-1",
+    parentId: "home-1",
+    version: { number: 2, createdAt: "" },
+  });
 });
 
 describe("upsertAccountIndexEntry", () => {
@@ -96,6 +107,50 @@ describe("upsertAccountIndexEntry", () => {
       { ...ENTRY, email: "other@s-food.com", name: "김철수" },
       updated,
     ]);
+  });
+
+  it("upsert 직후 계정 관리 페이지 본문도 전체 목록 표로 갱신한다(이름·팀은 HTML 이스케이프)(2026-09-04)", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(page("index-1", "계정 관리"));
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountIndex",
+      value: [],
+      version: { number: 1 },
+    });
+    const bodySpy = vi.spyOn(client, "replacePageBody").mockResolvedValue({
+      id: "index-1",
+      status: "current",
+      title: "계정 관리",
+      spaceId: "space-1",
+      parentId: "home-1",
+      version: { number: 2, createdAt: "" },
+    });
+
+    await upsertAccountIndexEntry({ ...ENTRY, name: "<b>홍길동</b>", team: "IT&개발팀" });
+
+    expect(bodySpy).toHaveBeenCalledTimes(1);
+    const [pageId, body] = bodySpy.mock.calls[0];
+    expect(pageId).toBe("index-1");
+    expect(body).toContain(ENTRY.email);
+    expect(body).toContain("&lt;b&gt;홍길동&lt;/b&gt;");
+    expect(body).toContain("IT&amp;개발팀");
+    expect(body).not.toContain("<b>홍길동</b>");
+    expect(body).toContain("허용");
+  });
+
+  it("본문 갱신이 실패해도 accountIndex 저장 자체는 그대로 성공한다(2026-09-04)", async () => {
+    vi.spyOn(client, "findChildPageByTitle").mockResolvedValue(page("index-1", "계정 관리"));
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "accountIndex",
+      value: [],
+      version: { number: 1 },
+    });
+    vi.spyOn(client, "replacePageBody").mockRejectedValue(new Error("일시적 오류"));
+
+    await expect(upsertAccountIndexEntry(ENTRY)).resolves.toBeUndefined();
   });
 });
 
