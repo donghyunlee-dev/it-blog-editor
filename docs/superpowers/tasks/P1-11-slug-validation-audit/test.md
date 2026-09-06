@@ -17,5 +17,14 @@
 ## 검증 중 새로 발견한 결정 사항
 - pageId `212959235`의 실제 `slug` 값을 정정할지, 게시를 취소할지 사용자에게 확인이 필요하다(`task.md` "결정이 필요한 사항" 참고). GitHub Issue는 등록하지 않았다 — 코드 변경이 필요한 결정이 아니라 사용자의 실제 Confluence 인스턴스에 쓰기 작업을 해도 되는지 묻는 1회성 승인 사항이라 대화로 확인하는 것이 적절하다고 판단했다.
 
+## 후속 확인(2026-09-04)
+사용자가 문제의 문서를 실제로 다시 게시해 slug를 정정했다("P1-11 이건 이제 의미 없어. 다
+수정한 내용이야"). 성급히 그 말만 믿고 완료 처리하지 않고, 같은 방식(`GET /api/v2/pages/
+212959235/properties`로 `publishMetadata` 직접 조회)으로 재확인했다. 결과:
+`{ isPublished: true, publishedAt: "2026-09-03T05:01:42.265Z", viewers: { "tech-blog":
+{ slug: "tech-news", metaDescription: "그런듯", publicSlug: "tech-news-51cda131-6bd4-449f-
+ace4-a73dc45f27ce" } } }` — 슬래시가 없는 정상 slug로 바뀌어 있음을 확인했다.
+
 ## 최종 판정
-- [x] 수용 기준(`task.md`)을 모두 만족함(단, pageId `212959235`의 실제 slug 정정/게시 취소는 사용자 승인 후 별도 진행) — PRD 갱신 가능
+- [x] 수용 기준(`task.md`)을 모두 만족함. pageId `212959235`의 실제 slug 정정도 사용자가
+      완료했고 재조회로 확인했다 — PRD 갱신 가능
