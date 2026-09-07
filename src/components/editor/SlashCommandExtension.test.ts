@@ -231,4 +231,74 @@ describe("createSlashMenuRenderer(SlashCommandExtension 내부)", () => {
 
     expect(unmount).toHaveBeenCalledTimes(1);
   });
+
+  describe("ARIA(P2-1a)", () => {
+    function makePropsWithEditorDom(items: CommandItem[], mount: (el: HTMLElement) => () => void) {
+      const dom = document.createElement("div");
+      const editor = { view: { dom } } as unknown as Editor;
+      return {
+        props: { items, editor, range: RANGE, query: "", text: "/", mount } as unknown as SuggestionProps<CommandItem>,
+        dom,
+      };
+    }
+
+    it("메뉴 컨테이너는 role=listbox와 aria-label을 갖는다", () => {
+      const { mount } = makeMount();
+      renderer.onStart(makeProps(makeItems(), mount));
+
+      const menuEl = mount.mock.calls[0][0] as HTMLElement;
+      expect(menuEl.getAttribute("role")).toBe("listbox");
+      expect(menuEl.getAttribute("aria-label")).toBeTruthy();
+    });
+
+    it("각 항목 버튼은 role=option과 선택 상태를 반영하는 aria-selected를 갖는다", () => {
+      const { mount } = makeMount();
+      renderer.onStart(makeProps(makeItems(), mount));
+
+      const menuEl = mount.mock.calls[0][0] as HTMLElement;
+      const buttons = Array.from(menuEl.querySelectorAll("button"));
+      expect(buttons.map((b) => b.getAttribute("role"))).toEqual(["option", "option"]);
+      expect(buttons.map((b) => b.getAttribute("aria-selected"))).toEqual(["true", "false"]);
+
+      renderer.onKeyDown({ event: { key: "ArrowDown" } } as SuggestionKeyDownProps);
+
+      const buttonsAfter = Array.from(menuEl.querySelectorAll("button"));
+      expect(buttonsAfter.map((b) => b.getAttribute("aria-selected"))).toEqual(["false", "true"]);
+    });
+
+    it("일치하는 항목이 없으면 빈 상태에 role=status와 aria-live=polite가 있다", () => {
+      const { mount } = makeMount();
+      renderer.onStart(makeProps([], mount));
+
+      const menuEl = mount.mock.calls[0][0] as HTMLElement;
+      const empty = menuEl.firstElementChild as HTMLElement;
+      expect(empty.getAttribute("role")).toBe("status");
+      expect(empty.getAttribute("aria-live")).toBe("polite");
+    });
+
+    it("메뉴가 열려있는 동안 editor.view.dom에 aria-activedescendant가 선택된 option을 가리키고, 닫히면 제거된다", () => {
+      const items = makeItems();
+      const { mount } = makeMount();
+      const { props, dom } = makePropsWithEditorDom(items, mount);
+
+      renderer.onStart(props);
+      const menuEl = mount.mock.calls[0][0] as HTMLElement;
+      const firstOptionId = menuEl.querySelectorAll("button")[0].id;
+      expect(dom.getAttribute("aria-activedescendant")).toBe(firstOptionId);
+
+      renderer.onKeyDown({ event: { key: "ArrowDown" } } as SuggestionKeyDownProps);
+      const secondOptionId = menuEl.querySelectorAll("button")[1].id;
+      expect(dom.getAttribute("aria-activedescendant")).toBe(secondOptionId);
+
+      renderer.onExit();
+      expect(dom.hasAttribute("aria-activedescendant")).toBe(false);
+    });
+
+    it("editor.view가 없는 목 객체가 들어와도 에러 없이 동작한다", () => {
+      const { mount } = makeMount();
+
+      expect(() => renderer.onStart(makeProps(makeItems(), mount))).not.toThrow();
+      expect(() => renderer.onExit()).not.toThrow();
+    });
+  });
 });
