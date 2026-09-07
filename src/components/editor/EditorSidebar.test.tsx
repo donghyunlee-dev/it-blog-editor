@@ -380,18 +380,12 @@ describe("extractPageIdFromPathname", () => {
     expect(extractPageIdFromPathname("/editor/abc123")).toBe("abc123");
   });
 
-  it("/editor/{pageId}/publish 경로도 같은 문서의 pageId로 취급한다", () => {
-    expect(extractPageIdFromPathname("/editor/abc123/publish")).toBe(
-      "abc123"
-    );
+  it("/editor/{pageId}/publish처럼 더 깊은 경로는 pageId로 취급하지 않는다(P2-2, 실제로 존재하지 않는 라우트)", () => {
+    expect(extractPageIdFromPathname("/editor/abc123/publish")).toBeUndefined();
   });
 
   it("/editor/new는 문서가 아니므로 pageId로 취급하지 않는다", () => {
     expect(extractPageIdFromPathname("/editor/new")).toBeUndefined();
-  });
-
-  it("/editor/new/publish도 pageId로 취급하지 않는다", () => {
-    expect(extractPageIdFromPathname("/editor/new/publish")).toBeUndefined();
   });
 
   it("/editor 목록 화면 자체는 pageId가 없다", () => {

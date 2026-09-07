@@ -1,6 +1,6 @@
 # 📄 PRD — SFOOD IT Editor
 
-> 전체 진행률: 84 / 85 항목 완료 (최근 갱신: 2026-09-07 — Phase 2 접근성 보강 마무리, **P2-1c**(모바일 오프캔버스 드로어 포커스 트랩) 완료로 P2-1a~c(접근성 보강)이 전부 끝났다. `GlobalSearchModal.tsx`의 검증된 포커스 트랩 패턴(첫 포커스 이동 → Tab 순환 → 닫힐 때 포커스 복원)을 모바일 사이드바 드로어에 재현하고, 원래 드로어를 키보드로 닫을 방법이 아예 없었다는 것도 함께 발견해 Escape 닫기를 같이 추가했다. 구현 중 데스크톱 전용 컨트롤이 모바일에서 CSS로만 숨겨져 DOM에 남아있어 Tab 순환 경계 계산을 오염시키는 버그를 미리 찾아 막았다. 앞서 완료한 **P2-1b**(사이드바 리사이즈 핸들 키보드 조작)는 폭 조절 핸들에 `tabIndex`를 추가해 ArrowLeft/ArrowRight(16px씩)·Home/End(최소/최대)로 조작할 수 있게 하고 `aria-valuenow`/`min`/`max`와 브랜드 포커스 링을 추가했다 — 마우스 드래그와 같은 범위·저장 방식을 그대로 공유한다. 같은 날 먼저 완료한 **P2-1a**(슬래시 메뉴 ARIA)는 메뉴 컨테이너에 `role="listbox"`, 각 항목에 `role="option"`+`aria-selected`, 빈 상태에 `role="status"`+`aria-live="polite"`를 추가했고, 실제 포커스는 에디터 contenteditable에 남아있는 구조라 `editor.view.dom`에 `aria-activedescendant`를 동기화해 스크린 리더가 선택 상태를 알 수 있게 했다. 이전 갱신(2026-09-04): **P5-8**과 **P1-11** 두 항목이 이어서 완료됐다. P5-8은 관리자가 실제 Confluence에서 계정 폴더·"계정 관리" 페이지를 직접 열어봐도 데이터가 안 보인다는 지적으로 신설한 항목으로, `accountMeta`/`accountIndex` property가 여전히 유일한 진짜 데이터이고 두 페이지의 본문은 저장 시점마다 사람이 읽을 수 있는 표로 다시 그리는 참고용 스냅샷일 뿐이다 — 이름·팀 등 자유 입력값은 이스케이프해 HTML 삽입을 막았고, 본문 갱신 실패가 property 저장을 막지 않는 best-effort 구조도 실제 인스턴스로 검증했다. P1-11은 사용자가 문제의 문서(pageId `212959235`)를 슬래시 없는 정상 slug(`tech-news`)로 직접 재게시해 실데이터까지 해소됐다(코드 측면은 P1-6c로 이미 해소돼 있었음). 이제 남은 미완료 항목은 Phase 2의 문서-코드 드리프트 정리(P2-2) 하나뿐이다 — 새로운 Phase는 계획돼 있지 않다.
+> 전체 진행률: 85 / 85 항목 완료 — **모든 체크리스트 항목이 끝났다.** (최근 갱신: 2026-09-07 — 마지막 남은 **P2-2**(문서-코드 드리프트 잔여 항목 정리) 완료. `EditorSidebar.tsx`의 `extractPageIdFromPathname`이 여전히 다루던 `/editor/{pageId}/publish` 경로 처리를 제거했다 — 게시 설정은 2026-08-26에 이미 `DocumentEditor` 내부 Modal로 흡수돼(URL이 안 바뀜) 그 경로는 실제로 존재한 적 없는 죽은 코드였다. `design.md`도 이 항목과 관련해 다시 확인했지만 이미 정확해 고칠 서술이 없었다. 앞서 같은 날 Phase 2 접근성 보강(**P2-1a~c**)도 전부 끝났다 — 슬래시 메뉴 ARIA(`role="listbox"`/`option`/`aria-selected`, `aria-activedescendant`), 사이드바 리사이즈 핸들 키보드 조작(ArrowLeft/Right·Home/End, `aria-valuenow`), 모바일 오프캔버스 드로어 포커스 트랩(`GlobalSearchModal.tsx`의 검증된 패턴 재현, Escape 닫기 포함)을 각각 추가했다. 이전 갱신(2026-09-04): **P5-8**(계정 페이지 본문 관리자용 스냅샷)과 **P1-11**(게시 설정 slug 실데이터 정정) 완료. 새로운 Phase는 계획돼 있지 않다 — 앞으로의 작업은 사용자의 새 요청에 따라 시작된다.
 >
 > **이전 기록 요약**(전체 이력은 git log와 `docs/superpowers/tasks/`의 각 task.md/result.md 참고): Phase 0~4(P0-1~P2-3 등)는 문서 CRUD·게시·삭제 복구·태그·이미지·전역 검색·레이트리밋·AWS 배포 결정까지 기본기를 완료했다. Phase 5(사용자 계정 관리, P5-1~P5-7)는 온보딩·계정 정보 수정·접속 권한 게이트·관리자 스크립트·계정 검색까지 전부 완료했고, 그 과정에서 온보딩 UI를 사용자 피드백으로 네 차례 재구성했으며(모달→전용 페이지→서비스 소개 보강→비개발자 대상 레퍼런스 기반 재설계), P5-7에서 만든 "계정 관리" 화면은 원래 "공유 대상 검색"과 무관한 요구였다는 게 뒤늦게 확인돼 화면은 남기고 사이드바 진입 링크만 제거했다(2026-09-04). Phase 6(페이지 공유)은 이 정정 이후 P6-2·P6-3(계정 검색 연동·공유 팝업)을 "사용자 요청 시 착수"로 미뤄두고, 그와 무관하게 진행 가능한 도메인/API 항목(P6-1 데이터 모델 → P6-7 마지막 수정자 표시 → P6-4 상대방 인덱스 동기화 → P6-6 접근 권한 확장)부터 먼저 끝낸 뒤, 사용자의 명시적 요청으로 P6-2·P6-3(공유 버튼/팝업)과 P6-5(공유받은 문서 목록)까지 마쳐 Phase 6을 완결했다.
 >
@@ -144,7 +144,7 @@
 - 예외 상황: 이름/팀 누락 시 400(`ValidationError`). 온보딩이 끝나지 않은 계정은 `/editor` 진입 자체가 서버(레이아웃)에서 `/welcome`로 리다이렉트되어 차단된다 — 클라이언트에서 우회할 수 없음
 - 데이터 저장 여부: 예 — data-spec.md의 "AccountFolder(`accountMeta`)"/"AccountIndex" 참고
 - API 필요 여부: 예 — `GET /api/editor/account`, `PUT /api/editor/account`
-- 상태: 계획 — Phase 5(P5-1~P5-5)에서 구현 예정
+- 상태: 완료(P5-1~P5-5, 2026-09-04) — 산출물은 아래 Phase 5 체크리스트 참고
 
 ### 기능 — 접속 권한 게이트(2026-09-03 추가)
 - 설명: 계정별로 접속 허용(Y)/차단(N)을 관리자가 통제한다. 신규 가입자는 기본 허용(Y)이며, 관리자가 필요한 계정만 개별적으로 차단한다. 차단된 계정은 AX Auth 로그인 자체는 성공하지만 `/editor` 메인 화면과 모든 `/api/editor/**` 요청이 막힌다.
@@ -153,7 +153,7 @@
 - 예외 상황: 온보딩 미완료 + 접속 차단이 동시에 해당하면 접속 차단이 우선한다(환영 페이지가 아니라 차단 화면을 먼저 보여준다)
 - 데이터 저장 여부: 예(위 계정 정보 관리 기능과 같은 property 사용)
 - API 필요 여부: 예 — 기존 모든 `/api/editor/**`에 공통 검사 추가
-- 상태: 계획 — Phase 5(P5-1, P5-3, P5-6)에서 구현 예정
+- 상태: 완료(P5-1, P5-3, P5-6, 2026-09-04) — 산출물은 아래 Phase 5 체크리스트 참고
 
 ### 기능 — 최상단 계정 관리 페이지(2026-09-03 추가, 2026-09-04 범위 정정)
 - 설명: 전체 계정(이메일·이름·팀·접속 허용 여부)을 한 화면에서 검색·조회한다.
@@ -210,7 +210,7 @@
 - 목표: Phase 2 완료 직후 진행한 화면 디자인 진단([SFOOD IT Editor 디자인 진단](https://claude.ai/code/artifact/3cb3066b-6971-49eb-b908-3ad0669289f8))에서 나온 결함·부족한 부분을 심각도(P0/P1/P2) 순으로 해소한다. 로그인 화면은 실제 Playwright로 렌더링해 스크린샷으로 직접 확인했다(2026-08-25).
 - 포함 기능: 링크형 버튼 대비 결함(P0), 브랜드 토큰·CSS 레이어 아키텍처 결함(P0), 편집 화면 제목 중복(P1), 사이드바 모바일 대응(P1), 로그아웃 진입점(P2), 디자인 시스템 문서-코드 드리프트 방지 장치(P2)
 
-### Phase 4 — 프로덕션 하드닝 (진행 중)
+### Phase 4 — 프로덕션 하드닝 (완료, 2026-09-07 — P2-2까지 전부 끝남)
 - 목표: 2026-08-27 [프로덕션 준비도 감사](https://claude.ai/code/artifact/87302c07-68d6-42ed-8712-9345547cb659)에서 발견된 데이터 손실·정보 노출·확장성·접근성 공백을 해소한다. requirements.md가 "2차: 개인 에디터 기능 강화(상세 요구사항은 1차 완료 후 별도로 논의)"로 남겨뒀던 논의를 실제로 진행한 결과이기도 하다.
 - 포함 기능: 감사 리포트의 발견 항목 18개(P0 6건·P1 9건·P2 3건)를 검증 가능한 단위로 더 잘게 쪼갠 37개 세부 항목(P0 9개·P1 23개·P2 5개). 목록은 아래 체크리스트 참고.
 - 진행 방식: 항목마다 [CLAUDE.md](../../CLAUDE.md)의 "작업 루틴"(task→plan→result→test→PRD)을 따른다. 값·방식이 아직 정해지지 않은 항목(🔶 표시)은 GitHub Issue로 결정을 받은 뒤 착수하고, 추측으로 진행하지 않는다 — 6건 모두 2026-08-27에 이슈로 등록됐다(진행 현황은 [_pending-decisions.md](../superpowers/tasks/_pending-decisions.md) 참고).
@@ -269,7 +269,7 @@
 - [x] (완료, P2) 로그아웃 진입점 추가 — 화면 어디에도 로그아웃 버튼이 없던 문제(`signOut`이 export만 되고 미사용). 사이드바 하단에 로그인 이메일 + 로그아웃(서버 액션)을 추가. 산출물: src/lib/actions/logout.ts, src/components/editor/EditorSidebar.tsx, src/app/editor/layout.tsx
 - [x] (완료, P2) 디자인 시스템 문서-코드 드리프트 방지 장치 — design.md가 `@sfood/ui`의 실제 타입 정의를 근거로 남긴 결정들(Sidebar/List/LoginSimple/ChipGroup을 특정 방식으로만 쓰기로 한 이유)이 `@sfood/ui` 업그레이드로 조용히 낡을 수 있는 문제. 그 근거가 되는 타입 사실을 `expectTypeOf`로 인코딩한 타입 전용 테스트를 추가해, 시그니처가 바뀌면 `tsc --noEmit`이 실패하도록 함. 산출물: src/components/editor/design-system-contract.test.ts
 
-### Phase 4 — 프로덕션 하드닝 (진행 중)
+### Phase 4 — 프로덕션 하드닝 (완료, 2026-09-07 — P2-2까지 전부 끝남)
 각 항목의 산출물은 `docs/superpowers/tasks/{ID}-{slug}/{task,plan,result,test}.md` 4파일이다(진행 시 생성 —
 [CLAUDE.md](../../CLAUDE.md) "작업 루틴" 참고). 🔶는 착수 전 GitHub Issue로 결정을 받아야 하는 항목이다.
 
@@ -318,7 +318,7 @@
 - [x] (완료, P2-1a) 슬래시 메뉴에 `role`/`aria-selected` 등 ARIA를 보강한다 — 메뉴 컨테이너에 `role="listbox"`+`aria-label`, 각 항목 버튼에 `role="option"`+`id`+`aria-selected`(마우스 hover·키보드 이동 모두에서 갱신), 빈 상태에 `role="status"`+`aria-live="polite"`를 추가했다. 실제 포커스는 에디터 contenteditable에 남아있는 구조라 `editor.view.dom`에 `aria-activedescendant`를 현재 선택된 option로 동기화(메뉴 종료 시 제거)해, 스크린 리더가 실제 포커스 없이도 선택 상태를 알 수 있게 했다. 실제 스크린 리더로 음성 안내를 듣는 수동 검증은 AX Auth 로그인 제약으로 하지 못했고, jsdom 기반 자동화 테스트로 속성값을 검증했다. 산출물: `docs/superpowers/tasks/P2-1a-slash-menu-aria/{task,plan,result,test}.md`, src/components/editor/SlashCommandExtension.ts, src/components/editor/SlashCommandExtension.test.ts
 - [x] (완료, P2-1b) 사이드바 리사이즈 핸들에 키보드 조작(방향키)을 추가한다 — `EditorShell.tsx`의 폭 조절 핸들(`role="separator"`)에 `tabIndex`를 추가해 키보드 포커스를 받을 수 있게 하고, ArrowLeft/ArrowRight(16px씩)·Home/End(최소/최대 폭)로 조작할 수 있게 했다. 모든 경로가 기존 `clampWidth()`를 거쳐 마우스 드래그와 같은 범위(220~440)를 공유하고, 조작 결과는 곧바로 `localStorage`에 저장돼 새로고침 후에도 유지된다. `aria-valuenow`/`aria-valuemin`/`aria-valuemax`(WAI-ARIA "Window Splitter" 패턴)를 추가하고, 기존 `.rounded-btn:focus-visible`과 톤을 맞춘 브랜드 포커스 링(`globals.css`의 `.sidebar-resize-handle:focus-visible`)을 새로 추가했다. 실제 스크린 리더 검증은 AX Auth 로그인 제약으로 하지 못했고, jsdom 자동화 테스트로 속성값·저장 동작을 검증했다. 산출물: `docs/superpowers/tasks/P2-1b-sidebar-resize-keyboard/{task,plan,result,test}.md`, src/components/editor/EditorShell.tsx, src/components/editor/EditorShell.test.tsx, src/app/globals.css
 - [x] (완료, P2-1c) 모바일 오프캔버스 드로어에 포커스 트랩을 추가한다 — `GlobalSearchModal.tsx`가 이미 갖고 있던 포커스 트랩 패턴(첫 포커스 이동 → Tab 순환 → 닫힐 때 포커스 복원)을 `EditorShell.tsx`의 모바일 드로어에 재현했다. 모바일에서는 드로어를 닫는 키보드 접근 가능한 버튼이 하나도 없었다는 것도 함께 발견해 Escape 닫기를 같이 추가했다(포커스 트랩만 추가하고 빠뜨리면 키보드 사용자가 갇히는 문제가 생김). 구현 중 데스크톱 전용 컨트롤(문서함 접기 버튼, 폭 조절 핸들)이 모바일에서 CSS로만 숨겨져 있을 뿐 DOM에는 남아있어 Tab 순환 경계 계산을 오염시키는 버그를 미리 찾아 `hidden` 클래스 필터링으로 막았다. 실제 모바일 기기·스크린 리더 검증은 AX Auth 로그인 제약으로 하지 못했고, jsdom 자동화 테스트(구현과 같은 방식으로 "실제 포커스 가능 요소"를 계산해 검증)로 대신했다. 산출물: `docs/superpowers/tasks/P2-1c-mobile-drawer-focus-trap/{task,plan,result,test}.md`, src/components/editor/EditorShell.tsx, src/components/editor/EditorShell.test.tsx
-- [ ] (P2-2) 문서-코드 드리프트 잔여 항목 정리 — 이번 갱신으로 prd.md의 게시 설정 라우트 서술은 반영됨. `EditorSidebar.tsx`의 `extractPageIdFromPathname`이 여전히 다루는 존재하지 않는 `/editor/{pageId}/publish` 경로 처리와 design.md 쪽 서술까지 확인·정리한다.
+- [x] (완료, P2-2) 문서-코드 드리프트 잔여 항목 정리 — `EditorSidebar.tsx`의 `extractPageIdFromPathname`이 여전히 다루던 `/editor/{pageId}/publish` 경로 처리를 제거했다. 게시 설정은 2026-08-26에 이미 별도 페이지에서 `DocumentEditor` 내부 Modal로 흡수돼(URL이 안 바뀜) 그 경로는 실제로 존재한 적 없는 죽은 코드였다 — `router.push`/`Link href` 어디서도 그런 경로를 생성하지 않음을 grep으로 확인했다. `design.md`도 이 항목과 관련해 다시 확인했지만 이미 정확해 고칠 서술이 없었다(조용히 건너뛰지 않고 확인 사실 자체를 `result.md`에 남김). 산출물: `docs/superpowers/tasks/P2-2-drift-cleanup/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 - [x] (완료, P2-3) 비밀값을 AWS Secrets Manager 또는 SSM Parameter Store로 옮긴다 — [Issue #6](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/6)에서 2026-08-30 "1차 개발은 Lambda와 Lambda의 Secret value 설정으로 진행"으로 결정돼, 원래 항목이 전제한 "별도 시크릿 매니저로 이전"은 하지 않는 것으로 확정됐다. 배포 서비스도 AWS Lambda로 확정됐다. 현재 코드(`src/lib/env.ts`의 `requireEnv`)는 `process.env`만 읽으므로 Lambda 환경변수와 코드 변경 없이 그대로 호환됨을 확인했다 — 코드 변경 없음, `architecture.md`에 결정 반영. Next.js를 Lambda에 올리는 구체적인 어댑터·빌드 구성·도메인/HTTPS는 이 결정과 별개로 실제 배포 착수 시점에 따로 정한다(범위 밖). 산출물: `docs/superpowers/tasks/P2-3-lambda-secrets/{task,plan,result,test}.md`, docs/product/architecture.md
 
 ### Phase 5 — 사용자 계정 관리 (신규, 2026-09-03 계획)

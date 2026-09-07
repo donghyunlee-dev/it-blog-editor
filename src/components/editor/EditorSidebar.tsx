@@ -92,10 +92,7 @@ export function StatusIcon({ isPublished }: { isPublished: boolean }) {
 /**
  * `/editor/{pageId}` 형태의 경로에서 pageId를 추출한다.
  *
- * - `/editor/{pageId}/publish`(게시 설정 화면)도 그 문서의 하위 화면이므로 같은 pageId로
- *   취급해 사이드바에서 계속 강조 표시되게 한다.
- * - `/editor/new`(및 `/editor/new/publish`)는 문서가 아니라 "새 문서 작성" 경로이므로
- *   pageId로 취급하지 않는다.
+ * - `/editor/new`는 문서가 아니라 "새 문서 작성" 경로이므로 pageId로 취급하지 않는다.
  */
 export function extractPageIdFromPathname(
   pathname: string | null
@@ -103,7 +100,7 @@ export function extractPageIdFromPathname(
   if (!pathname) {
     return undefined;
   }
-  const match = pathname.match(/^\/editor\/([^/]+)(?:\/publish)?$/);
+  const match = pathname.match(/^\/editor\/([^/]+)$/);
   const candidate = match?.[1];
   return candidate && candidate !== "new" ? candidate : undefined;
 }
