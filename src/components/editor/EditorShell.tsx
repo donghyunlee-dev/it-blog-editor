@@ -7,6 +7,10 @@ import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 
 const MOBILE_QUERY = "(max-width: 767px)";
+// GlobalSearchModal.tsx의 포커스 트랩과 같은 선택자 — 이 프로젝트에서 이미 검증된 패턴을
+// 그대로 재현한다(아래 드로어 포커스 트랩 참고).
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const DEFAULT_WIDTH = 256;
 // 200px에서는 브랜딩 행(로고 24px + "SFOOD IT Editor" 텍스트 + 접기 버튼 28px +
@@ -76,6 +80,7 @@ export function EditorShell({
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [collapsed, setCollapsed] = useState(false);
   const draggingRef = useRef(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY);
@@ -173,6 +178,56 @@ export function EditorShell({
     persistWidth(clamped);
   }
 
+  // 모바일 오프캔버스 드로어가 열려있는 동안 포커스가 드로어 밖(배경에 가려진 문서 편집
+  // 화면)으로 새지 않게 가둔다 — GlobalSearchModal.tsx가 Modal을 안 쓰고 직접 구현한 것과
+  // 똑같은 패턴(첫 포커스 이동 → Tab 순환 → 닫힐 때 포커스 복원)을 재현한다. 데스크톱에서는
+  // 사이드바가 상시 표시되는 일반 패널이라 이 트랩이 전혀 개입하지 않아야 하므로 `isMobile`도
+  // 조건에 함께 건다.
+  useEffect(() => {
+    if (!isMobile || !open) return;
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+
+    // 데스크톱 전용 컨트롤(문서함 접기 버튼, 폭 조절 핸들)은 모바일에서 `hidden`(Tailwind
+    // `display: none`) 클래스로만 숨겨져 있을 뿐 DOM에는 그대로 남아있어, 필터링하지 않으면
+    // 실제로는 안 보이는 요소를 "첫/마지막 포커스 대상"으로 잘못 계산해 Tab 순환 경계가
+    // 어긋난다.
+    function getFocusables(): HTMLElement[] {
+      return Array.from(drawer!.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (el) => !el.classList.contains("hidden")
+      );
+    }
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    (getFocusables()[0] ?? drawer).focus();
+
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = getFocusables();
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    drawer.addEventListener("keydown", handleKeyDown);
+    return () => {
+      drawer.removeEventListener("keydown", handleKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [isMobile, open]);
+
   function toggleCollapsed(next: boolean) {
     setCollapsed(next);
     persistCollapsed(next);
@@ -233,6 +288,7 @@ export function EditorShell({
           역할까지 겸한다.
         */}
       <div
+        ref={drawerRef}
         className="fixed inset-y-0 left-0 z-40 shrink-0 transition-transform duration-default md:relative md:z-auto"
         style={{
           transform: drawerHidden ? "translateX(-100%)" : undefined,
@@ -267,7 +323,12 @@ export function EditorShell({
             onMouseDown={startResize}
             onKeyDown={handleHandleKeyDown}
             role="separator"
-            tabIndex={0}
+            // 모바일에서는 이 핸들이 CSS로만 숨겨져 있을 뿐(`hidden md:block`) DOM에는
+            // 그대로 남아있다 — 고정 tabIndex={0}이면 P2-1c의 드로어 포커스 트랩이 "마지막
+            // 포커스 가능 요소"를 계산할 때 이 안 보이는 핸들을 실제 마지막으로 착각해
+            // Tab 순환 경계가 어긋난다(실제 화면에 보이는 마지막 요소가 아닌 것을 last로
+            // 취급). 모바일에서는 tabIndex를 -1로 빼 포커스 대상에서 아예 제외한다.
+            tabIndex={isMobile ? -1 : 0}
             aria-orientation="vertical"
             aria-label="문서함 폭 조절"
             aria-valuenow={sidebarWidth}
