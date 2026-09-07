@@ -539,6 +539,17 @@ body {
 }
 
 /*
+ * 사이드바 폭 조절 핸들(EditorShell.tsx, role="separator")은 `rounded-btn`이 아니라서 위
+ * 규칙의 대상이 아니고, 마우스 드래그만 지원하던 걸 P2-1b(2026-09-07)에서 키보드
+ * (방향키/Home/End)로도 조절할 수 있게 만들면서 처음으로 tabIndex를 갖게 됐다 — 위와
+ * 같은 톤의 브랜드 포커스 링을 그대로 재사용한다.
+ */
+.sidebar-resize-handle:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+/*
  * 브라우저는 <button>에 기본적으로 cursor: pointer를 주지 않는다(대부분 브라우저의
  * UA 스타일시트가 cursor: default를 쓴다) — Tailwind Preflight도 이를 되살려 주지
  * 않는다. 처음엔 Switch(button role="switch")만 고쳤는데(게시 설정 토글에서 발견),

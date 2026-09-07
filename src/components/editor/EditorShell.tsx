@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { EditorSidebar } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
@@ -15,6 +15,11 @@ const DEFAULT_WIDTH = 256;
 // 좁혀지지 않게"). 실제 렌더링 폰트(Pretendard)로 측정해 여유를 두고 220으로 올린다.
 const MIN_WIDTH = 220;
 const MAX_WIDTH = 440;
+// 키보드(방향키)로 한 번에 조절하는 폭(px). 마우스 드래그는 clientX를 그대로 따라가 1px
+// 단위로 촘촘하지만, 키보드는 이산적인 조작이라 한 번에 체감 가능한 변화가 필요하다 —
+// 전체 범위(220~440, 폭 220px)를 14회 안팎으로 왕복 가능한, 과하지 않은 값으로 정했다
+// (2026-09-07, P2-1b — GitHub Issue 없이 직접 정함, P1-6a/b/c와 같은 구현 디테일 판단).
+const WIDTH_STEP = 16;
 const WIDTH_STORAGE_KEY = "sfood-editor-sidebar-width";
 const COLLAPSED_STORAGE_KEY = "sfood-editor-sidebar-collapsed";
 
@@ -151,6 +156,23 @@ export function EditorShell({
     };
   }, []);
 
+  // 방향키(ArrowLeft/ArrowRight)로 WIDTH_STEP만큼, Home/End로 최소/최대 폭까지 즉시 이동한다
+  // — 마우스 드래그와 마찬가지로 clampWidth()를 거치고 결과를 곧바로 persistWidth()로
+  // 저장해, 두 조작 경로가 항상 같은 범위·저장 방식을 공유하게 한다.
+  function handleHandleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    let next: number | null = null;
+    if (event.key === "ArrowLeft") next = sidebarWidth - WIDTH_STEP;
+    else if (event.key === "ArrowRight") next = sidebarWidth + WIDTH_STEP;
+    else if (event.key === "Home") next = MIN_WIDTH;
+    else if (event.key === "End") next = MAX_WIDTH;
+    if (next === null) return;
+
+    event.preventDefault();
+    const clamped = clampWidth(next);
+    setSidebarWidth(clamped);
+    persistWidth(clamped);
+  }
+
   function toggleCollapsed(next: boolean) {
     setCollapsed(next);
     persistCollapsed(next);
@@ -243,15 +265,24 @@ export function EditorShell({
           // 얇은 선만 바깥에 마우스가 올라갔을 때(group-hover) 브랜드색으로 드러난다.
           <div
             onMouseDown={startResize}
+            onKeyDown={handleHandleKeyDown}
             role="separator"
+            tabIndex={0}
             aria-orientation="vertical"
             aria-label="문서함 폭 조절"
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={MIN_WIDTH}
+            aria-valuemax={MAX_WIDTH}
             // right-0으로 이 요소의 오른쪽 끝을 패널 오른쪽 끝에 맞춘 뒤, translate-x-1/2
             // (양수)로 자기 폭의 절반만큼 오른쪽으로 더 밀어낸다 — 그래야 핸들이 경계선을
             // 걸치고 서서 절반은 패널 밖, 절반은 안쪽에 걸린다. 부호를 반대로(-translate-x-1/2)
             // 줬더니 핸들 전체가 패널 안쪽으로 더 들어가 버렸다(2026-08-26, 사용자 피드백 —
             // "왼쪽 안으로 들어가있어").
-            className="group absolute inset-y-0 right-0 z-10 hidden w-2.5 translate-x-1/2 cursor-col-resize md:block"
+            //
+            // 키보드 포커스 표시(sidebar-resize-handle:focus-visible, globals.css)는 이
+            // 프로젝트가 Button류에 이미 쓰는 --color-brand 포커스 링과 톤을 맞췄다
+            // (2026-09-07, P2-1b).
+            className="sidebar-resize-handle group absolute inset-y-0 right-0 z-10 hidden w-2.5 translate-x-1/2 cursor-col-resize md:block"
           >
             <div className="mx-auto h-full w-px bg-transparent transition-colors duration-default group-hover:bg-brand/60" />
           </div>
