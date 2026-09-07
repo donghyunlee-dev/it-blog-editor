@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorShell } from "./EditorShell";
@@ -85,5 +85,97 @@ describe("EditorShell", () => {
     const sidebarWrapper = screen.getByText("문서A").closest("aside")
       ?.parentElement as HTMLElement;
     expect(sidebarWrapper.style.transform).toBe("");
+  });
+
+  describe("폭 조절 핸들 키보드 조작(P2-1b)", () => {
+    // 폭은 localStorage(WIDTH_STORAGE_KEY)에 저장되고 happy-dom은 테스트 파일 전체가 같은
+    // window를 공유한다 — 마지막 저장 검증 테스트 하나를 빼면 각 테스트가 "기본 256px에서
+    // 시작"을 전제하므로, 매번 지워 서로 영향을 주지 않게 한다.
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    function getHandle() {
+      return screen.getByRole("separator", { name: "문서함 폭 조절" });
+    }
+
+    it("초기 aria-valuenow/min/max가 기본 폭·범위를 반영한다", () => {
+      mockMatchMedia(false);
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      const handle = getHandle();
+      expect(handle).toHaveAttribute("tabIndex", "0");
+      expect(handle).toHaveAttribute("aria-valuenow", "256");
+      expect(handle).toHaveAttribute("aria-valuemin", "220");
+      expect(handle).toHaveAttribute("aria-valuemax", "440");
+    });
+
+    it("ArrowRight/ArrowLeft로 aria-valuenow가 16px씩 늘고 준다", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      const handle = getHandle();
+      handle.focus();
+
+      await user.keyboard("{ArrowRight}");
+      expect(handle).toHaveAttribute("aria-valuenow", "272");
+
+      await user.keyboard("{ArrowLeft}{ArrowLeft}");
+      expect(handle).toHaveAttribute("aria-valuenow", "240");
+    });
+
+    it("Home/End로 최소/최대 폭까지 즉시 이동하고 범위를 벗어나지 않는다", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      const handle = getHandle();
+      handle.focus();
+
+      await user.keyboard("{Home}");
+      expect(handle).toHaveAttribute("aria-valuenow", "220");
+
+      await user.keyboard("{End}");
+      expect(handle).toHaveAttribute("aria-valuenow", "440");
+
+      // End 이후 ArrowRight를 더 눌러도 MAX_WIDTH(440)를 넘지 않는다.
+      await user.keyboard("{ArrowRight}");
+      expect(handle).toHaveAttribute("aria-valuenow", "440");
+    });
+
+    it("키보드로 바뀐 폭은 localStorage에 저장돼 다음 마운트에도 유지된다", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      const { unmount } = render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      getHandle().focus();
+      await user.keyboard("{ArrowRight}");
+      unmount();
+
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      expect(getHandle()).toHaveAttribute("aria-valuenow", "272");
+    });
   });
 });
