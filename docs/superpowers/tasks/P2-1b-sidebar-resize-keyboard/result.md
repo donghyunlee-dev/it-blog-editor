@@ -51,3 +51,9 @@
 
 ### 우려사항
 - 없음.
+
+## 후속 수정(2026-09-07, 머지 후 실사용 QA)
+사용자가 실제 Edge 브라우저로 확인하던 중, 핸들이 키보드 포커스를 받으면 포커스 테두리가
+`DocumentEditor.tsx`의 sticky 헤더(같은 `z-10`, DOM상 더 뒤라 페인트 순서에서 이김)에 가려
+헤더 높이만큼 끊겨 보이는 문제를 발견해 보고했다. 핸들의 `z-index`를 `z-20`으로 올려 고쳤다
+(`docs/superpowers/tasks/P2-1b-sidebar-resize-keyboard/test.md`의 "발견된 문제와 조치" 참고).
