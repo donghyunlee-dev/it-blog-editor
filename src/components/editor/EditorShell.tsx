@@ -342,8 +342,14 @@ export function EditorShell({
             //
             // 키보드 포커스 표시(sidebar-resize-handle:focus-visible, globals.css)는 이
             // 프로젝트가 Button류에 이미 쓰는 --color-brand 포커스 링과 톤을 맞췄다
-            // (2026-09-07, P2-1b).
-            className="sidebar-resize-handle group absolute inset-y-0 right-0 z-10 hidden w-2.5 translate-x-1/2 cursor-col-resize md:block"
+            // (2026-09-07, P2-1b). z-20은 DocumentEditor.tsx의 sticky 헤더(z-10, DOM상
+            // 이 핸들보다 뒤에 있어 같은 z-10이면 페인트 순서상 헤더가 위에 그려짐)와
+            // 겹치는 높이(상단 h-14 구간)에서 포커스 테두리가 헤더에 가려 끊겨 보이던
+            // 버그를 고친다(2026-09-07, 실사용 확인 — "라인이 2개 생기고 오른쪽 라인이
+            // 헤더 구간을 제외하고 보인다"는 보고로 발견). 모바일 전용 오버레이(z-30)·
+            // 접힘 펼치기 버튼(z-40)은 이 핸들이 보이는 데스크톱(md:block)에서는 함께
+            // 나타나지 않아 z-20으로 올려도 그 둘과는 겹치지 않는다.
+            className="sidebar-resize-handle group absolute inset-y-0 right-0 z-20 hidden w-2.5 translate-x-1/2 cursor-col-resize md:block"
           >
             <div className="mx-auto h-full w-px bg-transparent transition-colors duration-default group-hover:bg-brand/60" />
           </div>
