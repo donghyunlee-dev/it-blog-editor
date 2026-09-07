@@ -128,19 +128,45 @@ function createSlashMenuRenderer() {
 
   const menuEl = document.createElement("div");
   menuEl.className = "flex min-w-40 flex-col gap-0.5 rounded-md border border-border bg-surface p-1 shadow-md";
+  menuEl.setAttribute("role", "listbox");
+  menuEl.setAttribute("aria-label", "슬래시 명령어 목록");
+
+  function optionId(index: number) {
+    return `slash-menu-option-${index}`;
+  }
+
+  // 실제 포커스는 계속 에디터의 contenteditable에 남아있고 이 메뉴는 포커스를 받지 않으므로,
+  // 표준 리스트박스 패턴대로 에디터 DOM에 aria-activedescendant를 걸어 스크린 리더가 "지금
+  // 뭐가 선택됐는지" 알 수 있게 한다. 테스트에서는 `editor.view`가 없는 목 객체가 들어올 수
+  // 있어 옵셔널 체이닝으로 방어한다.
+  function syncActiveDescendant() {
+    const dom = currentEditor?.view?.dom;
+    if (!dom) return;
+    if (items.length === 0) {
+      dom.removeAttribute("aria-activedescendant");
+      return;
+    }
+    dom.setAttribute("aria-activedescendant", optionId(selectedIndex));
+  }
 
   function renderItems() {
     menuEl.innerHTML = "";
     if (items.length === 0) {
       const empty = document.createElement("div");
       empty.className = "px-2 py-1 text-left text-sm opacity-60";
+      empty.setAttribute("role", "status");
+      empty.setAttribute("aria-live", "polite");
       empty.textContent = "일치하는 항목이 없습니다";
       menuEl.appendChild(empty);
+      syncActiveDescendant();
       return;
     }
     items.forEach((item, index) => {
       const button = document.createElement("button");
       button.type = "button";
+      button.id = optionId(index);
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", index === selectedIndex ? "true" : "false");
       button.textContent = item.title;
       button.className = [
         "block w-full rounded px-2 py-1 text-left text-sm",
@@ -155,6 +181,7 @@ function createSlashMenuRenderer() {
       });
       menuEl.appendChild(button);
     });
+    syncActiveDescendant();
   }
 
   function syncFromProps(props: SuggestionProps<CommandItem>) {
@@ -194,6 +221,7 @@ function createSlashMenuRenderer() {
       return false;
     },
     onExit: () => {
+      currentEditor?.view?.dom.removeAttribute("aria-activedescendant");
       unmount?.();
       unmount = null;
     },
