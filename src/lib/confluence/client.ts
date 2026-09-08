@@ -407,6 +407,7 @@ export async function upsertPageProperty<T = unknown>(
 export interface ConfluenceAttachment {
   attachmentId: string;
   url: string;
+  filename: string;
 }
 
 export async function uploadAttachment(
@@ -447,6 +448,67 @@ export async function uploadAttachment(
   return {
     attachmentId: attachment.id,
     url: `${baseUrl}${attachment._links.download}`,
+    filename: file.name,
+  };
+}
+
+export interface ConfluenceAttachmentContent {
+  data: ArrayBuffer;
+  contentType: string;
+}
+
+/**
+ * 첨부파일을 페이지 안에서의 파일명으로 찾아 실제 바이트를 내려받는다(2026-09-07 추가).
+ *
+ * `uploadAttachment`가 돌려주는 `url`(Confluence의 원본 다운로드 링크)은 Confluence 자체
+ * 세션·자격증명이 있어야 열린다 — 이 앱은 서버가 API 토큰으로만 Confluence를 대신 호출할
+ * 뿐, 브라우저에는 그 자격증명이 전혀 없다. 그래서 에디터의 `<img src>`가 그 URL을 그대로
+ * 가리키면 브라우저는 인증 없이 요청을 보내 깨진 이미지 아이콘만 보인다(실사용 확인 —
+ * "사진 아이콘만 보이고 실제 사진이 안 들어간다"). 이 함수는 그 자격증명을 가진 서버가
+ * 대신 파일을 받아와, 우리 앱의 프록시 라우트(`GET /api/editor/documents/{pageId}/images/
+ * {filename}`)가 브라우저에 다시 내려줄 수 있게 한다.
+ */
+export async function downloadAttachment(
+  pageId: string,
+  filename: string
+): Promise<ConfluenceAttachmentContent> {
+  const { baseUrl, email, apiToken } = getConfluenceConfig();
+  const authHeader = buildAuthHeader(email, apiToken);
+
+  // 업로드 시점에 받은 다운로드 링크를 저장해두는 대신 매번 파일명으로 다시 찾는다 —
+  // 그 링크의 쿼리 파라미터(버전 등)가 이후 재게시·재조회로 낡을 수 있는데, 파일명으로
+  // 다시 찾으면 항상 최신 버전의 다운로드 링크를 받는다.
+  const listResponse = await fetch(
+    `${baseUrl}/rest/api/content/${pageId}/child/attachment?filename=${encodeURIComponent(filename)}`,
+    { headers: { Authorization: authHeader, Accept: "application/json" } }
+  );
+  if (!listResponse.ok) {
+    throw new ConfluenceApiError(
+      listResponse.status,
+      `첨부파일 조회 실패: ${listResponse.status} ${listResponse.statusText}`
+    );
+  }
+  const list = (await listResponse.json()) as {
+    results: Array<{ _links: { download: string } }>;
+  };
+  const found = list.results[0];
+  if (!found) {
+    throw new ConfluenceApiError(404, `첨부파일을 찾을 수 없습니다: ${filename}`);
+  }
+
+  const fileResponse = await fetch(`${baseUrl}${found._links.download}`, {
+    headers: { Authorization: authHeader },
+  });
+  if (!fileResponse.ok) {
+    throw new ConfluenceApiError(
+      fileResponse.status,
+      `첨부파일 다운로드 실패: ${fileResponse.status} ${fileResponse.statusText}`
+    );
+  }
+
+  return {
+    data: await fileResponse.arrayBuffer(),
+    contentType: fileResponse.headers.get("content-type") ?? "application/octet-stream",
   };
 }
 

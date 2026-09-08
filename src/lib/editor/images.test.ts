@@ -40,24 +40,24 @@ describe("registerImage", () => {
   it("정확히 10MB(경계값)는 정상 업로드된다", async () => {
     const uploadSpy = vi
       .spyOn(client, "uploadAttachment")
-      .mockResolvedValue({ attachmentId: "att-1", url: "https://example.com/att-1" });
+      .mockResolvedValue({ attachmentId: "att-1", url: "https://example.com/att-1", filename: "photo.png" });
     const file = makeFile(10 * 1024 * 1024);
 
     const result = await registerImage("page-1", file);
 
-    expect(result).toEqual({ attachmentId: "att-1", url: "https://example.com/att-1" });
+    expect(result).toEqual({ attachmentId: "att-1", url: "https://example.com/att-1", filename: "photo.png" });
     expect(uploadSpy).toHaveBeenCalledWith("page-1", file);
   });
 
   it("10MB 이하의 일반 파일은 정상 업로드된다", async () => {
     const uploadSpy = vi
       .spyOn(client, "uploadAttachment")
-      .mockResolvedValue({ attachmentId: "att-1", url: "https://example.com/att-1" });
+      .mockResolvedValue({ attachmentId: "att-1", url: "https://example.com/att-1", filename: "photo.png" });
     const file = makeFile(1024);
 
     const result = await registerImage("page-1", file);
 
-    expect(result).toEqual({ attachmentId: "att-1", url: "https://example.com/att-1" });
+    expect(result).toEqual({ attachmentId: "att-1", url: "https://example.com/att-1", filename: "photo.png" });
     expect(uploadSpy).toHaveBeenCalledWith("page-1", file);
   });
 });

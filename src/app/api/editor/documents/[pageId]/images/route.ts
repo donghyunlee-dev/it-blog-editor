@@ -24,8 +24,15 @@ export async function POST(request: Request, { params }: RouteContext) {
       file instanceof File ? file : null
     );
 
+    // Confluence의 원본 다운로드 URL(attachment.url)은 Confluence 자체 인증이 있어야
+    // 열려 브라우저의 <img src>가 그대로 못 쓴다 — 대신 우리 앱의 프록시 라우트를
+    // 가리키게 한다(2026-09-07, 실사용 확인 — "사진 아이콘만 보이고 실제 사진이 안
+    // 들어간다"). src/lib/confluence/client.ts의 downloadAttachment 주석 참고.
     return NextResponse.json(
-      { attachmentId: attachment.attachmentId, url: attachment.url },
+      {
+        attachmentId: attachment.attachmentId,
+        url: `/api/editor/documents/${pageId}/images/${encodeURIComponent(attachment.filename)}`,
+      },
       { status: 201 }
     );
   } catch (error) {

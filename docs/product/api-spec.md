@@ -32,6 +32,7 @@
 | PUT | /api/editor/documents/{pageId} | 문서 수정 | 문서 작성·수정·삭제 |
 | DELETE | /api/editor/documents/{pageId} | 문서 삭제 | 문서 작성·수정·삭제 |
 | POST | /api/editor/documents/{pageId}/images | 이미지 첨부 | 이미지 첨부 |
+| GET | /api/editor/documents/{pageId}/images/{filename} | 이미지 원본 프록시(2026-09-07 추가) | 이미지 첨부 |
 | PATCH | /api/editor/documents/{pageId}/publish | 게시 설정 변경 | 초안-게시 생명주기, 게시 메타데이터의 뷰어별 확장 |
 | PUT | /api/editor/documents/{pageId}/tags | 문서 태그 설정 | 문서 태그 지정 |
 | GET | /api/editor/account | 내 계정 정보(이름·팀·온보딩 여부) 조회 | 사용자 계정 정보 관리 |
@@ -216,8 +217,12 @@
 
 **Response Body (성공, 201)**
 ```json
-{ "attachmentId": "att123", "url": "https://.../download/attachments/..." }
+{ "attachmentId": "att123", "url": "/api/editor/documents/{pageId}/images/{filename}" }
 ```
+`url`은 Confluence의 원본 다운로드 링크가 아니라 아래 `GET .../images/{filename}` 프록시
+라우트를 가리킨다(2026-09-07 갱신) — Confluence 원본 링크는 Confluence 자체 인증이 있어야
+열려 브라우저의 `<img src>`가 직접 못 쓴다(실사용 확인: "사진 아이콘만 보이고 실제 사진이
+안 들어간다"). 클라이언트는 이 값을 그대로 `<img src>`에 쓰면 된다.
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |
@@ -225,6 +230,21 @@
 | 401 | UNAUTHORIZED | 로그인 필요 |
 | 400 | INVALID_REQUEST | 파일 누락 또는 허용되지 않는 형식 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### GET /api/editor/documents/{pageId}/images/{filename} — 이미지 원본 프록시(2026-09-07 추가)
+Confluence 첨부파일을 서버(API 토큰 인증)를 대신 거쳐 브라우저에 내려준다. 소유자뿐 아니라
+공유받은 사람도 볼 수 있다(P6-6과 같은 `requireDocumentAccess` 사용).
+
+**Header**: Cookie(세션) 필수
+
+**Response (성공, 200)**: 이미지 바이트 그대로, `Content-Type`은 Confluence가 응답한 값을
+그대로 전달한다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 또는 접근 권한 없음(소유자·공유받은 사람 모두 아님) |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패(첨부파일 없음 포함) |
 
 ### PATCH /api/editor/documents/{pageId}/publish — 게시 설정 변경
 **Header**: Cookie(세션) 필수
