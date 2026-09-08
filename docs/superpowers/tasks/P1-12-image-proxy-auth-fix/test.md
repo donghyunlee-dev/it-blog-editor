@@ -29,8 +29,24 @@
   `uploadAttachment` 테스트 3건 포함), 전체 스위트 55 파일/507건 통과, lint·tsc·build 모두
   통과. 실제 재확인은 사용자가 Edge에서 다시 진행한다.
 
+- **원인(2026-09-09, 2차 수정 머지 후 사용자가 실제 Confluence 페이지를 직접 열어보다
+  발견)**: "Confluence 페이지가 에디터와 완전히 다른(무관한) 사진을 보여준다"는 보고를
+  받아 사용자의 실제 문서(pageId `221347841`)를 조사 스크립트로 확인했다 — 저장된
+  storage format이 `<ac:image ri:filename="image.png">`를 3번 반복하고 있었는데,
+  `sourceDocument`의 각 이미지 노드는 서로 다른 고유 `src`를 갖고 있어도 `filename` 속성은
+  전부 원본 파일명("image.png") 그대로였다. `image-upload.ts`의 `uploadImage()`가 서버
+  응답의 `filename`을 쓰지 않고 원본 `File.name`을 돌려주던 게 원인 — 2차 수정(파일명
+  충돌 방지)에서 서버만 바꾸고 클라이언트를 함께 고치지 않았다.
+- **조치**: `POST .../images` 응답에 `filename`을 추가하고 `uploadImage()`가 그 값을
+  그대로 쓰도록 고쳤다.
+- **재검증 결과**: `npx vitest run src/lib/editor/image-upload.test.ts "src/app/api/editor/documents/[pageId]/images/route.test.ts"`
+  10/10 통과(응답 `filename`이 원본 `File.name`과 다른 경우를 명시적으로 검증). 전체
+  스위트 55 파일/507건, lint(내 코드 기준 무관 경고 2건만)·tsc·build 모두 통과.
+
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
 ## 최종 판정
 - [ ] 수용 기준(`task.md`)을 모두 만족함 — 사용자의 실제 브라우저 재확인 이후 PRD 완료 표시
+- [ ] 사용자의 기존 문서(pageId `221347841`)에 이미 저장된 잘못된 `filename` 데이터를
+      고칠지 여부는 별도 승인 필요(`result.md`의 "남은 것" 참고)

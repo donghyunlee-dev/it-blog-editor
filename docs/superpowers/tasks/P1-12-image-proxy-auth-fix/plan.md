@@ -38,3 +38,12 @@
   같은 원본 파일명이라도 매번 다른 결과가 나오는지, 업로드 실패 시 `ConfluenceApiError`를
   던지는지.
 - [ ] **Step 8**: 전체 스위트·lint·tsc·build 재확인.
+
+## 2026-09-09 세 번째 추가 — 클라이언트가 원본 파일명을 되돌려 쓰던 문제 수정
+- [ ] **Step 9**: `POST .../images/route.ts`의 성공 응답에 `filename: attachment.filename`을
+  추가한다.
+- [ ] **Step 10**: `src/lib/editor/image-upload.ts`의 `uploadImage()`가 `file.name` 대신
+  서버 응답의 `data.filename`을 반환하도록 고친다(주석의 잘못된 전제도 함께 바로잡는다).
+- [ ] **Step 11**: `image-upload.test.ts`·`images/route.test.ts`를 "응답 filename ≠ 원본
+  File.name"인 경우로 갱신해, 이 버그가 재발하면 테스트가 잡아내게 한다.
+- [ ] **Step 12**: 전체 스위트·lint·tsc·build 재확인.

@@ -77,3 +77,30 @@
 **재검증 결과**: `npx vitest run`(전체 스위트, 55 파일/507건)·`npm run lint`·
 `npx tsc --noEmit`·`npm run build` 모두 통과. 실제 재확인은 사용자가 Edge에서 다시 진행한다.
 
+## 세 번째 후속 수정(2026-09-09, 파일명 충돌 수정의 부작용으로 발견)
+파일명 충돌 수정을 머지한 뒤 사용자가 다시 확인하다 "Confluence 페이지를 직접 열어보니
+에디터와 완전히 다른(무관한) 사진이 보인다"고 보고했다. 사용자의 실제 문서(pageId
+`221347841`)를 조사 스크립트로 직접 살펴봤다.
+
+**원인**: `sourceDocument`(TipTap JSON)의 이미지 노드 3개 모두 `src`는 각자 정확한 고유
+URL을 가리켰지만(그래서 에디터 미리보기는 맞았다), `filename` 속성은 셋 다 그냥
+`"image.png"`였다 — `image-upload.ts`의 `uploadImage()`가 서버 응답의 `filename`을 쓰지
+않고 원본 `File.name`을 그대로 돌려주는 문제가 남아있었다(파일명 충돌 수정 당시 서버
+(`uploadAttachment`)만 고치고 클라이언트를 함께 고치지 않은 실수). 그 결과 저장된
+Confluence storage format이 `<ac:image ri:filename="image.png">`를 세 번 반복했고, 이는
+파일명 충돌 수정 이전에 만들어진 진짜 "image.png"라는 이름의 옛 첨부파일 하나를 가리켜,
+Confluence 페이지를 직접 열면 최근에 붙여넣은 사진이 아니라 그 무관한 옛 첨부파일이 세 번
+반복해서 보였다.
+
+**조치**: `POST .../images` 응답에 `filename`(서버가 실제로 저장한 고유 파일명)을 추가하고,
+`uploadImage()`가 `file.name` 대신 그 값을 그대로 반환하도록 고쳤다.
+
+**재검증 결과**: `image-upload.test.ts`·`images/route.test.ts`에 "응답 filename이 원본
+File.name과 다른 경우"를 명시적으로 검증하는 테스트로 갱신 — 10/10 통과. 전체 스위트 55
+파일/507건, lint·tsc·build 모두 통과.
+
+**남은 것**: 사용자의 실제 문서(pageId `221347841`)에는 이미 잘못된 `filename="image.png"`
+가 3번 저장돼 있다 — 코드 수정은 향후 업로드에만 적용되고, 이 기존 문서의 데이터 자체를
+고치는 것은 실제 Confluence 쓰기가 필요해 사용자 승인 후 별도로 진행한다(P1-11과 같은
+판단 기준).
+
