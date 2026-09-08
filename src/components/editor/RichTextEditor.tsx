@@ -15,7 +15,7 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Popover, Tooltip, useToast } from "@sfood/ui";
+import { Button, Modal, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -611,9 +611,11 @@ function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
             canDeleteColumn: currentEditor.can().deleteColumn(),
             canMergeCells: currentEditor.can().mergeCells(),
             canSplitCell: currentEditor.can().splitCell(),
+            canDeleteTable: currentEditor.can().deleteTable(),
           }
         : null,
   });
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   if (!active || !tableState) return null;
 
@@ -678,6 +680,41 @@ function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
       >
         <SplitCellsIcon />
       </TableToolbarButton>
+      {/* 표 삭제는 셀/행/열 조작과 되돌릴 수 있는 정도가 다른 파괴적 동작이라(표 전체와
+          내용을 한 번에 잃음) 별도 구분선 뒤에 두고, CLAUDE.md 규칙에 따라 window.confirm()
+          대신 Modal로 확인을 받은 뒤에만 실행한다. */}
+      <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+      <TableToolbarButton
+        label="표 삭제"
+        disabled={!tableState.canDeleteTable}
+        onClick={() => setConfirmDeleteOpen(true)}
+      >
+        <TrashIcon />
+      </TableToolbarButton>
+      <Modal
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        title="표 삭제"
+        footer={
+          <>
+            <Button type="button" variant="secondary" onClick={() => setConfirmDeleteOpen(false)}>
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => {
+                setConfirmDeleteOpen(false);
+                editor.chain().focus().deleteTable().run();
+              }}
+            >
+              삭제 확인
+            </Button>
+          </>
+        }
+      >
+        표를 삭제하시겠습니까? 표 안의 모든 내용이 함께 삭제되며 되돌릴 수 없습니다.
+      </Modal>
     </div>
   );
 }
