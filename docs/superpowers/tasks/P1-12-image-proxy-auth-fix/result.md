@@ -56,3 +56,24 @@
 
 ### 우려사항
 - 없음.
+
+## 후속 수정(2026-09-09, 머지 후 실사용 재확인 중 발견)
+프록시 라우트를 머지한 뒤 사용자가 실제 Edge에서 재확인하다 두 번째 문제에 부딪혔다 —
+캡쳐한 스크린샷을 붙여넣으면 업로드 자체가 `400 Bad Request`로 실패했다:
+`"Cannot add a new attachment with same file name as an existing attachment: image.png"`.
+`task.md`의 "범위 밖"에 잠재 위험으로 남겨뒀던 파일명 충돌 문제가 실제로 발생한 것이다.
+
+**원인**: 클립보드로 붙여넣은 스크린샷은 브라우저/OS가 `image.png`처럼 특징 없는 이름을
+붙이는 경우가 많은데, `uploadAttachment`가 `file.name`을 그대로 Confluence 첨부파일명으로
+써서 같은 문서에 그 이름의 첨부가 이미 있으면(예: 이전에 붙여넣은 다른 스크린샷) Confluence
+가 업로드 자체를 거부했다.
+
+**조치**: `client.ts`에 `withUniqueFilenameSuffix(filename)`을 추가해 매번 짧은 고유 접미사
+(타임스탬프+랜덤 문자열)를 붙인 파일명으로 Confluence에 업로드하고, 그 파일명을 그대로
+`ConfluenceAttachment.filename`으로 반환한다 — 원본 `File`의 바이트·MIME 타입은 그대로 두고
+전송용 파일명만 바꾼다. 파일명은 이 앱의 어떤 화면에도 사용자에게 노출되지 않아(내부
+식별·Confluence storage 매크로 참조용) 안전하게 바꿀 수 있음을 grep으로 확인했다.
+
+**재검증 결과**: `npx vitest run`(전체 스위트, 55 파일/507건)·`npm run lint`·
+`npx tsc --noEmit`·`npm run build` 모두 통과. 실제 재확인은 사용자가 Edge에서 다시 진행한다.
+

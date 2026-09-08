@@ -28,3 +28,13 @@
   `/api/editor/documents/{pageId}/images/{filename}`을 반환하도록 바꾼다.
 - [ ] **Step 4**: 관련 테스트 추가·갱신 후 `npx vitest run`으로 전체 확인.
 - [ ] **Step 5**: `api-spec.md` 갱신, lint·tsc·build 재확인.
+
+## 2026-09-09 추가 — 파일명 충돌 수정
+- [ ] **Step 6**: `client.ts`에 `withUniqueFilenameSuffix(filename)` 헬퍼를 추가하고,
+  `uploadAttachment`가 Confluence에 보내는 파일명(`form.append`의 세 번째 인자)과
+  반환하는 `filename`을 이 헬퍼로 고유화한다(원본 `File`의 바이트·MIME 타입은 그대로 —
+  전송용 파일명만 바꾼다).
+- [ ] **Step 7**: `client.test.ts`에 `uploadAttachment` 테스트 추가 — 고유 접미사가 붙는지,
+  같은 원본 파일명이라도 매번 다른 결과가 나오는지, 업로드 실패 시 `ConfluenceApiError`를
+  던지는지.
+- [ ] **Step 8**: 전체 스위트·lint·tsc·build 재확인.

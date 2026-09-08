@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, uploadAttachment, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -475,6 +475,67 @@ describe("listPageVersions", () => {
     const versions = await listPageVersions("111");
 
     expect(versions.map((v) => v.number)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("uploadAttachment", () => {
+  it("고유 접미사를 붙인 파일명으로 업로드하고, 그 파일명을 그대로 반환한다(2026-09-09, 동명 첨부파일 충돌 방지)", async () => {
+    const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
+      const form = init!.body as FormData;
+      const uploaded = form.get("file") as File;
+      // Confluence가 실제로 그 이름으로 저장했다고 가정하고 그대로 되돌려준다.
+      return new Response(
+        JSON.stringify({
+          results: [{ id: "att-1", _links: { download: `/download/attachments/111/${uploaded.name}` } }],
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const file = new File(["fake-bytes"], "image.png", { type: "image/png" });
+    const result = await uploadAttachment("111", file);
+
+    expect(result.filename).not.toBe("image.png");
+    expect(result.filename).toMatch(/^image-[a-z0-9]+\.png$/);
+    expect(result.url).toBe(`${BASE_URL}/download/attachments/111/${result.filename}`);
+
+    const [, init] = fetchMock.mock.calls[0];
+    const uploadedFile = (init!.body as FormData).get("file") as File;
+    expect(uploadedFile.name).toBe(result.filename);
+  });
+
+  it("같은 원본 파일명이라도 매번 다른 파일명을 만든다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ results: [{ id: "att-1", _links: { download: "/x" } }] }),
+            { status: 200 }
+          )
+      )
+    );
+
+    const file1 = new File(["a"], "image.png", { type: "image/png" });
+    const file2 = new File(["b"], "image.png", { type: "image/png" });
+    const [result1, result2] = await Promise.all([
+      uploadAttachment("111", file1),
+      uploadAttachment("111", file2),
+    ]);
+
+    expect(result1.filename).not.toBe(result2.filename);
+  });
+
+  it("업로드 자체가 실패하면(예: 그래도 남아있는 충돌) ConfluenceApiError를 던진다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("Bad Request", { status: 400 }))
+    );
+
+    await expect(
+      uploadAttachment("111", new File(["x"], "image.png", { type: "image/png" }))
+    ).rejects.toBeInstanceOf(ConfluenceApiError);
   });
 });
 

@@ -410,14 +410,30 @@ export interface ConfluenceAttachment {
   filename: string;
 }
 
+/**
+ * 클립보드로 붙여넣은 스크린샷은 브라우저/OS가 "image.png"처럼 특징 없는 이름을 붙이는
+ * 경우가 많다 — 같은 문서에 그 이름의 첨부파일이 이미 있으면 Confluence가 업로드 자체를
+ * 400으로 거부한다("Cannot add a new attachment with same file name as an existing
+ * attachment", 2026-09-09 실사용 확인). 매번 짧은 고유 접미사를 붙여 이 충돌을 원천적으로
+ * 피한다 — 파일명은 내부 식별용일 뿐 이 앱 어디에도 사용자에게 그대로 노출되지 않는다.
+ */
+function withUniqueFilenameSuffix(filename: string): string {
+  const dotIndex = filename.lastIndexOf(".");
+  const base = dotIndex > 0 ? filename.slice(0, dotIndex) : filename;
+  const ext = dotIndex > 0 ? filename.slice(dotIndex) : "";
+  const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  return `${base}-${suffix}${ext}`;
+}
+
 export async function uploadAttachment(
   pageId: string,
   file: File
 ): Promise<ConfluenceAttachment> {
   const { baseUrl, email, apiToken } = getConfluenceConfig();
+  const uniqueFilename = withUniqueFilenameSuffix(file.name);
 
   const form = new FormData();
-  form.append("file", file, file.name);
+  form.append("file", file, uniqueFilename);
 
   const response = await fetch(
     `${baseUrl}/rest/api/content/${pageId}/child/attachment`,
@@ -448,7 +464,7 @@ export async function uploadAttachment(
   return {
     attachmentId: attachment.id,
     url: `${baseUrl}${attachment._links.download}`,
-    filename: file.name,
+    filename: uniqueFilename,
   };
 }
 
