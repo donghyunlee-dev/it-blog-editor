@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
+import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -475,5 +475,68 @@ describe("listPageVersions", () => {
     const versions = await listPageVersions("111");
 
     expect(versions.map((v) => v.number)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("downloadAttachment", () => {
+  it("파일명으로 첨부파일을 찾아 최신 다운로드 링크를 조회한 뒤 실제 바이트를 받아온다", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/child/attachment?filename=")) {
+        expect(url).toContain("filename=photo.png");
+        return new Response(
+          JSON.stringify({
+            results: [{ _links: { download: "/download/attachments/111/photo.png?version=2" } }],
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await downloadAttachment("111", "photo.png");
+
+    expect(result.contentType).toBe("image/png");
+    expect(new Uint8Array(result.data)).toEqual(new Uint8Array([137, 80, 78, 71]));
+    // 두 번째 fetch가 첫 번째 응답의 다운로드 링크(BASE_URL + _links.download)를 그대로 썼는지 확인.
+    const downloadCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes("/download/attachments/111/photo.png")
+    );
+    expect(downloadCall?.[0]).toBe(`${BASE_URL}/download/attachments/111/photo.png?version=2`);
+  });
+
+  it("해당 파일명의 첨부파일이 없으면 404 ConfluenceApiError를 던진다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ results: [] }), { status: 200 }))
+    );
+
+    await expect(downloadAttachment("111", "missing.png")).rejects.toMatchObject({
+      status: 404,
+    });
+  });
+
+  it("첨부파일 목록 조회 자체가 실패하면 그 상태 코드로 ConfluenceApiError를 던진다", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("서버 오류", { status: 500 })));
+
+    await expect(downloadAttachment("111", "photo.png")).rejects.toBeInstanceOf(ConfluenceApiError);
+  });
+
+  it("다운로드 요청 자체가 실패하면 그 상태 코드로 ConfluenceApiError를 던진다", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/child/attachment?filename=")) {
+        return new Response(
+          JSON.stringify({ results: [{ _links: { download: "/download/attachments/111/photo.png" } }] }),
+          { status: 200 }
+        );
+      }
+      return new Response("찾을 수 없음", { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(downloadAttachment("111", "photo.png")).rejects.toMatchObject({ status: 404 });
   });
 });

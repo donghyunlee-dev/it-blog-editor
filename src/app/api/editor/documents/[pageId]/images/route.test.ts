@@ -42,6 +42,7 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     vi.mocked(registerImage).mockResolvedValue({
       attachmentId: "att-1",
       url: "https://example.com/photo.png",
+      filename: "photo.png",
     });
 
     const file = new File(["fake-bytes"], "photo.png", { type: "image/png" });
@@ -54,7 +55,13 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     expect(vi.mocked(requireDocumentAccess)).toHaveBeenCalledWith("doc-1", "user@s-food.com");
     expect(vi.mocked(registerImage)).toHaveBeenCalledWith("doc-1", file);
     expect(response.status).toBe(201);
-    expect(body).toEqual({ attachmentId: "att-1", url: "https://example.com/photo.png" });
+    // Confluence의 원본 다운로드 URL(registerImage가 돌려준 attachment.url)이 아니라,
+    // 브라우저가 인증 없이도 열 수 있는 우리 앱의 프록시 라우트를 돌려준다(2026-09-07 —
+    // 실사용 확인 "사진 아이콘만 보이고 실제 사진이 안 들어간다"로 발견한 버그 수정).
+    expect(body).toEqual({
+      attachmentId: "att-1",
+      url: "/api/editor/documents/doc-1/images/photo.png",
+    });
   });
 
   it("소유자도 공유받은 사람도 아니면 401을 반환하고 registerImage를 호출하지 않는다", async () => {
@@ -73,6 +80,7 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     vi.mocked(registerImage).mockResolvedValue({
       attachmentId: "att-1",
       url: "https://example.com/photo.png",
+      filename: "photo.png",
     });
 
     const formData = new FormData();
