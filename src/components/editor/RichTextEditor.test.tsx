@@ -596,3 +596,27 @@ describe("RichTextEditor 이미지 업로드 성공 경로(P1-9e)", () => {
 
   });
 });
+
+/**
+ * P2-5: 사용자가 "표 안 텍스트의 색상·폰트 서식을 바꿀 방법이 없다"고 보고해 조사했다.
+ * `EditorBubbleMenu`는 `shouldShow`를 오버라이드하지 않아 `@tiptap/extension-bubble-menu`의
+ * 기본 구현을 그대로 쓰는데, 그 기본 구현은 표 셀 여부를 전혀 구분하지 않는다(포커스·비어있지
+ * 않은 선택·`isEditable`만 검사, 소스로 확인). 표 셀 안 텍스트 선택도 일반 `TextSelection`이라
+ * 이 조건을 그대로 통과해, 실제로는 이미 정상 동작함을 이 테스트로 확인했다 — 버그가 아니다.
+ * (반면 글꼴 종류·글자 크기 자체는 문서 전체 어디에도 없는 별개의 기능 격차이고, 값이 정해지지
+ * 않아 Issue #69로 등록해 별도로 다룬다 — `task.md` 참고.)
+ */
+describe("RichTextEditor 표 셀 안 서식 버블 메뉴(P2-5)", () => {
+  it("표 셀 안 텍스트를 선택해도 서식 버블 메뉴가 뜨고 글자 색상 버튼이 보인다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    selectText(container, "r0c0");
+
+    await waitFor(() => expect(screen.queryByLabelText("굵게")).toBeInTheDocument());
+    expect(screen.getByLabelText("글자 색상")).toBeInTheDocument();
+  });
+});
