@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Button, ChipGroup, EmptyState, Modal, Select, Tag, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
@@ -282,6 +282,50 @@ export function EditorSidebar({
     });
   }
 
+  // P7-7: 편집 화면 헤더 브레드크럼에서 폴더를 누르면 `/editor?folder={id}`로 이동한다 —
+  // 전용 폴더 상세 화면이 없어(P7-4 사이드바 트리 하나로 탐색을 통일한 기존 설계), 여기서
+  // 그 폴더까지 조상 체인을 펼치고 스크롤·잠깐 강조해 "탐색 도착"을 대신한다. searchParams는
+  // 라우터 컨텍스트가 없는 테스트에서도 usePathname처럼 null을 반환할 뿐 던지지 않는다.
+  const searchParams = useSearchParams();
+  const focusFolderId = searchParams?.get("folder") ?? null;
+  const [highlightedFolderId, setHighlightedFolderId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusFolderId) return;
+    const target = folders.find((folder) => folder.id === focusFolderId);
+    if (!target) return; // 폴더가 삭제된 뒤 남은 오래된 링크 등 — 조용히 무시한다.
+
+    const ancestorIds: string[] = [];
+    let current: FolderNode | undefined = target;
+    while (current) {
+      ancestorIds.push(current.id);
+      const parentId: string | null = current.parentId;
+      current = parentId ? folders.find((folder) => folder.id === parentId) : undefined;
+    }
+    // URL의 focusFolderId(외부 시스템 — 브라우저 주소창)가 바뀔 때만 반응하는 동기화라
+    // 위 localStorage 로드 effect와 같은 이유로 이 규칙의 일반 사례(effect 안에서의
+    // 무조건적 setState)에 해당하지 않는다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedFolders((prev) => {
+      const next = { ...prev };
+      for (const id of ancestorIds) next[id] = true;
+      try {
+        window.localStorage.setItem(FOLDER_EXPANDED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // 무시.
+      }
+      return next;
+    });
+    setHighlightedFolderId(focusFolderId);
+    document
+      .getElementById(`sidebar-folder-${focusFolderId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const highlightTimer = setTimeout(() => setHighlightedFolderId(null), 1600);
+    // 뒤로가기로 같은 폴더를 다시 눌러도 매번 반응하도록 쿼리를 지운다(replace라 히스토리
+    // 엔트리를 추가하지 않는다).
+    router.replace("/editor");
+    return () => clearTimeout(highlightTimer);
+  }, [focusFolderId, folders, router]);
+
   // P7-5: 폴더 생성·이름변경은 같은 폼(FolderFormModal)을 모드로만 나눠 재사용한다.
   // 삭제는 문서 삭제(DocumentEditor.tsx)와 동일하게 window.confirm() 대신 Modal로
   // 확인받는다(CLAUDE.md UI 규칙) — 대상 폴더를 상태로 들고 있다가 확인 시에만 호출한다.
@@ -486,7 +530,11 @@ export function EditorSidebar({
           패턴과 같은 원칙).
         */}
         <div
-          className="group flex items-center gap-0.5 rounded-btn pr-1 transition-colors duration-default hover:bg-surface-raised"
+          id={`sidebar-folder-${folder.id}`}
+          className={
+            "group flex items-center gap-0.5 rounded-btn pr-1 transition-colors duration-default hover:bg-surface-raised " +
+            (highlightedFolderId === folder.id ? "bg-brand/10" : "")
+          }
           style={{ paddingLeft: 8 + depth * 14 }}
         >
           <button

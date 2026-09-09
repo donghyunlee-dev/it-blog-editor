@@ -10,10 +10,35 @@ import type { FolderNode } from "@/lib/editor/folders";
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
 // 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
 // 반환할 뿐 던지지 않는 실제 동작을 그대로 쓴다 — 다른 기존 테스트들이 이에 의존한다).
-const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+// useRouter()가 실제 Next.js에서는 항상 같은 객체 참조를 돌려주는 것과 달리, 매번 새
+// 객체 리터럴을 반환하면 그 객체를 의존성 배열에 넣는 effect(P7-7, 아래 focusFolderId
+// 처리)가 렌더마다 재실행돼 setState → 리렌더 → 재실행으로 이어지는 무한 루프가 생긴다
+// (실제로 겪은 문제 — 이 파일의 P7-7 테스트가 타임아웃났다). 그래서 push/replace/refresh를
+// 감싸는 router 객체 자체를 한 번만 만들어 매 호출에 같은 참조를 돌려준다.
+const { push, replace, refresh, router } = vi.hoisted(() => {
+  const push = vi.fn();
+  const replace = vi.fn();
+  const refresh = vi.fn();
+  return { push, replace, refresh, router: { push, replace, refresh } };
+});
+// P7-7: 편집 화면 브레드크럼에서 폴더를 눌렀을 때(`/editor?folder={id}`) 사이드바가 반응하는지
+// 검증하려면 useSearchParams를 테스트에서 직접 제어할 수 있어야 한다 — 실제 usePathname처럼
+// 라우터 컨텍스트 없이는 항상 null만 반환해 재현할 방법이 없다. router.replace는 그 폴더에
+// 도착한 뒤 쿼리를 지우는 데 쓴다(EditorSidebar.tsx).
+const mockSearchParams = vi.hoisted(() => ({ current: new URLSearchParams() }));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
-  return { ...actual, useRouter: () => ({ push, refresh }) };
+  return {
+    ...actual,
+    useRouter: () => router,
+    useSearchParams: () => mockSearchParams.current,
+  };
+});
+
+beforeEach(() => {
+  mockSearchParams.current = new URLSearchParams();
+  push.mockClear();
+  replace.mockClear();
 });
 
 // DocumentEditor.test.tsx와 같은 이유로 next/link를 대역으로 바꾼다 — 실제 Link는
@@ -737,6 +762,54 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     await user.click(screen.getByRole("button", { name: "이동" }));
 
     expect(await screen.findByText("개인 폴더가 없습니다.")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 브레드크럼에서 도착한 폴더로 스크롤·강조(P7-7)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위", parentId: "f1", order: 0 },
+  ];
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("접혀 있던 조상 폴더까지 다시 펼치고, router.replace로 쿼리를 지운다", async () => {
+    // 둘 다 접힌 상태로 시작한다 — 그래야 "도착 처리가 실제로 펼쳤다"를 검증할 수 있다
+    // (기본값 자체가 이미 전부 펼침이라, 접어두지 않으면 이 효과가 없어도 통과해버린다).
+    window.localStorage.setItem(
+      "sfood-editor-folder-tree-expanded",
+      JSON.stringify({ f1: false, f2: false })
+    );
+    mockSearchParams.current = new URLSearchParams("folder=f2");
+
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    // f2(하위)는 f1(업무)의 자식이라, 둘 다 펼쳐져 있어야 f2 행이 실제로 보인다.
+    expect(await screen.findByRole("button", { name: "하위" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/editor");
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("트리에 없는 폴더 id(오래된 링크)는 조용히 무시하고 쿼리도 그대로 둔다", () => {
+    mockSearchParams.current = new URLSearchParams("folder=ghost");
+
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    // 대상 자체를 못 찾으면 일찍 반환하므로, 도착 처리(router.replace로 쿼리 제거)도
+    // 일어나지 않는다 — 렌더 자체는 평소(기본값 전부 펼침)와 다름없이 성공한다.
+    expect(screen.getByRole("button", { name: "업무" })).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("folder 쿼리가 없으면 기존과 동일하게 기본값(전부 펼침)으로 시작한다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    expect(screen.getByRole("button", { name: "업무" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "하위" })).toBeInTheDocument();
   });
 });
 

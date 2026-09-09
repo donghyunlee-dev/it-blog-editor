@@ -12,6 +12,7 @@ import type { DocumentSummary } from "@/lib/editor/documents";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
   usePathname: () => null,
+  useSearchParams: () => null,
 }));
 
 const DOCS: DocumentSummary[] = [

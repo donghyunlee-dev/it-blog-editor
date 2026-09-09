@@ -38,6 +38,7 @@ beforeEach(() => {
     updatedAt: "",
     ownerEmail: "owner@s-food.com",
     sharedWith: [],
+    folderId: null,
   });
 });
 

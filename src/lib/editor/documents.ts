@@ -77,6 +77,8 @@ export interface DocumentDetail {
   ownerEmail: string;
   /** 현재 공유된 대상 목록(P6-2/P6-3), 이름까지 채워서 반환한다. */
   sharedWith: SharedAccount[];
+  /** 소속 폴더(P7-3). 편집 화면 브레드크럼(P7-7)이 이 값으로 폴더 경로를 조회한다. */
+  folderId: string | null;
 }
 
 /**
@@ -343,7 +345,7 @@ export async function requireDocumentAccess(
 export async function getDocumentDetail(
   pageId: string
 ): Promise<DocumentDetail> {
-  const [page, sourceProperty, sharingMeta, ownerEmail] = await Promise.all([
+  const [page, sourceProperty, sharingMeta, ownerEmail, folderProperty] = await Promise.all([
     getPageOrThrow(pageId),
     getPageProperty<{ title?: string; doc: JSONContent }>(
       pageId,
@@ -351,6 +353,7 @@ export async function getDocumentDetail(
     ),
     getSharingMeta(pageId),
     readAuthorEmail(pageId),
+    getPageProperty<string | null>(pageId, FOLDER_PROPERTY_KEY),
   ]);
 
   // accountIndex에 없는 이메일(아주 오래된 계정 등)은 이름 없이 이메일만으로 대체한다 —
@@ -370,6 +373,7 @@ export async function getDocumentDetail(
     lastEditedBy: sharingMeta.lastEditedBy,
     ownerEmail: ownerEmail ?? "",
     sharedWith,
+    folderId: folderProperty?.value ?? null,
   };
 }
 
