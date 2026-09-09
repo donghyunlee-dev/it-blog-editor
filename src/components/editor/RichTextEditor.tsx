@@ -398,6 +398,13 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
         >
           S
         </ToggleButton>
+        <ToggleButton
+          active={editor.isActive("code")}
+          label="코드"
+          onClick={() => editor.chain().focus().toggleCode().run()}
+        >
+          {"</>"}
+        </ToggleButton>
         <Popover
           trigger={
             <ToggleButton active={!!editor.getAttributes("textStyle").fontSize} label="글자 크기" onClick={() => {}}>
