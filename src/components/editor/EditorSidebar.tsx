@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
+import { MoveDocumentModal } from "./MoveDocumentModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
@@ -86,6 +87,27 @@ function TrashIcon() {
     <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path
         d="M4 6h12M7.5 6V4.5A1.5 1.5 0 0 1 9 3h2a1.5 1.5 0 0 1 1.5 1.5V6m-7 0v9.5A1.5 1.5 0 0 0 7 17h6a1.5 1.5 0 0 0 1.5-1.5V6"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** P7-6: 문서 행의 "이동" 액션 아이콘 — 폴더로 옮긴다는 의미를 담아 화살표가 폴더로 들어가는 모양. */
+function MoveToFolderIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.4 1.8h6.2A1.5 1.5 0 0 1 17 7.3v7.2A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.5 11.5l2.2-2.2m0 0l2.2 2.2m-2.2-2.2v5"
         stroke="currentColor"
         strokeWidth="1.4"
         strokeLinecap="round"
@@ -267,6 +289,10 @@ export function EditorSidebar({
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderNode | null>(null);
   const [deletingFolder, setDeletingFolder] = useState(false);
 
+  // P7-6: 문서를 다른 폴더로 옮기는 모달의 대상 문서. 드래그앤드롭은 범위 밖이라
+  // "이동" 메뉴/모달로만 구현한다(prd.md Phase 7 핵심 결정).
+  const [moveDocumentTarget, setMoveDocumentTarget] = useState<DocumentSummary | null>(null);
+
   async function handleDeleteFolder() {
     if (!deleteFolderTarget) return;
     setDeletingFolder(true);
@@ -305,6 +331,21 @@ export function EditorSidebar({
     return map;
   }, [folders]);
   const topLevelFolders = childrenByParent.get(null) ?? [];
+
+  // P7-6: MoveDocumentModal의 대상 폴더 <select>에 쓸 평평한 목록. 부모→자식 순서로
+  // 깊이 우선 순회하면서, 깊이만큼 표(U+3000, 전각 공백)를 앞에 붙여 계층을 표시한다 —
+  // 일반 ASCII 공백은 브라우저가 <option> 렌더링 시 접어버릴 수 있어 쓰지 않는다.
+  const flatFolderOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    function walk(nodes: FolderNode[], depth: number) {
+      for (const node of nodes) {
+        options.push({ id: node.id, label: "　".repeat(depth) + node.name });
+        walk(childrenByParent.get(node.id) ?? [], depth + 1);
+      }
+    }
+    walk(childrenByParent.get(null) ?? [], 0);
+    return options;
+  }, [childrenByParent]);
 
   const allTags = useMemo(
     () => Array.from(new Set(documents.flatMap((document) => document.tags))),
@@ -368,35 +409,59 @@ export function EditorSidebar({
 
   function renderDocumentRow(document: DocumentSummary, depth: number) {
     const isActive = document.pageId === currentPageId;
-    return (
-      <li key={document.pageId}>
-        <Link
-          href={`/editor/${document.pageId}`}
-          onClick={onNavigate}
-          onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
-          aria-current={isActive ? "page" : undefined}
-          style={{ paddingLeft: 8 + depth * 14 }}
-          className={
-            "block rounded-btn py-1.5 pr-3 transition-colors duration-default " +
-            (isActive
-              ? "sidebar-row-active text-foreground"
-              : "text-foreground hover:bg-surface-raised")
-          }
-        >
-          <div className="flex items-start gap-1">
-            <span className="mt-0.5">
-              <StatusIcon isPublished={document.isPublished} />
-            </span>
-            <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
+    const row = (
+      <Link
+        href={`/editor/${document.pageId}`}
+        onClick={onNavigate}
+        onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
+        aria-current={isActive ? "page" : undefined}
+        className={
+          "block min-w-0 flex-1 rounded-btn py-1.5 pr-3 transition-colors duration-default " +
+          (isActive
+            ? "sidebar-row-active text-foreground"
+            : "text-foreground hover:bg-surface-raised")
+        }
+      >
+        <div className="flex items-start gap-1">
+          <span className="mt-0.5">
+            <StatusIcon isPublished={document.isPublished} />
+          </span>
+          <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
+        </div>
+        {document.tags.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
+            {document.tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
           </div>
-          {document.tags.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
-              {document.tags.map((tag) => (
-                <Tag key={tag}>{tag}</Tag>
-              ))}
-            </div>
-          )}
-        </Link>
+        )}
+      </Link>
+    );
+    // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) "이동" 버튼
+    // 자체를 숨긴다 — 눌러도 미분류(현재 상태)로만 되돌릴 수 있어 의미가 없다.
+    if (flatFolderOptions.length === 0) {
+      return (
+        <li key={document.pageId} style={{ paddingLeft: 8 + depth * 14 }}>
+          {row}
+        </li>
+      );
+    }
+    return (
+      <li
+        key={document.pageId}
+        className="group flex items-start gap-0.5 rounded-btn"
+        style={{ paddingLeft: 8 + depth * 14 }}
+      >
+        {row}
+        <button
+          type="button"
+          aria-label="다른 폴더로 이동"
+          title="이동"
+          onClick={() => setMoveDocumentTarget(document)}
+          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          <MoveToFolderIcon />
+        </button>
       </li>
     );
   }
@@ -822,6 +887,16 @@ export function EditorSidebar({
           open={folderFormState !== null}
           onClose={() => setFolderFormState(null)}
           mode={folderFormState}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      {moveDocumentTarget && (
+        <MoveDocumentModal
+          open={moveDocumentTarget !== null}
+          onClose={() => setMoveDocumentTarget(null)}
+          document={moveDocumentTarget}
+          folderOptions={flatFolderOptions}
           onSaved={() => router.refresh()}
         />
       )}

@@ -604,6 +604,142 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
   });
 });
 
+describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위", parentId: "f1", order: 0 },
+  ];
+  const DOC_UNCLASSIFIED: DocumentSummary = {
+    pageId: "1",
+    title: "문서A",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    isPublished: true,
+    tags: [],
+    folderId: null,
+  };
+  const DOC_IN_FOLDER: DocumentSummary = {
+    pageId: "2",
+    title: "문서B",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    isPublished: false,
+    tags: [],
+    folderId: "f1",
+  };
+
+  function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => handler(url, init));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  // 이동 성공/실패를 Toast로 안내하므로(CLAUDE.md UI 규칙) FolderFormModal.test.tsx와
+  // 같은 이유로 ToastProvider가 필요하다.
+  function renderSidebar(documents: DocumentSummary[], folders: FolderNode[] = FOLDERS) {
+    return render(
+      <ToastProvider>
+        <EditorSidebar documents={documents} folders={folders} />
+      </ToastProvider>
+    );
+  }
+
+  // 다른 describe 블록(P7-4)의 테스트가 남긴 폴더 펼침/접힘 상태가 같은 jsdom window의
+  // localStorage에 남아 이 블록의 폴더(f1)가 접힌 채로 시작할 수 있다 — 매번 지워
+  // "기본값(전부 펼침)"을 보장한다.
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    refresh.mockClear();
+    window.localStorage.clear();
+  });
+
+  it("폴더가 있는 계정의 문서 행에는 '다른 폴더로 이동' 버튼이 보인다", () => {
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    expect(screen.getByRole("button", { name: "다른 폴더로 이동" })).toBeInTheDocument();
+  });
+
+  it("폴더가 하나도 없는 계정에서는 이동 버튼을 숨긴다(옮길 곳이 없음)", () => {
+    renderSidebar([DOC_UNCLASSIFIED], []);
+
+    expect(screen.queryByRole("button", { name: "다른 폴더로 이동" })).not.toBeInTheDocument();
+  });
+
+  it("이동 버튼을 누르면 대상 폴더를 고르는 모달이 뜨고, 하위 폴더는 들여쓴 이름으로 보인다", async () => {
+    const user = userEvent.setup();
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+
+    expect(screen.getByText('"문서A" 이동')).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    const select = within(dialog).getByRole("combobox");
+    expect(within(select).getByText("미분류")).toBeInTheDocument();
+    expect(within(select).getByText("업무")).toBeInTheDocument();
+    // 하위 폴더의 표시용 들여쓰기(전각 공백 "　")는 testing-library의 기본 텍스트
+    // 정규화(공백 trim/collapse)에 걸려 사라지므로, 정규화를 끄고 원문 그대로 비교한다.
+    expect(
+      within(select).getByText("　하위", { normalizer: (text) => text })
+    ).toBeInTheDocument();
+  });
+
+  it("폴더를 골라 저장하면 PUT /api/editor/documents/{pageId}/folder를 folderId와 함께 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    const select = within(screen.getByRole("dialog")).getByRole("combobox");
+    await user.selectOptions(select, "f1");
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/documents/1/folder",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ folderId: "f1" }),
+        })
+      );
+    });
+    expect(await screen.findByText("문서를 이동했습니다.")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("이미 폴더에 속한 문서를 '미분류'로 되돌리면 folderId: null로 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar([DOC_IN_FOLDER]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    const select = within(screen.getByRole("dialog")).getByRole("combobox");
+    await user.selectOptions(select, "");
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/documents/2/folder",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ folderId: null }),
+        })
+      );
+    });
+  });
+
+  it("이동에 실패하면 오류 Toast를 보여준다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => jsonResponse({ error: { message: "개인 폴더가 없습니다." } }, 404));
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    expect(await screen.findByText("개인 폴더가 없습니다.")).toBeInTheDocument();
+  });
+});
+
 describe("extractPageIdFromPathname", () => {
   it("/editor/{pageId} 경로에서 pageId를 추출한다", () => {
     expect(extractPageIdFromPathname("/editor/abc123")).toBe("abc123");
