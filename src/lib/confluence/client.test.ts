@@ -497,7 +497,9 @@ describe("uploadAttachment", () => {
     const result = await uploadAttachment("111", file);
 
     expect(result.filename).not.toBe("image.png");
-    expect(result.filename).toMatch(/^image-[a-z0-9]+\.png$/);
+    expect(result.filename).toMatch(
+      /^image-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$/
+    );
     expect(result.url).toBe(`${BASE_URL}/download/attachments/111/${result.filename}`);
 
     const [, init] = fetchMock.mock.calls[0];

@@ -104,3 +104,12 @@ File.name과 다른 경우"를 명시적으로 검증하는 테스트로 갱신 
 고치는 것은 실제 Confluence 쓰기가 필요해 사용자 승인 후 별도로 진행한다(P1-11과 같은
 판단 기준).
 
+## 네 번째 조정(2026-09-09, 사용자 요청 — 고유 접미사를 UUID로)
+`withUniqueFilenameSuffix`가 처음엔 `Date.now().toString(36)` + 4자리 랜덤 문자열을
+접미사로 썼는데, 사용자가 "파일 이름에도 uuid 같은 겹치지 않는 파일명을 추가해야 할 것
+같다"고 요청했다. `documents.ts`가 Confluence 페이지 title의 전역 유일성을 확보하려
+`randomUUID()`(Node `crypto`)를 이미 같은 목적으로 쓰고 있어(`internalKey`), 새 스킴을
+만드는 대신 그 선례를 그대로 재사용했다 — `withUniqueFilenameSuffix`가 이제
+`randomUUID()`를 접미사로 붙인다. 관련 테스트의 정규식도 UUID 형식(`[0-9a-f]{8}-...`)에
+맞춰 갱신했다.
+
