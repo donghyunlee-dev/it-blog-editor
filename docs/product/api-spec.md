@@ -41,6 +41,10 @@
 | POST | /api/editor/documents/{pageId}/share | 공유 대상 추가 | 페이지 공유 |
 | DELETE | /api/editor/documents/{pageId}/share/{email} | 공유 대상 제거 | 페이지 공유 |
 | GET | /api/editor/documents/shared | 나에게 공유된 문서 목록 조회 | 페이지 공유 |
+| GET | /api/editor/folders | 내 폴더 목록 조회(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
+| POST | /api/editor/folders | 폴더 생성(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
+| PUT | /api/editor/folders/{folderId} | 폴더 이름변경(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
+| DELETE | /api/editor/folders/{folderId} | 폴더 삭제(하위 폴더는 상위로 승격, 2026-09-09 추가, P7-2) | 문서 폴더 구조 |
 
 ## 엔드포인트 상세
 
@@ -441,6 +445,84 @@ Confluence 첨부파일을 서버(API 토큰 인증)를 대신 거쳐 브라우�
 |---|---|---|
 | 401 | UNAUTHORIZED | 로그인 필요 |
 | 403 | ACCESS_DISABLED | 접속이 차단된 계정 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### GET /api/editor/folders — 내 폴더 목록 조회(2026-09-09 추가, P7-2)
+**Header**: Cookie(세션) 필수
+
+**Request Body**: 해당 없음
+
+**Response Body (성공)**
+```json
+{ "folders": [{ "id": "uuid", "name": "업무", "parentId": null, "order": 0 }] }
+```
+개인 폴더가 없으면(아직 `/editor`에 한 번도 들어온 적 없는 세션) 빈 배열을 반환한다 —
+`documents`/`account/search` 등 다른 조회 엔드포인트와 동일한 관례.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### POST /api/editor/folders — 폴더 생성(2026-09-09 추가, P7-2)
+**Header**: Cookie(세션) 필수
+
+**Request Body**
+```json
+{ "name": "업무", "parentId": null }
+```
+`parentId`는 최상위면 `null`. 중첩 깊이 최대 5단계, 같은 부모 아래 이름 중복 불가(Phase 7
+핵심 결정 — `src/lib/editor/folders.ts` 참고).
+
+**Response Body (성공, 201)**
+```json
+{ "id": "uuid", "name": "업무", "parentId": null, "order": 0 }
+```
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 404 | NOT_FOUND | 개인 폴더가 없음(문서 생성 라우트와 동일한 관례) |
+| 400 | INVALID_REQUEST | 이름 누락/중복, 부모 없음, 깊이 초과 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### PUT /api/editor/folders/{folderId} — 폴더 이름변경(2026-09-09 추가, P7-2)
+**Header**: Cookie(세션) 필수
+
+**Request Body**
+```json
+{ "name": "새 이름" }
+```
+
+**Response Body (성공)**
+```json
+{ "id": "uuid", "name": "새 이름", "parentId": null, "order": 0 }
+```
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 404 | NOT_FOUND | 개인 폴더 또는 대상 폴더 없음 |
+| 400 | INVALID_REQUEST | 이름 누락/중복 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### DELETE /api/editor/folders/{folderId} — 폴더 삭제(2026-09-09 추가, P7-2)
+**Header**: Cookie(세션) 필수
+
+**Response (성공)**: 204 No Content. 삭제 대상의 직속 하위 폴더는 함께 삭제되지 않고
+삭제된 폴더의 상위로 승격된다(최상위 폴더를 지우면 그 하위 폴더들은 최상위가 된다) —
+`src/lib/editor/folders.ts`의 `deleteFolder` 참고. **문서의 폴더 소속(`folderId`)에 같은
+승격을 적용하는 것은 P7-3에서 완성된다** — 이 시점에는 문서가 폴더에 속하는 메커니즘
+자체가 아직 없다.
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요 |
+| 404 | NOT_FOUND | 개인 폴더 또는 대상 폴더 없음 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
 ## 참고 — 외부 연동 API (이 서비스가 호출하는 쪽)
