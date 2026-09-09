@@ -51,10 +51,29 @@ function computeDepth(folders: FolderNode[], parentId: string | null): number {
 }
 
 /**
+ * 같은 부모 아래 형제 폴더끼리 이름이 겹치는 것을 막는다(P7-2 — 사용자가 사이드바에서
+ * 같은 이름의 폴더 두 개를 구분할 방법이 없어 혼란을 준다는 판단, GitHub Issue 없이
+ * 직접 정함). `excludeId`는 `renameFolder`가 자기 자신은 비교 대상에서 빼기 위해 쓴다.
+ */
+function assertNoSiblingWithSameName(
+  folders: FolderNode[],
+  parentId: string | null,
+  name: string,
+  excludeId?: string
+): void {
+  const collides = folders.some(
+    (folder) => folder.id !== excludeId && folder.parentId === parentId && folder.name === name
+  );
+  if (collides) {
+    throw new ValidationError("같은 위치에 이미 같은 이름의 폴더가 있습니다.");
+  }
+}
+
+/**
  * 새 폴더를 만든다. `id`는 `randomUUID()`로 발급한다(이 프로젝트가 `documents.ts`의
  * `internalKey`, 이미지 업로드 파일명 충돌 방지에 쓰는 것과 같은 선례). 부모가 있으면
  * 그 폴더가 실제로 존재하는지, 새 폴더를 더했을 때 중첩 깊이가 `MAX_FOLDER_DEPTH`를
- * 넘지 않는지 검증한다.
+ * 넘지 않는지, 같은 부모 아래 이름이 겹치지 않는지 검증한다.
  */
 export async function createFolder(
   accountFolderId: string,
@@ -76,6 +95,8 @@ export async function createFolder(
     throw new ValidationError(`폴더는 최대 ${MAX_FOLDER_DEPTH}단계까지만 만들 수 있습니다.`);
   }
 
+  assertNoSiblingWithSameName(folders, input.parentId, name);
+
   const siblingCount = folders.filter((folder) => folder.parentId === input.parentId).length;
   const node: FolderNode = {
     id: randomUUID(),
@@ -89,15 +110,56 @@ export async function createFolder(
 }
 
 /**
- * 폴더 노드 하나를 목록에서 제거한다. 하위 폴더·문서를 상위로 승격시키는 정책은 P7-2의
- * 몫이다 — 문서가 아직 `folderId`로 폴더를 참조할 방법이 없어(P7-3 이전) 지금 시점에는
- * 단순 제거만으로도 데이터가 깨지지 않는다.
+ * 폴더 이름을 바꾼다(P7-2). 대상이 없으면 `NotFoundError`, 같은 부모 아래 다른 폴더와
+ * 이름이 겹치면 `ValidationError`(자기 자신은 비교에서 제외).
+ */
+export async function renameFolder(
+  accountFolderId: string,
+  folderId: string,
+  newName: string
+): Promise<FolderNode> {
+  const name = newName.trim();
+  if (!name) {
+    throw new ValidationError("폴더 이름을 입력해주세요.");
+  }
+
+  const folders = await listFolders(accountFolderId);
+  const target = folders.find((folder) => folder.id === folderId);
+  if (!target) {
+    throw new NotFoundError("폴더를 찾을 수 없습니다.");
+  }
+
+  assertNoSiblingWithSameName(folders, target.parentId, name, folderId);
+
+  const updated: FolderNode = { ...target, name };
+  const next = folders.map((folder) => (folder.id === folderId ? updated : folder));
+  await upsertPageProperty(accountFolderId, FOLDER_INDEX_PROPERTY_KEY, next);
+  return updated;
+}
+
+/**
+ * 폴더를 삭제한다(P7-2). 삭제 대상의 **직속** 하위 폴더는 함께 삭제되지 않고 삭제
+ * 대상의 `parentId`로 승격된다(문서 유실 방지와 같은 원칙 — Phase 7 핵심 결정). 최상위
+ * 폴더를 지우면 그 직속 하위 폴더들은 `parentId: null`이 되어 논리적 "미분류" 루트로
+ * 올라온다 — 별도의 실제 "미분류" 폴더 노드를 두지 않는다, `parentId: null` 자체가 이미
+ * 그 뜻이다. 손자 폴더 이하는 건드리지 않아도 트리 구조상 자동으로 유지된다(자기 부모를
+ * 그대로 따라간다).
+ *
+ * 문서(Document)의 폴더 소속도 같은 방식으로 승격돼야 하지만, 그 메커니즘(`folderId`
+ * property) 자체가 아직 없다 — P7-3이 추가하면서 이 함수의 승격 로직을 재사용해야 한다
+ * (`docs/superpowers/tasks/P7-2-folder-crud/task.md`의 "범위 밖" 참고).
  */
 export async function deleteFolder(accountFolderId: string, folderId: string): Promise<void> {
   const folders = await listFolders(accountFolderId);
-  const next = folders.filter((folder) => folder.id !== folderId);
-  if (next.length === folders.length) {
+  const target = folders.find((folder) => folder.id === folderId);
+  if (!target) {
     throw new NotFoundError("폴더를 찾을 수 없습니다.");
   }
+
+  const next = folders
+    .filter((folder) => folder.id !== folderId)
+    .map((folder) =>
+      folder.parentId === folderId ? { ...folder, parentId: target.parentId } : folder
+    );
   await upsertPageProperty(accountFolderId, FOLDER_INDEX_PROPERTY_KEY, next);
 }
