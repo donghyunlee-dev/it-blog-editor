@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ToastProvider } from "@sfood/ui";
 import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
 import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
@@ -441,11 +442,13 @@ describe("EditorSidebar 폴더 트리(P7-4)", () => {
   it("하위 폴더는 상위 폴더보다 더 들여쓰기된다", () => {
     render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
 
-    const topButton = screen.getByRole("button", { name: "업무" });
-    const childButton = screen.getByRole("button", { name: "하위 폴더" });
+    // P7-5부터 들여쓰기는 토글 버튼이 아니라 그 버튼을 감싸는 행(div, 액션 버튼과 나란히
+    // 두기 위한 래퍼)에 적용된다.
+    const topRow = screen.getByRole("button", { name: "업무" }).parentElement as HTMLElement;
+    const childRow = screen.getByRole("button", { name: "하위 폴더" }).parentElement as HTMLElement;
 
-    const topPadding = parseInt(topButton.style.paddingLeft, 10);
-    const childPadding = parseInt(childButton.style.paddingLeft, 10);
+    const topPadding = parseInt(topRow.style.paddingLeft, 10);
+    const childPadding = parseInt(childRow.style.paddingLeft, 10);
 
     expect(childPadding).toBeGreaterThan(topPadding);
   });
@@ -462,6 +465,142 @@ describe("EditorSidebar 폴더 트리(P7-4)", () => {
     render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
 
     expect(screen.getByRole("button", { name: "업무" })).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
+  const FOLDERS: FolderNode[] = [{ id: "f1", name: "업무", parentId: null, order: 0 }];
+
+  function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => handler(url, init));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  // 폴더 저장/삭제 성공·실패를 Toast로 안내하므로(CLAUDE.md UI 규칙), 실제 Toast UI가
+  // 뜨려면 ToastProvider가 필요하다(useToast()는 Provider가 없어도 던지지 않고 조용히
+  // no-op하는 기본값을 갖고 있어, Provider 없이는 토스트 문구 자체를 검증할 수 없다).
+  function renderSidebar() {
+    return render(
+      <ToastProvider>
+        <EditorSidebar documents={DOCS} folders={FOLDERS} />
+      </ToastProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    refresh.mockClear();
+  });
+
+  it("'새 폴더 만들기' 버튼을 누르면 생성 모달이 뜬다(최상위, parentId: null)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f2", name: "새 폴더", parentId: null, order: 1 }, 201));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "새 폴더 만들기" }));
+    expect(screen.getByText("새 폴더")).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: /폴더 이름/ }), "새 폴더");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders",
+        expect.objectContaining({ body: JSON.stringify({ name: "새 폴더", parentId: null }) })
+      );
+    });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("폴더 행의 '하위 폴더 추가' 버튼을 누르면 그 폴더를 parentId로 하는 생성 모달이 뜬다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f3", name: "하위", parentId: "f1", order: 0 }, 201));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "하위 폴더 추가" }));
+    await user.type(screen.getByRole("textbox", { name: /폴더 이름/ }), "하위");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders",
+        expect.objectContaining({ body: JSON.stringify({ name: "하위", parentId: "f1" }) })
+      );
+    });
+  });
+
+  it("폴더 행의 '이름 변경' 버튼을 누르면 현재 이름이 채워진 모달이 뜨고, 저장하면 PUT을 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f1", name: "새이름", parentId: null, order: 0 }));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 이름 변경" }));
+    const input = screen.getByRole("textbox", { name: /폴더 이름/ });
+    expect(input).toHaveValue("업무");
+    await user.clear(input);
+    await user.type(input, "새이름");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders/f1",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ name: "새이름" }) })
+      );
+    });
+  });
+
+  it("'삭제' 버튼을 누르면 바로 삭제되지 않고 확인 모달이 뜬다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+
+    expect(
+      screen.getByText('"업무" 폴더를 삭제하시겠습니까? 안에 있던 하위 폴더와 문서는 삭제되지 않고 상위 위치로 이동합니다.')
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("삭제 확인 모달에서 취소하면 삭제 요청을 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/삭제하시겠습니까/)).not.toBeInTheDocument();
+  });
+
+  it("삭제 확인 모달에서 확인하면 DELETE를 호출하고 새로고침한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse(null, 204));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/editor/folders/f1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("삭제에 실패하면 오류 Toast를 보여준다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => jsonResponse({ error: { message: "폴더를 찾을 수 없습니다." } }, 404));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    expect(await screen.findByText("폴더를 찾을 수 없습니다.")).toBeInTheDocument();
   });
 });
 
