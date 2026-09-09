@@ -165,3 +165,22 @@ export async function deleteFolder(accountFolderId: string, folderId: string): P
   await upsertPageProperty(accountFolderId, FOLDER_INDEX_PROPERTY_KEY, next);
   return target;
 }
+
+/**
+ * `folderId`부터 최상위 폴더까지 조상 체인을 루트가 먼저 오는 순서로 만든다(P7-7 편집
+ * 화면 브레드크럼). `folderId`가 `null`이거나 트리에 없는 값(문서 이동 뒤 폴더가 삭제됐지만
+ * 아직 재조회 전인 경우 등 오래된 참조)이면 빈 배열을 반환한다 — 호출부가 예외 처리 없이
+ * "브레드크럼 없음"으로 자연스럽게 넘어가게 한다.
+ */
+export function buildFolderPath(folders: FolderNode[], folderId: string | null): FolderNode[] {
+  if (folderId === null) return [];
+  const path: FolderNode[] = [];
+  let currentId: string | null = folderId;
+  while (currentId !== null) {
+    const node = folders.find((folder) => folder.id === currentId);
+    if (!node) break;
+    path.unshift(node);
+    currentId = node.parentId;
+  }
+  return path;
+}

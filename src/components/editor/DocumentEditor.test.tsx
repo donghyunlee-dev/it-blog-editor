@@ -762,3 +762,53 @@ describe("DocumentEditor — 자동 저장(P0-1b)", () => {
     expect(readAutosaveSnapshot("page-1")).toBeNull();
   });
 });
+
+describe("DocumentEditor — 헤더 폴더 경로 브레드크럼(P7-7)", () => {
+  it("folderPath가 없으면(대부분의 문서) 브레드크럼을 렌더링하지 않는다", () => {
+    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
+
+    expect(screen.queryByRole("navigation", { name: "문서 위치" })).not.toBeInTheDocument();
+  });
+
+  it("folderPath가 하나면 그 폴더 이름 하나만 링크로 보여준다", () => {
+    renderEditor(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        folderPath={[{ id: "f1", name: "업무", parentId: null, order: 0 }]}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "문서 위치" });
+    const link = within(nav).getByRole("link", { name: "업무" });
+    expect(link).toHaveAttribute("href", "/editor?folder=f1");
+  });
+
+  it("folderPath가 여럿이면 루트부터 순서대로 '/'로 구분해 보여준다", () => {
+    renderEditor(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        folderPath={[
+          { id: "f1", name: "업무", parentId: null, order: 0 },
+          { id: "f2", name: "하위", parentId: "f1", order: 0 },
+        ]}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "문서 위치" });
+    expect(within(nav).getByRole("link", { name: "업무" })).toHaveAttribute(
+      "href",
+      "/editor?folder=f1"
+    );
+    expect(within(nav).getByRole("link", { name: "하위" })).toHaveAttribute(
+      "href",
+      "/editor?folder=f2"
+    );
+    expect(nav).toHaveTextContent("업무/하위");
+  });
+
+  it("mode=\"create\"(새 문서)에서는 folderPath를 넘기지 않아 브레드크럼이 없다", () => {
+    renderEditor(<DocumentEditor mode="create" />);
+
+    expect(screen.queryByRole("navigation", { name: "문서 위치" })).not.toBeInTheDocument();
+  });
+});

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
-import { createFolder, deleteFolder, listFolders, renameFolder, MAX_FOLDER_DEPTH } from "./folders";
+import {
+  buildFolderPath,
+  createFolder,
+  deleteFolder,
+  listFolders,
+  renameFolder,
+  MAX_FOLDER_DEPTH,
+} from "./folders";
 import type { FolderNode } from "./folders";
 import { NotFoundError, ValidationError } from "./errors";
 
@@ -284,5 +291,29 @@ describe("deleteFolder", () => {
 
     const written = upsertSpy.mock.calls[0][2] as FolderNode[];
     expect(written.find((f) => f.id === "leaf")?.parentId).toBe("top");
+  });
+});
+
+describe("buildFolderPath", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "top", name: "최상위", parentId: null, order: 0 },
+    { id: "middle", name: "중간", parentId: "top", order: 0 },
+    { id: "leaf", name: "말단", parentId: "middle", order: 0 },
+  ];
+
+  it("folderId가 null이면 빈 배열을 반환한다(미분류 문서)", () => {
+    expect(buildFolderPath(FOLDERS, null)).toEqual([]);
+  });
+
+  it("최상위 폴더 하나면 그 폴더 하나만 담은 배열을 반환한다", () => {
+    expect(buildFolderPath(FOLDERS, "top")).toEqual([FOLDERS[0]]);
+  });
+
+  it("중첩된 폴더면 루트가 먼저 오는 순서로 조상 체인을 반환한다", () => {
+    expect(buildFolderPath(FOLDERS, "leaf")).toEqual([FOLDERS[0], FOLDERS[1], FOLDERS[2]]);
+  });
+
+  it("트리에 없는 folderId(오래된 참조)면 빈 배열을 반환한다", () => {
+    expect(buildFolderPath(FOLDERS, "ghost")).toEqual([]);
   });
 });

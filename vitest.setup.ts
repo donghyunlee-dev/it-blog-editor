@@ -18,6 +18,13 @@ if (!window.matchMedia) {
   }) as unknown as MediaQueryList;
 }
 
+// jsdom도 Element.prototype.scrollIntoView을 구현하지 않는다(P7-7 — 브레드크럼에서 폴더로
+// "이동"하면 사이드바가 그 폴더 행으로 스크롤한다). 호출 자체는 막지 않고 그냥 no-op으로
+// 둔다 — 위 matchMedia 스텁과 같은 이유.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // We don't enable Vitest's `globals: true` mode, so React Testing Library's
 // own auto-cleanup (which relies on detecting a global `afterEach`) never
 // fires. Without this, DOM nodes from one test's render() linger into the

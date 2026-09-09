@@ -9,6 +9,8 @@ import { getTags } from "@/lib/editor/tags";
 import { listTagSuggestions } from "@/lib/editor/tag-suggestions";
 import { getPublishState, type PublishMetadata } from "@/lib/editor/publish";
 import { NotFoundError, UnauthorizedError } from "@/lib/editor/errors";
+import { findPersonalFolder } from "@/lib/editor/folder";
+import { buildFolderPath, listFolders, type FolderNode } from "@/lib/editor/folders";
 import { DocumentEditor } from "@/components/editor/DocumentEditor";
 
 interface EditDocumentPageProps {
@@ -58,6 +60,19 @@ export default async function EditDocumentPage({
 
   const tagSuggestions = await tagSuggestionsPromise;
 
+  // P7-7: 편집 화면 헤더에 폴더 경로(브레드크럼)를 보여준다. 폴더는 소유자 개인의 조직
+  // 체계라(P7-3) document.folderId는 항상 "문서 소유자"의 폴더 트리를 가리킨다 — 공유받은
+  // 사람이 보고 있어도 내 폴더가 아니라 소유자의 폴더 경로를 그대로 보여준다. 폴더가
+  // 없는 문서(대부분)는 이 조회 자체를 건너뛰어 추가 API 호출이 생기지 않는다.
+  let folderPath: FolderNode[] = [];
+  if (document.folderId && document.ownerEmail) {
+    const ownerFolder = await findPersonalFolder(document.ownerEmail);
+    if (ownerFolder) {
+      const folders = await listFolders(ownerFolder.accountFolderId);
+      folderPath = buildFolderPath(folders, document.folderId);
+    }
+  }
+
   // DocumentEditor가 헤더(탐색기로·삭제·게시 설정·저장)와 본문 캔버스를 전부 소유한다
   // (2026-08-25, "박스 없이 페이지 전체가 에디터처럼 보이게" 요청 — 산출물:
   // DocumentEditor.tsx). 예전에는 여기서 별도 h1("문서 편집")과 부제목(문서 제목)을
@@ -78,6 +93,7 @@ export default async function EditDocumentPage({
         initialLastEditedBy={document.lastEditedBy}
         isOwner={document.ownerEmail === email}
         initialSharedWith={document.sharedWith}
+        folderPath={folderPath}
       />
     </main>
   );
