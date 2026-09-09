@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Modal, Select, Tag, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
+import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
@@ -51,6 +52,43 @@ function FolderIcon() {
         d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.4 1.8h6.2A1.5 1.5 0 0 1 17 7.3v7.2A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9z"
         stroke="currentColor"
         strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** P7-5: 폴더 생성·이름변경·삭제 액션 아이콘. 나머지 아이콘과 같은 스타일로 직접 그린다. */
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M13.5 3.5l3 3L6 17H3v-3z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M4 6h12M7.5 6V4.5A1.5 1.5 0 0 1 9 3h2a1.5 1.5 0 0 1 1.5 1.5V6m-7 0v9.5A1.5 1.5 0 0 0 7 17h6a1.5 1.5 0 0 0 1.5-1.5V6"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
         strokeLinejoin="round"
       />
     </svg>
@@ -174,6 +212,7 @@ export function EditorSidebar({
   // 함께 둔다.
   const { guardNavigate } = useUnsavedChanges();
   const router = useRouter();
+  const { toast } = useToast();
   // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
   // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
   const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
@@ -219,6 +258,36 @@ export function EditorSidebar({
       }
       return next;
     });
+  }
+
+  // P7-5: 폴더 생성·이름변경은 같은 폼(FolderFormModal)을 모드로만 나눠 재사용한다.
+  // 삭제는 문서 삭제(DocumentEditor.tsx)와 동일하게 window.confirm() 대신 Modal로
+  // 확인받는다(CLAUDE.md UI 규칙) — 대상 폴더를 상태로 들고 있다가 확인 시에만 호출한다.
+  const [folderFormState, setFolderFormState] = useState<FolderFormMode | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderNode | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
+
+  async function handleDeleteFolder() {
+    if (!deleteFolderTarget) return;
+    setDeletingFolder(true);
+    try {
+      const response = await fetch(`/api/editor/folders/${deleteFolderTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        throw new Error(data?.error?.message ?? "폴더를 삭제하지 못했습니다.");
+      }
+      toast("폴더를 삭제했습니다.", "success");
+      setDeleteFolderTarget(null);
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "폴더를 삭제하지 못했습니다.", "danger");
+    } finally {
+      setDeletingFolder(false);
+    }
   }
 
   // 폴더를 parentId 기준으로 묶어 트리 순회에 바로 쓸 수 있게 한다. 같은 부모 아래
@@ -343,18 +412,61 @@ export function EditorSidebar({
     const childDocuments = documentsByFolder.get(folder.id) ?? [];
     return (
       <li key={folder.id}>
-        <button
-          type="button"
-          onClick={() => toggleFolder(folder.id)}
-          aria-expanded={isExpanded}
-          title={folder.name}
+        {/*
+          P7-5: 토글(펼침/접힘)과 액션 버튼(하위 폴더 추가·이름변경·삭제)은 서로 다른
+          <button>이라 하나의 바깥 <div>로 나란히 둔다(버튼 중첩은 유효한 HTML이 아님).
+          액션 버튼은 평소엔 숨겨져 있다가 행에 마우스를 올리거나(hover) 키보드로
+          포커스가 들어오면(focus-within) 나타난다 — 항상 노출하면 폴더가 많을 때
+          시각적으로 번잡해진다는 판단(사이드바 폭 조절 핸들의 "평소엔 거의 안 보이다가"
+          패턴과 같은 원칙).
+        */}
+        <div
+          className="group flex items-center gap-0.5 rounded-btn pr-1 transition-colors duration-default hover:bg-surface-raised"
           style={{ paddingLeft: 8 + depth * 14 }}
-          className="flex w-full items-center gap-1.5 rounded-btn py-1.5 pr-3 text-left text-sm font-medium text-foreground transition-colors duration-default hover:bg-surface-raised"
         >
-          <ChevronIcon expanded={isExpanded} />
-          <FolderIcon />
-          <span className="min-w-0 flex-1 truncate">{folder.name}</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => toggleFolder(folder.id)}
+            aria-expanded={isExpanded}
+            title={folder.name}
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
+          >
+            <ChevronIcon expanded={isExpanded} />
+            <FolderIcon />
+            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+          </button>
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-default group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              aria-label="하위 폴더 추가"
+              title="하위 폴더 추가"
+              onClick={() => setFolderFormState({ type: "create", parentId: folder.id })}
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              aria-label="폴더 이름 변경"
+              title="이름 변경"
+              onClick={() =>
+                setFolderFormState({ type: "rename", folderId: folder.id, currentName: folder.name })
+              }
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              type="button"
+              aria-label="폴더 삭제"
+              title="삭제"
+              onClick={() => setDeleteFolderTarget(folder)}
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </div>
         {isExpanded && (childFolders.length > 0 || childDocuments.length > 0) && (
           <ul className="flex flex-col gap-0.5">
             {childFolders.map((child) => renderFolderNode(child, depth + 1))}
@@ -549,6 +661,23 @@ export function EditorSidebar({
       )}
 
       <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
+        {/*
+          P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
+          (그 전까지는 폴더 기능 자체를 발견할 방법이 없었다), 문서 유무와 무관하게
+          항상 보인다 — 아래 문서 목록/빈 상태 분기와 별개다.
+        */}
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-medium text-muted">폴더</p>
+          <button
+            type="button"
+            aria-label="새 폴더 만들기"
+            title="새 폴더 만들기"
+            onClick={() => setFolderFormState({ type: "create", parentId: null })}
+            className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+          >
+            <PlusIcon />
+          </button>
+        </div>
         {documents.length === 0 ? (
           <EmptyState title="아직 작성한 문서가 없습니다." />
         ) : filteredDocuments.length === 0 ? (
@@ -686,6 +815,44 @@ export function EditorSidebar({
         title="계정 정보"
       >
         <AccountInfoModal />
+      </Modal>
+
+      {folderFormState && (
+        <FolderFormModal
+          open={folderFormState !== null}
+          onClose={() => setFolderFormState(null)}
+          mode={folderFormState}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      <Modal
+        open={deleteFolderTarget !== null}
+        onClose={() => setDeleteFolderTarget(null)}
+        title="폴더 삭제"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteFolderTarget(null)}
+              disabled={deletingFolder}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleDeleteFolder}
+              disabled={deletingFolder}
+            >
+              {deletingFolder ? "삭제 중..." : "삭제 확인"}
+            </Button>
+          </>
+        }
+      >
+        &quot;{deleteFolderTarget?.name}&quot; 폴더를 삭제하시겠습니까? 안에 있던 하위
+        폴더와 문서는 삭제되지 않고 상위 위치로 이동합니다.
       </Modal>
     </aside>
   );
