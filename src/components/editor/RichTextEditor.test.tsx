@@ -280,6 +280,80 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
   });
 });
 
+describe("RichTextEditor 표 삭제(P2-4)", () => {
+  it("표 삭제 버튼을 클릭해도 바로 삭제되지 않고 확인 Modal이 뜬다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    (await screen.findByLabelText("표 삭제")).click();
+
+    expect(
+      await screen.findByText("표를 삭제하시겠습니까? 표 안의 모든 내용이 함께 삭제되며 되돌릴 수 없습니다.")
+    ).toBeInTheDocument();
+    expect(container.querySelector("table")).not.toBeNull();
+  });
+
+  it("확인 Modal에서 취소하면 표가 그대로 유지된다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    (await screen.findByLabelText("표 삭제")).click();
+    (await screen.findByRole("button", { name: "취소" })).click();
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("표를 삭제하시겠습니까? 표 안의 모든 내용이 함께 삭제되며 되돌릴 수 없습니다.")
+      ).not.toBeInTheDocument()
+    );
+    expect(container.querySelector("table")).not.toBeNull();
+  });
+
+  it("확인 Modal에서 삭제 확인을 누르면 표가 삭제되고 onChange에 반영된다", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={onChange} />
+      </ToastProvider>
+    );
+
+    (await screen.findByLabelText("표 삭제")).click();
+    (await screen.findByRole("button", { name: "삭제 확인" })).click();
+
+    await waitFor(() => expect(container.querySelector("table")).toBeNull());
+
+    const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    expect(lastDoc.content?.some((n) => n.type === "table")).toBe(false);
+  });
+
+  it("문서에 표가 여러 개일 때 삭제해도 커서가 있던 표만 삭제되고 다른 표는 유지된다", async () => {
+    const doc: JSONContent = {
+      type: "doc",
+      content: [
+        tableNode(2, 2, "A"),
+        { type: "paragraph", content: [{ type: "text", text: "구분 문단" }] },
+        tableNode(2, 2, "B"),
+      ],
+    };
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={doc} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    // 초기 선택은 첫 표(A) 안에 있다(위 "표가 여러 개면 커서가 있는 표에만 컨트롤이 나타난다" 테스트와 동일한 전제).
+    (await screen.findByLabelText("표 삭제")).click();
+    (await screen.findByRole("button", { name: "삭제 확인" })).click();
+
+    await waitFor(() => expect(container.querySelectorAll("table")).toHaveLength(1));
+  });
+});
+
 describe("RichTextEditor 이미지 개수 상한(P0-4b)", () => {
   it("이미지가 30장 미만이면 드래그앤드롭 업로드가 정상적으로 시작된다", async () => {
     const uploadSpy = vi

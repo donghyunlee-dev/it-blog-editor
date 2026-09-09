@@ -217,12 +217,19 @@
 
 **Response Body (성공, 201)**
 ```json
-{ "attachmentId": "att123", "url": "/api/editor/documents/{pageId}/images/{filename}" }
+{ "attachmentId": "att123", "url": "/api/editor/documents/{pageId}/images/{filename}", "filename": "{filename}" }
 ```
 `url`은 Confluence의 원본 다운로드 링크가 아니라 아래 `GET .../images/{filename}` 프록시
 라우트를 가리킨다(2026-09-07 갱신) — Confluence 원본 링크는 Confluence 자체 인증이 있어야
 열려 브라우저의 `<img src>`가 직접 못 쓴다(실사용 확인: "사진 아이콘만 보이고 실제 사진이
 안 들어간다"). 클라이언트는 이 값을 그대로 `<img src>`에 쓰면 된다.
+
+`filename`은 요청에 실은 원본 파일명과 다를 수 있다(2026-09-09 추가) — 동명 첨부파일
+충돌(같은 문서에 이미 같은 이름의 첨부가 있으면 Confluence가 업로드 자체를 거부)을 피하려
+서버가 고유 접미사를 붙인 실제 Confluence 첨부파일명이다. **클라이언트는 이 값을 그대로
+저장해 다시 써야 한다** — 원본 파일명으로 되돌려 쓰면 문서 저장 시 Confluence storage
+format의 `<ac:image ri:filename="...">`가 실제 첨부파일이 아닌 엉뚱한 파일을 가리키게
+된다(실사용 확인으로 발견한 버그).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |

@@ -39,10 +39,14 @@ function postRequest(formData: FormData) {
 
 describe("POST /api/editor/documents/[pageId]/images", () => {
   it("정상 요청이면 소유자를 확인하고 registerImage에 위임해 201을 반환한다", async () => {
+    // registerImage가 돌려주는 filename은 동명 충돌을 피하려 고유 접미사가 붙은 실제
+    // Confluence 첨부파일명이다(2026-09-09) — 원본 업로드 파일명("photo.png")과 다르게
+    // 뒀다, 라우트가 이 값을 있는 그대로(원본 파일명으로 되돌리지 않고) 응답에 실어
+    // 보내는지 검증하기 위해.
     vi.mocked(registerImage).mockResolvedValue({
       attachmentId: "att-1",
-      url: "https://example.com/photo.png",
-      filename: "photo.png",
+      url: "https://example.com/photo-ab12.png",
+      filename: "photo-ab12.png",
     });
 
     const file = new File(["fake-bytes"], "photo.png", { type: "image/png" });
@@ -58,9 +62,12 @@ describe("POST /api/editor/documents/[pageId]/images", () => {
     // Confluence의 원본 다운로드 URL(registerImage가 돌려준 attachment.url)이 아니라,
     // 브라우저가 인증 없이도 열 수 있는 우리 앱의 프록시 라우트를 돌려준다(2026-09-07 —
     // 실사용 확인 "사진 아이콘만 보이고 실제 사진이 안 들어간다"로 발견한 버그 수정).
+    // filename도 함께 돌려준다(2026-09-09) — 클라이언트가 원본 파일명을 되돌려 쓰면
+    // 저장 시 <ac:image ri:filename="...">가 엉뚱한 파일을 가리키게 되는 버그가 있었다.
     expect(body).toEqual({
       attachmentId: "att-1",
-      url: "/api/editor/documents/doc-1/images/photo.png",
+      url: "/api/editor/documents/doc-1/images/photo-ab12.png",
+      filename: "photo-ab12.png",
     });
   });
 
