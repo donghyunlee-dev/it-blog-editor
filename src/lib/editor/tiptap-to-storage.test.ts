@@ -124,6 +124,51 @@ describe("이미지·글자색·하이라이트", () => {
         '<span style="background-color:#fff3b0">하이라이트</span></p>'
     );
   });
+
+  /**
+   * P2-6: `fontSize`도 `color`와 같은 `textStyle` 마크의 속성이라(둘 다 `@tiptap/extension-text-style`이
+   * 관리) 한 텍스트 조각에 동시에 붙을 수 있다 — 별도 `<span>`으로 나누지 않고 하나의 `style`
+   * 속성에 합쳐야 한다.
+   */
+  it("글자 크기를 인라인 style로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "큰 텍스트",
+              marks: [{ type: "textStyle", attrs: { fontSize: "24px" } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe('<p><span style="font-size:24px">큰 텍스트</span></p>');
+  });
+
+  it("색상과 글자 크기가 함께 있으면 한 span의 style에 합쳐진다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: "색상+크기",
+              marks: [{ type: "textStyle", attrs: { color: "#ff0000", fontSize: "24px" } }],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(html).toBe('<p><span style="color:#ff0000;font-size:24px">색상+크기</span></p>');
+  });
 });
 
 describe("표·패널 매크로", () => {
