@@ -1,24 +1,128 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { Button, ChipGroup, EmptyState, Modal, Select, Tag, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
 import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
+import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
+import { MoveDocumentModal } from "./MoveDocumentModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 
 /** P1-1c: 문서 목록을 이 개수만큼씩 점진적으로 보여준다("더 보기" 버튼). */
 const PAGE_SIZE = 30;
+
+/**
+ * P7-4: 폴더 펼침/접힘 상태를 계정별이 아니라 브라우저별로 유지한다 — `EditorShell.tsx`의
+ * 사이드바 폭/접힘 상태(`WIDTH_STORAGE_KEY`/`COLLAPSED_STORAGE_KEY`)와 같은 이유·같은
+ * try/catch 패턴이다(프라이빗 브라우징 등 저장이 막힌 환경에서도 기능은 그대로 동작).
+ * 폴더 하나하나 키를 따로 두지 않고 `{ [folderId]: boolean }` 객체 하나로 묶어 저장한다.
+ */
+const FOLDER_EXPANDED_STORAGE_KEY = "sfood-editor-folder-tree-expanded";
+
+/**
+ * `@sfood/ui`의 `Icon`은 `search`/`comment`만 제공해 폴더 트리에 쓸 아이콘이 없다 —
+ * 이 파일의 기존 `StatusIcon`과 같은 스타일(`viewBox 0 0 20 20`, `stroke="currentColor"`)로
+ * 직접 그린다. 펼침 화살표는 상태에 따라 90도 회전시켜 하나의 path로 양쪽을 표현한다.
+ */
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 20 20"
+      fill="none"
+      className={`shrink-0 text-muted transition-transform duration-default ${expanded ? "rotate-90" : ""}`}
+      aria-hidden="true"
+    >
+      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-muted" aria-hidden="true">
+      <path
+        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.4 1.8h6.2A1.5 1.5 0 0 1 17 7.3v7.2A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** P7-5: 폴더 생성·이름변경·삭제 액션 아이콘. 나머지 아이콘과 같은 스타일로 직접 그린다. */
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M13.5 3.5l3 3L6 17H3v-3z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M4 6h12M7.5 6V4.5A1.5 1.5 0 0 1 9 3h2a1.5 1.5 0 0 1 1.5 1.5V6m-7 0v9.5A1.5 1.5 0 0 0 7 17h6a1.5 1.5 0 0 0 1.5-1.5V6"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** P7-6: 문서 행의 "이동" 액션 아이콘 — 폴더로 옮긴다는 의미를 담아 화살표가 폴더로 들어가는 모양. */
+function MoveToFolderIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.4 1.8h6.2A1.5 1.5 0 0 1 17 7.3v7.2A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7.5 11.5l2.2-2.2m0 0l2.2 2.2m-2.2-2.2v5"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export interface EditorSidebarProps {
   documents: DocumentSummary[];
   /** 나에게 공유된 문서 목록(P6-5). 비어 있으면 이 영역 자체를 렌더링하지 않는다. */
   sharedDocuments?: SharedDocumentSummary[];
+  /** 내 폴더 트리(P7-4). 없거나 빈 배열이면 기존과 동일하게 평평한 문서 목록만 보여준다. */
+  folders?: FolderNode[];
   activePageId?: string;
   /** 모바일 오프캔버스 드로어에서 링크 클릭 시 드로어를 닫기 위한 콜백(데스크톱에서는 불필요). */
   onNavigate?: () => void;
@@ -108,6 +212,7 @@ export function extractPageIdFromPathname(
 export function EditorSidebar({
   documents,
   sharedDocuments = [],
+  folders = [],
   activePageId,
   onNavigate,
   onCollapse,
@@ -129,6 +234,7 @@ export function EditorSidebar({
   // 함께 둔다.
   const { guardNavigate } = useUnsavedChanges();
   const router = useRouter();
+  const { toast } = useToast();
   // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
   // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
   const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
@@ -145,6 +251,145 @@ export function EditorSidebar({
   // 게시 문서를 이어붙인, Confluence API가 준 순서)는 최신순도 제목순도 아니라서
   // 문서가 늘어나면 원하는 문서를 찾기 어렵다는 지적(감사 리포트)에 대응한다.
   const [sortBy, setSortBy] = useState<"updatedAt" | "title">("updatedAt");
+
+  // P7-4: 폴더 펼침/접힘 상태. 기본값(저장된 값이 없는 폴더)은 펼침이다 — 폴더가 있어도
+  // 처음엔 기존 "다 보이는" 경험과 최대한 비슷하게 시작한다. 서버 렌더링 시점에는
+  // localStorage를 읽을 수 없어 빈 객체(=전부 펼침)로 시작하고, 마운트 후 실제 값으로
+  // 동기화한다 — EditorShell.tsx의 사이드바 폭/접힘 상태와 동일한 2-pass 패턴이라
+  // hydration mismatch가 없다.
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(FOLDER_EXPANDED_STORAGE_KEY);
+      if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setExpandedFolders(JSON.parse(stored));
+      }
+    } catch {
+      // 무시 — 기본값(전부 펼침) 그대로 쓴다.
+    }
+  }, []);
+
+  function toggleFolder(folderId: string) {
+    setExpandedFolders((current) => {
+      const next = { ...current, [folderId]: !(current[folderId] ?? true) };
+      try {
+        window.localStorage.setItem(FOLDER_EXPANDED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // 무시.
+      }
+      return next;
+    });
+  }
+
+  // P7-7: 편집 화면 헤더 브레드크럼에서 폴더를 누르면 `/editor?folder={id}`로 이동한다 —
+  // 전용 폴더 상세 화면이 없어(P7-4 사이드바 트리 하나로 탐색을 통일한 기존 설계), 여기서
+  // 그 폴더까지 조상 체인을 펼치고 스크롤·잠깐 강조해 "탐색 도착"을 대신한다. searchParams는
+  // 라우터 컨텍스트가 없는 테스트에서도 usePathname처럼 null을 반환할 뿐 던지지 않는다.
+  const searchParams = useSearchParams();
+  const focusFolderId = searchParams?.get("folder") ?? null;
+  const [highlightedFolderId, setHighlightedFolderId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusFolderId) return;
+    const target = folders.find((folder) => folder.id === focusFolderId);
+    if (!target) return; // 폴더가 삭제된 뒤 남은 오래된 링크 등 — 조용히 무시한다.
+
+    const ancestorIds: string[] = [];
+    let current: FolderNode | undefined = target;
+    while (current) {
+      ancestorIds.push(current.id);
+      const parentId: string | null = current.parentId;
+      current = parentId ? folders.find((folder) => folder.id === parentId) : undefined;
+    }
+    // URL의 focusFolderId(외부 시스템 — 브라우저 주소창)가 바뀔 때만 반응하는 동기화라
+    // 위 localStorage 로드 effect와 같은 이유로 이 규칙의 일반 사례(effect 안에서의
+    // 무조건적 setState)에 해당하지 않는다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpandedFolders((prev) => {
+      const next = { ...prev };
+      for (const id of ancestorIds) next[id] = true;
+      try {
+        window.localStorage.setItem(FOLDER_EXPANDED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // 무시.
+      }
+      return next;
+    });
+    setHighlightedFolderId(focusFolderId);
+    document
+      .getElementById(`sidebar-folder-${focusFolderId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const highlightTimer = setTimeout(() => setHighlightedFolderId(null), 1600);
+    // 뒤로가기로 같은 폴더를 다시 눌러도 매번 반응하도록 쿼리를 지운다(replace라 히스토리
+    // 엔트리를 추가하지 않는다).
+    router.replace("/editor");
+    return () => clearTimeout(highlightTimer);
+  }, [focusFolderId, folders, router]);
+
+  // P7-5: 폴더 생성·이름변경은 같은 폼(FolderFormModal)을 모드로만 나눠 재사용한다.
+  // 삭제는 문서 삭제(DocumentEditor.tsx)와 동일하게 window.confirm() 대신 Modal로
+  // 확인받는다(CLAUDE.md UI 규칙) — 대상 폴더를 상태로 들고 있다가 확인 시에만 호출한다.
+  const [folderFormState, setFolderFormState] = useState<FolderFormMode | null>(null);
+  const [deleteFolderTarget, setDeleteFolderTarget] = useState<FolderNode | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
+
+  // P7-6: 문서를 다른 폴더로 옮기는 모달의 대상 문서. 드래그앤드롭은 범위 밖이라
+  // "이동" 메뉴/모달로만 구현한다(prd.md Phase 7 핵심 결정).
+  const [moveDocumentTarget, setMoveDocumentTarget] = useState<DocumentSummary | null>(null);
+
+  async function handleDeleteFolder() {
+    if (!deleteFolderTarget) return;
+    setDeletingFolder(true);
+    try {
+      const response = await fetch(`/api/editor/folders/${deleteFolderTarget.id}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        throw new Error(data?.error?.message ?? "폴더를 삭제하지 못했습니다.");
+      }
+      toast("폴더를 삭제했습니다.", "success");
+      setDeleteFolderTarget(null);
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "폴더를 삭제하지 못했습니다.", "danger");
+    } finally {
+      setDeletingFolder(false);
+    }
+  }
+
+  // 폴더를 parentId 기준으로 묶어 트리 순회에 바로 쓸 수 있게 한다. 같은 부모 아래
+  // 형제는 order로 정렬한다(폴더 배열 자체의 삽입 순서에 기대지 않는다).
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, FolderNode[]>();
+    for (const folder of folders) {
+      const siblings = map.get(folder.parentId) ?? [];
+      siblings.push(folder);
+      map.set(folder.parentId, siblings);
+    }
+    for (const siblings of map.values()) {
+      siblings.sort((a, b) => a.order - b.order);
+    }
+    return map;
+  }, [folders]);
+  const topLevelFolders = childrenByParent.get(null) ?? [];
+
+  // P7-6: MoveDocumentModal의 대상 폴더 <select>에 쓸 평평한 목록. 부모→자식 순서로
+  // 깊이 우선 순회하면서, 깊이만큼 표(U+3000, 전각 공백)를 앞에 붙여 계층을 표시한다 —
+  // 일반 ASCII 공백은 브라우저가 <option> 렌더링 시 접어버릴 수 있어 쓰지 않는다.
+  const flatFolderOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    function walk(nodes: FolderNode[], depth: number) {
+      for (const node of nodes) {
+        options.push({ id: node.id, label: "　".repeat(depth) + node.name });
+        walk(childrenByParent.get(node.id) ?? [], depth + 1);
+      }
+    }
+    walk(childrenByParent.get(null) ?? [], 0);
+    return options;
+  }, [childrenByParent]);
 
   const allTags = useMemo(
     () => Array.from(new Set(documents.flatMap((document) => document.tags))),
@@ -175,12 +420,27 @@ export function EditorSidebar({
         : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 
+  // P7-4: 필터링된 문서를 소속 폴더별로 묶는다(filteredDocuments 자체가 매 렌더 새로
+  // 계산되는 값이라 memo 없이 그대로 따라간다). 폴더가 전혀 없는 계정(대부분의 현재
+  // 사용자 — 폴더를 만드는 UI 자체가 아직 없다, P7-5)은 모든 문서의 folderId가 항상
+  // null이라(P7-3에서 존재하는 폴더로만 배정 가능하도록 검증) unclassifiedDocuments가
+  // filteredDocuments와 완전히 같아져, 기존 동작이 그대로 유지된다.
+  const documentsByFolder = new Map<string, DocumentSummary[]>();
+  for (const document of filteredDocuments) {
+    if (document.folderId === null) continue;
+    const siblings = documentsByFolder.get(document.folderId) ?? [];
+    siblings.push(document);
+    documentsByFolder.set(document.folderId, siblings);
+  }
+  const unclassifiedDocuments = filteredDocuments.filter((document) => document.folderId === null);
+
   // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/태그/정렬이
   // 바뀌면 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서
   // 늘려둔 "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번
   // 더 오래된 개수로 그렸다가 다시 그리는 깜빡임이 생기므로, React 공식 문서가 권장하는
   // "렌더링 중 상태 조정" 패턴을 쓴다(https://react.dev/learn/you-might-not-need-an-effect
-  // "Adjusting some state when a prop changes").
+  // "Adjusting some state when a prop changes"). 폴더 안 문서는 페이지네이션하지 않는다
+  // (P7-4 범위 밖 — task.md 참고) — 이 페이지네이션은 미분류 문서에만 적용된다.
   const filterKey = `${activeTag ?? ""} ${query} ${sortBy}`;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
@@ -188,8 +448,147 @@ export function EditorSidebar({
     setPrevFilterKey(filterKey);
     setVisibleCount(PAGE_SIZE);
   }
-  const visibleDocuments = filteredDocuments.slice(0, visibleCount);
-  const hasMore = filteredDocuments.length > visibleDocuments.length;
+  const visibleDocuments = unclassifiedDocuments.slice(0, visibleCount);
+  const hasMore = unclassifiedDocuments.length > visibleDocuments.length;
+
+  function renderDocumentRow(document: DocumentSummary, depth: number) {
+    const isActive = document.pageId === currentPageId;
+    const row = (
+      <Link
+        href={`/editor/${document.pageId}`}
+        onClick={onNavigate}
+        onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
+        aria-current={isActive ? "page" : undefined}
+        className={
+          "block min-w-0 flex-1 rounded-btn py-1.5 pr-3 transition-colors duration-default " +
+          (isActive
+            ? "sidebar-row-active text-foreground"
+            : "text-foreground hover:bg-surface-raised")
+        }
+      >
+        <div className="flex items-start gap-1">
+          <span className="mt-0.5">
+            <StatusIcon isPublished={document.isPublished} />
+          </span>
+          <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
+        </div>
+        {document.tags.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
+            {document.tags.map((tag) => (
+              <Tag key={tag}>{tag}</Tag>
+            ))}
+          </div>
+        )}
+      </Link>
+    );
+    // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) "이동" 버튼
+    // 자체를 숨긴다 — 눌러도 미분류(현재 상태)로만 되돌릴 수 있어 의미가 없다.
+    if (flatFolderOptions.length === 0) {
+      return (
+        <li key={document.pageId} style={{ paddingLeft: 8 + depth * 14 }}>
+          {row}
+        </li>
+      );
+    }
+    return (
+      <li
+        key={document.pageId}
+        className="group flex items-start gap-0.5 rounded-btn"
+        style={{ paddingLeft: 8 + depth * 14 }}
+      >
+        {row}
+        <button
+          type="button"
+          aria-label="다른 폴더로 이동"
+          title="이동"
+          onClick={() => setMoveDocumentTarget(document)}
+          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          <MoveToFolderIcon />
+        </button>
+      </li>
+    );
+  }
+
+  /**
+   * P7-4: 폴더 트리 재귀 렌더링. 폴더는 그 안 문서·하위 폴더의 필터 결과와 무관하게
+   * 항상 보인다(task.md "범위 밖" — 검색으로 텅 빈 폴더를 숨기는 "스마트 필터링"은
+   * 하지 않는다). 빈 폴더 전용 안내 문구는 P7-8이 맡는다 — 지금은 펼쳐도 그냥 빈 채로 둔다.
+   */
+  function renderFolderNode(folder: FolderNode, depth: number) {
+    const isExpanded = expandedFolders[folder.id] ?? true;
+    const childFolders = childrenByParent.get(folder.id) ?? [];
+    const childDocuments = documentsByFolder.get(folder.id) ?? [];
+    return (
+      <li key={folder.id}>
+        {/*
+          P7-5: 토글(펼침/접힘)과 액션 버튼(하위 폴더 추가·이름변경·삭제)은 서로 다른
+          <button>이라 하나의 바깥 <div>로 나란히 둔다(버튼 중첩은 유효한 HTML이 아님).
+          액션 버튼은 평소엔 숨겨져 있다가 행에 마우스를 올리거나(hover) 키보드로
+          포커스가 들어오면(focus-within) 나타난다 — 항상 노출하면 폴더가 많을 때
+          시각적으로 번잡해진다는 판단(사이드바 폭 조절 핸들의 "평소엔 거의 안 보이다가"
+          패턴과 같은 원칙).
+        */}
+        <div
+          id={`sidebar-folder-${folder.id}`}
+          className={
+            "group flex items-center gap-0.5 rounded-btn pr-1 transition-colors duration-default hover:bg-surface-raised " +
+            (highlightedFolderId === folder.id ? "bg-brand/10" : "")
+          }
+          style={{ paddingLeft: 8 + depth * 14 }}
+        >
+          <button
+            type="button"
+            onClick={() => toggleFolder(folder.id)}
+            aria-expanded={isExpanded}
+            title={folder.name}
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
+          >
+            <ChevronIcon expanded={isExpanded} />
+            <FolderIcon />
+            <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+          </button>
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-default group-hover:opacity-100 group-focus-within:opacity-100">
+            <button
+              type="button"
+              aria-label="하위 폴더 추가"
+              title="하위 폴더 추가"
+              onClick={() => setFolderFormState({ type: "create", parentId: folder.id })}
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <PlusIcon />
+            </button>
+            <button
+              type="button"
+              aria-label="폴더 이름 변경"
+              title="이름 변경"
+              onClick={() =>
+                setFolderFormState({ type: "rename", folderId: folder.id, currentName: folder.name })
+              }
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <PencilIcon />
+            </button>
+            <button
+              type="button"
+              aria-label="폴더 삭제"
+              title="삭제"
+              onClick={() => setDeleteFolderTarget(folder)}
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
+            >
+              <TrashIcon />
+            </button>
+          </div>
+        </div>
+        {isExpanded && (childFolders.length > 0 || childDocuments.length > 0) && (
+          <ul className="flex flex-col gap-0.5">
+            {childFolders.map((child) => renderFolderNode(child, depth + 1))}
+            {childDocuments.map((document) => renderDocumentRow(document, depth + 1))}
+          </ul>
+        )}
+      </li>
+    );
+  }
 
   return (
     // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
@@ -375,6 +774,23 @@ export function EditorSidebar({
       )}
 
       <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
+        {/*
+          P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
+          (그 전까지는 폴더 기능 자체를 발견할 방법이 없었다), 문서 유무와 무관하게
+          항상 보인다 — 아래 문서 목록/빈 상태 분기와 별개다.
+        */}
+        <div className="mb-2 flex items-center justify-between px-1">
+          <p className="text-xs font-medium text-muted">폴더</p>
+          <button
+            type="button"
+            aria-label="새 폴더 만들기"
+            title="새 폴더 만들기"
+            onClick={() => setFolderFormState({ type: "create", parentId: null })}
+            className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+          >
+            <PlusIcon />
+          </button>
+        </div>
         {documents.length === 0 ? (
           <EmptyState title="아직 작성한 문서가 없습니다." />
         ) : filteredDocuments.length === 0 ? (
@@ -383,60 +799,25 @@ export function EditorSidebar({
           // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
           // 구분 라인도 필요없어"라는 요청으로 뺐다(2026-08-26). 행 자체의 hover
           // 배경(아래 isActive 삼항)만으로도 행 구분은 충분하다.
-          <ul className="flex flex-col gap-0.5">
-            {visibleDocuments.map((document) => {
-              const isActive = document.pageId === currentPageId;
-              return (
-                <li key={document.pageId}>
-                  <Link
-                    href={`/editor/${document.pageId}`}
-                    onClick={onNavigate}
-                    onNavigate={(event) =>
-                      guardNavigate(event, `/editor/${document.pageId}`)
-                    }
-                    aria-current={isActive ? "page" : undefined}
-                    // 왼쪽 강조 테두리 바는 빼고 배경색만 쓴다 — 사용자 피드백: "이
-                    // 패턴은 AI가 자주 만드는 디자인이야"(2026-08-26). 위아래 패딩을
-                    // py-2(8px)에서 py-1.5(6px)로 좁혀 목록을 더 촘촘하게 만들고,
-                    // 왼쪽은 pl-2(8px, 기존 px-3 대비 4px 절약)로 줄여 제목이 잘리기
-                    // 전까지 보이는 글자 수를 늘렸다(2026-08-26, 사용자 요청 — "왼쪽
-                    // 공백도 좀 줄여서 제목이 더 보이게"). 오른쪽은 그대로 pr-3(12px)
-                    // 둬서 리사이즈 핸들과 부딪히지 않게 여유를 남긴다.
-                    className={
-                      "block rounded-btn py-1.5 pl-2 pr-3 transition-colors duration-default " +
-                      (isActive
-                        ? "sidebar-row-active text-foreground"
-                        : "text-foreground hover:bg-surface-raised")
-                    }
-                  >
-                    {/*
-                      예전엔 제목 옆에 문서 아이콘(모든 행에서 똑같아 정보가 없었다)이
-                      있었는데, 게시 상태 아이콘으로 바꿨다 — 한눈에 게시됨/초안을
-                      구분할 수 있어 더 쓸모 있는 자리다(2026-08-26, "페이지 아이콘
-                      제거하고 게시 아이콘을 넣어줘"). 날짜는 문서를 열었을 때 보이는
-                      풋터로 옮겨서(DocumentEditor.tsx) 여기서는 뺐다. 아이콘·간격도
-                      같은 이유로 좁혔다(14px→13px, gap-1.5→gap-1).
-                    */}
-                    <div className="flex items-start gap-1">
-                      <span className="mt-0.5">
-                        <StatusIcon isPublished={document.isPublished} />
-                      </span>
-                      <p className="min-w-0 truncate text-sm font-medium">
-                        {document.title}
-                      </p>
-                    </div>
-                    {document.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
-                        {document.tags.map((tag) => (
-                          <Tag key={tag}>{tag}</Tag>
-                        ))}
-                      </div>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          // P7-4: 폴더가 있는 계정만 트리 + "미분류" 레이블이 추가로 보인다 — 폴더가
+          // 하나도 없으면(대부분의 현재 사용자) 이 블록 전체가 기존과 동일하게
+          // 미분류 목록 하나만 그린다(topLevelFolders.length === 0이라 첫 두 블록이
+          // 렌더링되지 않음).
+          <>
+            {topLevelFolders.length > 0 && (
+              <ul className="mb-2 flex flex-col gap-0.5">
+                {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
+              </ul>
+            )}
+            {folders.length > 0 && unclassifiedDocuments.length > 0 && (
+              <p className="px-2 pb-1 text-xs font-medium text-muted">미분류</p>
+            )}
+            {visibleDocuments.length > 0 && (
+              <ul className="flex flex-col gap-0.5">
+                {visibleDocuments.map((document) => renderDocumentRow(document, 0))}
+              </ul>
+            )}
+          </>
         )}
         {/* P1-1c: 문서가 많으면 한 번에 다 그리지 않고 점진적으로 보여준다. */}
         {hasMore && (
@@ -547,6 +928,54 @@ export function EditorSidebar({
         title="계정 정보"
       >
         <AccountInfoModal />
+      </Modal>
+
+      {folderFormState && (
+        <FolderFormModal
+          open={folderFormState !== null}
+          onClose={() => setFolderFormState(null)}
+          mode={folderFormState}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      {moveDocumentTarget && (
+        <MoveDocumentModal
+          open={moveDocumentTarget !== null}
+          onClose={() => setMoveDocumentTarget(null)}
+          document={moveDocumentTarget}
+          folderOptions={flatFolderOptions}
+          onSaved={() => router.refresh()}
+        />
+      )}
+
+      <Modal
+        open={deleteFolderTarget !== null}
+        onClose={() => setDeleteFolderTarget(null)}
+        title="폴더 삭제"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteFolderTarget(null)}
+              disabled={deletingFolder}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleDeleteFolder}
+              disabled={deletingFolder}
+            >
+              {deletingFolder ? "삭제 중..." : "삭제 확인"}
+            </Button>
+          </>
+        }
+      >
+        &quot;{deleteFolderTarget?.name}&quot; 폴더를 삭제하시겠습니까? 안에 있던 하위
+        폴더와 문서는 삭제되지 않고 상위 위치로 이동합니다.
       </Modal>
     </aside>
   );

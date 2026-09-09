@@ -993,7 +993,32 @@ describe("getDocumentDetail", () => {
       lastEditedBy: undefined,
       ownerEmail: "",
       sharedWith: [],
+      folderId: null,
     });
+  });
+
+  it("folderId property가 있으면 그 값을 그대로 반환한다(P7-7 브레드크럼이 이 값으로 폴더 경로를 조회한다)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "internal-key-1",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+    });
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "sourceDocument") {
+        return { id: "prop-1", key, value: { title: "제목", doc: SAMPLE_DOC }, version: { number: 1 } };
+      }
+      if (key === "folderId") {
+        return { id: "prop-5", key, value: "f1", version: { number: 1 } };
+      }
+      return null;
+    });
+
+    const detail = await getDocumentDetail("doc-1");
+
+    expect(detail.folderId).toBe("f1");
   });
 
   it("공유된 대상이 있으면 accountIndex에서 이름을 채워 sharedWith로 반환한다(P6-2/P6-3)", async () => {

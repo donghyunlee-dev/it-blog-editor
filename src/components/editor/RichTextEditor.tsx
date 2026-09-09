@@ -8,7 +8,7 @@ import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { columnResizing, tableEditing } from "@tiptap/pm/tables";
 import StarterKit from "@tiptap/starter-kit";
-import { Color, TextStyle } from "@tiptap/extension-text-style";
+import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
@@ -135,11 +135,14 @@ function createImageSlashItem(
 
 // TipTap v3 restructured @tiptap/extension-color and the separate
 // @tiptap/extension-table-row/-header/-cell packages into thin re-export
-// shims: Color now lives in @tiptap/extension-text-style, and
-// TableRow/TableHeader/TableCell are exported from @tiptap/extension-table
-// itself. We import from the consolidated packages directly rather than
-// installing the deprecated shim packages (same rationale as Task 2's
-// @tiptap/extension-list consolidation).
+// shims: Color (and, since 3.30.3, FontSize — confirmed via
+// node_modules/@tiptap/extension-text-style/dist/index.cjs, no separate
+// @tiptap/extension-font-size package needed) now live in
+// @tiptap/extension-text-style, and TableRow/TableHeader/TableCell are
+// exported from @tiptap/extension-table itself. We import from the
+// consolidated packages directly rather than installing the deprecated
+// shim packages (same rationale as Task 2's @tiptap/extension-list
+// consolidation).
 
 const AttachmentImage = TiptapImage.extend({
   addAttributes() {
@@ -264,6 +267,47 @@ function SwatchGrid({
   );
 }
 
+/*
+ * P2-6: 글자 크기는 색상과 달리 연속값(px)이라 스와치(원)가 아니라 라벨 목록으로 고른다.
+ * Issue #69에서 "글자 크기는 색상 팔레트와 동일하게 3~4단계 고정값"이 추천안으로 채택돼,
+ * `docs/product/design.md`의 기존 "사이즈" 표에 이미 있는 값(14px/16px/20px/24px)을 그대로
+ * 재사용한다 — 새 임의 값을 도입하지 않는다. "보통"은 본문 기본 크기(16px)로, 새 값을
+ * 지정하는 대신 `unsetFontSize()`로 크기 지정 자체를 해제한다(색상의 "색상 지우기"와 같은
+ * 원리 — 본문 스타일이 바뀌어도 자동으로 따라간다).
+ */
+const FONT_SIZE_OPTIONS: { label: string; value: string | null }[] = [
+  { label: "작게", value: "14px" },
+  { label: "보통", value: null },
+  { label: "크게", value: "20px" },
+  { label: "아주 크게", value: "24px" },
+];
+
+function FontSizeMenu({
+  activeSize,
+  onPick,
+}: {
+  activeSize: string | null;
+  onPick: (value: string | null) => void;
+}) {
+  return (
+    <div className="flex min-w-[112px] flex-col gap-0.5">
+      {FONT_SIZE_OPTIONS.map((option) => (
+        <button
+          key={option.label}
+          type="button"
+          aria-pressed={activeSize === option.value}
+          className={`rounded-btn px-2 py-1 text-left text-sm hover:bg-surface-raised ${
+            activeSize === option.value ? "bg-brand-subtle text-brand" : "text-foreground"
+          }`}
+          onClick={() => onPick(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function LinkPopoverForm({ editor }: { editor: Editor }) {
   const { toast } = useToast();
   const [href, setHref] = useState(editor.getAttributes("link").href ?? "");
@@ -354,6 +398,29 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
         >
           S
         </ToggleButton>
+        <ToggleButton
+          active={editor.isActive("code")}
+          label="코드"
+          onClick={() => editor.chain().focus().toggleCode().run()}
+        >
+          {"</>"}
+        </ToggleButton>
+        <Popover
+          trigger={
+            <ToggleButton active={!!editor.getAttributes("textStyle").fontSize} label="글자 크기" onClick={() => {}}>
+              가
+            </ToggleButton>
+          }
+        >
+          <FontSizeMenu
+            activeSize={editor.getAttributes("textStyle").fontSize ?? null}
+            onPick={(value) =>
+              value
+                ? editor.chain().focus().setFontSize(value).run()
+                : editor.chain().focus().unsetFontSize().run()
+            }
+          />
+        </Popover>
         <Popover
           trigger={
             <ToggleButton active={!!editor.getAttributes("textStyle").color} label="글자 색상" onClick={() => {}}>
@@ -864,6 +931,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       CodeBlockLowlight.configure({ lowlight }),
       TextStyle,
       Color,
+      FontSize,
       Highlight.configure({ multicolor: true }),
       AttachmentImage,
       Panel,

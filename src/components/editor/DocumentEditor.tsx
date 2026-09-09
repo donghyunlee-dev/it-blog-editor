@@ -19,6 +19,7 @@ import {
 } from "@/lib/editor/autosave-storage";
 import type { SharingLastEditedBy } from "@/lib/editor/sharing";
 import type { SharedAccount } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 import { formatAccountLabel } from "@/lib/account-display";
 
 /** Issue #1(P0-1b)에서 결정된 주기 — "1분마다 체크해서 저장한다". */
@@ -42,6 +43,12 @@ interface DocumentEditorProps {
   isOwner?: boolean;
   /** 현재 공유된 대상 목록(P6-2/P6-3). mode="edit"일 때만 서버에서 내려준다. */
   initialSharedWith?: SharedAccount[];
+  /**
+   * 이 문서가 속한 폴더 경로(P7-7 브레드크럼), 루트가 먼저 오는 순서. 폴더가 없거나
+   * mode="create"(아직 폴더 배정 UI가 없다, P7-6 범위 밖)면 빈 배열/undefined다 —
+   * 그 경우 헤더에 브레드크럼 자체를 렌더링하지 않는다.
+   */
+  folderPath?: FolderNode[];
 }
 
 const EMPTY_DOC: JSONContent = {
@@ -254,6 +261,7 @@ export function DocumentEditor({
   initialLastEditedBy,
   isOwner = false,
   initialSharedWith = [],
+  folderPath = [],
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -617,24 +625,56 @@ export function DocumentEditor({
         안맞아서"). 고정 높이로 못박아 항상 정확히 맞춘다.
       */}
       <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b border-border bg-background px-6">
-        {/*
-          "문서함"이라는 글자가 화면 어디에도 없는데(사이드바에는 그런 제목이 없다)
-          링크에서만 "문서함"을 언급해 뭘 가리키는지 알기 어려웠다(2026-08-26, 사용자
-          피드백). 화살표 아이콘만 남기고 텍스트는 뺐다 — 문서 목록으로 돌아간다는
-          의미는 aria-label/title로 스크린리더·툴팁에 남긴다.
-        */}
-        <Link
-          href="/editor"
-          // 저장하지 않은 변경사항이 있으면 즉시 이동하지 않고 확인 Modal을 띄운다
-          // (P0-1a, EditorShell의 UnsavedChangesProvider). onNavigate는 next/link의
-          // 내장 prop(v15.3.0+)으로, SPA 네비게이션에서만 호출된다.
-          onNavigate={(event) => guardNavigate(event, "/editor")}
-          aria-label="문서함으로 돌아가기"
-          title="문서함으로 돌아가기"
-          className="rounded-btn p-1.5 text-foreground transition-colors duration-default hover:bg-surface-raised"
-        >
-          <ArrowLeftIcon />
-        </Link>
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {/*
+            "문서함"이라는 글자가 화면 어디에도 없는데(사이드바에는 그런 제목이 없다)
+            링크에서만 "문서함"을 언급해 뭘 가리키는지 알기 어려웠다(2026-08-26, 사용자
+            피드백). 화살표 아이콘만 남기고 텍스트는 뺐다 — 문서 목록으로 돌아간다는
+            의미는 aria-label/title로 스크린리더·툴팁에 남긴다.
+          */}
+          <Link
+            href="/editor"
+            // 저장하지 않은 변경사항이 있으면 즉시 이동하지 않고 확인 Modal을 띄운다
+            // (P0-1a, EditorShell의 UnsavedChangesProvider). onNavigate는 next/link의
+            // 내장 prop(v15.3.0+)으로, SPA 네비게이션에서만 호출된다.
+            onNavigate={(event) => guardNavigate(event, "/editor")}
+            aria-label="문서함으로 돌아가기"
+            title="문서함으로 돌아가기"
+            className="shrink-0 rounded-btn p-1.5 text-foreground transition-colors duration-default hover:bg-surface-raised"
+          >
+            <ArrowLeftIcon />
+          </Link>
+
+          {/*
+            P7-7: 문서가 폴더에 속해 있으면(document.folderId, page.tsx가 조회) 헤더에
+            그 경로를 보여준다 — "지금 이 문서가 어디 있는지" 항상 알 수 있게 하는 것이
+            수용 기준이다. 폴더가 없는 문서(대부분)는 folderPath가 빈 배열이라 이 블록
+            자체가 렌더링되지 않아 기존 헤더와 완전히 같다. 각 폴더를 누르면
+            `/editor?folder={id}`로 이동한다 — 사이드바(EditorSidebar.tsx)가 이 쿼리를
+            읽어 그 폴더까지 펼치고 스크롤·강조한다(전용 폴더 상세 화면은 없다, P7-4의
+            사이드바 트리 하나로 탐색을 통일하는 기존 설계와 같은 이유).
+          */}
+          {folderPath.length > 0 && (
+            <nav
+              aria-label="문서 위치"
+              className="flex min-w-0 items-center gap-1 overflow-hidden text-sm text-muted"
+            >
+              {folderPath.map((folder, index) => (
+                <span key={folder.id} className="flex min-w-0 items-center gap-1">
+                  {index > 0 && <span aria-hidden="true">/</span>}
+                  <Link
+                    href={`/editor?folder=${folder.id}`}
+                    onNavigate={(event) => guardNavigate(event, `/editor?folder=${folder.id}`)}
+                    title={folder.name}
+                    className="truncate rounded-btn px-1 py-0.5 transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+                  >
+                    {folder.name}
+                  </Link>
+                </span>
+              ))}
+            </nav>
+          )}
+        </div>
 
         {/*
           예전엔 버튼마다 글자가 있었는데, "아이콘만 봐도 알 수 있다"는 피드백으로

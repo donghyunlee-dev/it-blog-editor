@@ -5,6 +5,7 @@ import { EditorSidebar } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 
 const MOBILE_QUERY = "(max-width: 767px)";
 // GlobalSearchModal.tsx의 포커스 트랩과 같은 선택자 — 이 프로젝트에서 이미 검증된 패턴을
@@ -43,6 +44,8 @@ export interface EditorShellProps {
   documents: DocumentSummary[];
   /** 나에게 공유된 문서 목록(P6-5). "내 문서" 목록과 분리해 사이드바 상단에 보여준다. */
   sharedDocuments?: SharedDocumentSummary[];
+  /** 내 폴더 트리(P7-4). 없으면(또는 빈 배열이면) 기존과 동일하게 평평한 문서 목록만 보여준다. */
+  folders?: FolderNode[];
   children: React.ReactNode;
   userEmail?: string;
   /** 계정 폴더의 accountMeta.name(P5-5). 있으면 "이름(이메일)" 형식으로 표시한다. */
@@ -64,6 +67,7 @@ export interface EditorShellProps {
 export function EditorShell({
   documents,
   sharedDocuments,
+  folders,
   children,
   userEmail,
   userName,
@@ -300,6 +304,7 @@ export function EditorShell({
           <EditorSidebar
             documents={documents}
             sharedDocuments={sharedDocuments}
+            folders={folders}
             onNavigate={() => setOpen(false)}
             onCollapse={() => toggleCollapsed(true)}
             userEmail={userEmail}

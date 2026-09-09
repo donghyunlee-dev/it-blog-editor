@@ -1,17 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ToastProvider } from "@sfood/ui";
 import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
 import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
 // 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
 // 반환할 뿐 던지지 않는 실제 동작을 그대로 쓴다 — 다른 기존 테스트들이 이에 의존한다).
-const { push, refresh } = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }));
+// useRouter()가 실제 Next.js에서는 항상 같은 객체 참조를 돌려주는 것과 달리, 매번 새
+// 객체 리터럴을 반환하면 그 객체를 의존성 배열에 넣는 effect(P7-7, 아래 focusFolderId
+// 처리)가 렌더마다 재실행돼 setState → 리렌더 → 재실행으로 이어지는 무한 루프가 생긴다
+// (실제로 겪은 문제 — 이 파일의 P7-7 테스트가 타임아웃났다). 그래서 push/replace/refresh를
+// 감싸는 router 객체 자체를 한 번만 만들어 매 호출에 같은 참조를 돌려준다.
+const { push, replace, refresh, router } = vi.hoisted(() => {
+  const push = vi.fn();
+  const replace = vi.fn();
+  const refresh = vi.fn();
+  return { push, replace, refresh, router: { push, replace, refresh } };
+});
+// P7-7: 편집 화면 브레드크럼에서 폴더를 눌렀을 때(`/editor?folder={id}`) 사이드바가 반응하는지
+// 검증하려면 useSearchParams를 테스트에서 직접 제어할 수 있어야 한다 — 실제 usePathname처럼
+// 라우터 컨텍스트 없이는 항상 null만 반환해 재현할 방법이 없다. router.replace는 그 폴더에
+// 도착한 뒤 쿼리를 지우는 데 쓴다(EditorSidebar.tsx).
+const mockSearchParams = vi.hoisted(() => ({ current: new URLSearchParams() }));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
-  return { ...actual, useRouter: () => ({ push, refresh }) };
+  return {
+    ...actual,
+    useRouter: () => router,
+    useSearchParams: () => mockSearchParams.current,
+  };
+});
+
+beforeEach(() => {
+  mockSearchParams.current = new URLSearchParams();
+  push.mockClear();
+  replace.mockClear();
 });
 
 // DocumentEditor.test.tsx와 같은 이유로 next/link를 대역으로 바꾼다 — 실제 Link는
@@ -378,6 +405,411 @@ describe("EditorSidebar", () => {
     const link = screen.getByRole("link", { name: /공유받은 회의록/ });
     expect(link).toHaveAttribute("href", "/editor/shared-1");
     expect(within(link).getByText("홍길동(owner@s-food.com)")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 폴더 트리(P7-4)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위 폴더", parentId: "f1", order: 0 },
+  ];
+
+  const DOCS_WITH_FOLDERS: DocumentSummary[] = [
+    { pageId: "1", title: "업무 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: true, tags: [], folderId: "f1" },
+    { pageId: "2", title: "미분류 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: false, tags: [], folderId: null },
+    { pageId: "3", title: "하위 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: false, tags: [], folderId: "f2" },
+  ];
+
+  // 펼침/접힘 상태가 localStorage(FOLDER_EXPANDED_STORAGE_KEY)에 저장되고 happy-dom은
+  // 테스트 파일 전체가 같은 window를 공유한다 — EditorShell.test.tsx의 폭 조절 테스트와
+  // 같은 이유로 각 테스트가 "기본값(전부 펼침)에서 시작"을 전제하므로 매번 지운다.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("폴더가 없으면 '미분류' 레이블이 보이지 않는다(회귀 확인)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByText("미분류")).not.toBeInTheDocument();
+  });
+
+  it("폴더가 있으면 트리로 보이고, 미분류 문서는 '미분류' 레이블 아래 별도로 보인다", () => {
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    expect(screen.getByText("업무")).toBeInTheDocument();
+    expect(screen.getByText("하위 폴더")).toBeInTheDocument();
+    expect(screen.getByText("미분류")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /업무 문서/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /하위 문서/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /미분류 문서/ })).toBeInTheDocument();
+  });
+
+  it("폴더를 접으면 그 안 문서(및 하위 폴더)가 숨고, 다시 펼치면 보인다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    const toggle = screen.getByRole("button", { name: "업무" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("하위 폴더")).toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: /업무 문서/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("하위 폴더")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: /업무 문서/ })).toBeInTheDocument();
+  });
+
+  it("하위 폴더는 상위 폴더보다 더 들여쓰기된다", () => {
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    // P7-5부터 들여쓰기는 토글 버튼이 아니라 그 버튼을 감싸는 행(div, 액션 버튼과 나란히
+    // 두기 위한 래퍼)에 적용된다.
+    const topRow = screen.getByRole("button", { name: "업무" }).parentElement as HTMLElement;
+    const childRow = screen.getByRole("button", { name: "하위 폴더" }).parentElement as HTMLElement;
+
+    const topPadding = parseInt(topRow.style.paddingLeft, 10);
+    const childPadding = parseInt(childRow.style.paddingLeft, 10);
+
+    expect(childPadding).toBeGreaterThan(topPadding);
+  });
+
+  it("접힘 상태는 localStorage에 저장되어 다음 마운트에도 유지된다", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "업무" }));
+    unmount();
+
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    expect(screen.getByRole("button", { name: "업무" })).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
+  const FOLDERS: FolderNode[] = [{ id: "f1", name: "업무", parentId: null, order: 0 }];
+
+  function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => handler(url, init));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  // 폴더 저장/삭제 성공·실패를 Toast로 안내하므로(CLAUDE.md UI 규칙), 실제 Toast UI가
+  // 뜨려면 ToastProvider가 필요하다(useToast()는 Provider가 없어도 던지지 않고 조용히
+  // no-op하는 기본값을 갖고 있어, Provider 없이는 토스트 문구 자체를 검증할 수 없다).
+  function renderSidebar() {
+    return render(
+      <ToastProvider>
+        <EditorSidebar documents={DOCS} folders={FOLDERS} />
+      </ToastProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    refresh.mockClear();
+  });
+
+  it("'새 폴더 만들기' 버튼을 누르면 생성 모달이 뜬다(최상위, parentId: null)", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f2", name: "새 폴더", parentId: null, order: 1 }, 201));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "새 폴더 만들기" }));
+    expect(screen.getByText("새 폴더")).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: /폴더 이름/ }), "새 폴더");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders",
+        expect.objectContaining({ body: JSON.stringify({ name: "새 폴더", parentId: null }) })
+      );
+    });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("폴더 행의 '하위 폴더 추가' 버튼을 누르면 그 폴더를 parentId로 하는 생성 모달이 뜬다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f3", name: "하위", parentId: "f1", order: 0 }, 201));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "하위 폴더 추가" }));
+    await user.type(screen.getByRole("textbox", { name: /폴더 이름/ }), "하위");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders",
+        expect.objectContaining({ body: JSON.stringify({ name: "하위", parentId: "f1" }) })
+      );
+    });
+  });
+
+  it("폴더 행의 '이름 변경' 버튼을 누르면 현재 이름이 채워진 모달이 뜨고, 저장하면 PUT을 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({ id: "f1", name: "새이름", parentId: null, order: 0 }));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 이름 변경" }));
+    const input = screen.getByRole("textbox", { name: /폴더 이름/ });
+    expect(input).toHaveValue("업무");
+    await user.clear(input);
+    await user.type(input, "새이름");
+    await user.click(screen.getByRole("button", { name: "저장" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/folders/f1",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ name: "새이름" }) })
+      );
+    });
+  });
+
+  it("'삭제' 버튼을 누르면 바로 삭제되지 않고 확인 모달이 뜬다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+
+    expect(
+      screen.getByText('"업무" 폴더를 삭제하시겠습니까? 안에 있던 하위 폴더와 문서는 삭제되지 않고 상위 위치로 이동합니다.')
+    ).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("삭제 확인 모달에서 취소하면 삭제 요청을 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse({}));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.queryByText(/삭제하시겠습니까/)).not.toBeInTheDocument();
+  });
+
+  it("삭제 확인 모달에서 확인하면 DELETE를 호출하고 새로고침한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => jsonResponse(null, 204));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/editor/folders/f1", expect.objectContaining({ method: "DELETE" }));
+    });
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("삭제에 실패하면 오류 Toast를 보여준다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => jsonResponse({ error: { message: "폴더를 찾을 수 없습니다." } }, 404));
+    renderSidebar();
+
+    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    expect(await screen.findByText("폴더를 찾을 수 없습니다.")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위", parentId: "f1", order: 0 },
+  ];
+  const DOC_UNCLASSIFIED: DocumentSummary = {
+    pageId: "1",
+    title: "문서A",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    isPublished: true,
+    tags: [],
+    folderId: null,
+  };
+  const DOC_IN_FOLDER: DocumentSummary = {
+    pageId: "2",
+    title: "문서B",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    isPublished: false,
+    tags: [],
+    folderId: "f1",
+  };
+
+  function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => handler(url, init));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const jsonResponse = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status });
+
+  // 이동 성공/실패를 Toast로 안내하므로(CLAUDE.md UI 규칙) FolderFormModal.test.tsx와
+  // 같은 이유로 ToastProvider가 필요하다.
+  function renderSidebar(documents: DocumentSummary[], folders: FolderNode[] = FOLDERS) {
+    return render(
+      <ToastProvider>
+        <EditorSidebar documents={documents} folders={folders} />
+      </ToastProvider>
+    );
+  }
+
+  // 다른 describe 블록(P7-4)의 테스트가 남긴 폴더 펼침/접힘 상태가 같은 jsdom window의
+  // localStorage에 남아 이 블록의 폴더(f1)가 접힌 채로 시작할 수 있다 — 매번 지워
+  // "기본값(전부 펼침)"을 보장한다.
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    refresh.mockClear();
+    window.localStorage.clear();
+  });
+
+  it("폴더가 있는 계정의 문서 행에는 '다른 폴더로 이동' 버튼이 보인다", () => {
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    expect(screen.getByRole("button", { name: "다른 폴더로 이동" })).toBeInTheDocument();
+  });
+
+  it("폴더가 하나도 없는 계정에서는 이동 버튼을 숨긴다(옮길 곳이 없음)", () => {
+    renderSidebar([DOC_UNCLASSIFIED], []);
+
+    expect(screen.queryByRole("button", { name: "다른 폴더로 이동" })).not.toBeInTheDocument();
+  });
+
+  it("이동 버튼을 누르면 대상 폴더를 고르는 모달이 뜨고, 하위 폴더는 들여쓴 이름으로 보인다", async () => {
+    const user = userEvent.setup();
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+
+    expect(screen.getByText('"문서A" 이동')).toBeInTheDocument();
+    const dialog = screen.getByRole("dialog");
+    const select = within(dialog).getByRole("combobox");
+    expect(within(select).getByText("미분류")).toBeInTheDocument();
+    expect(within(select).getByText("업무")).toBeInTheDocument();
+    // 하위 폴더의 표시용 들여쓰기(전각 공백 "　")는 testing-library의 기본 텍스트
+    // 정규화(공백 trim/collapse)에 걸려 사라지므로, 정규화를 끄고 원문 그대로 비교한다.
+    expect(
+      within(select).getByText("　하위", { normalizer: (text) => text })
+    ).toBeInTheDocument();
+  });
+
+  it("폴더를 골라 저장하면 PUT /api/editor/documents/{pageId}/folder를 folderId와 함께 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    const select = within(screen.getByRole("dialog")).getByRole("combobox");
+    await user.selectOptions(select, "f1");
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/documents/1/folder",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ folderId: "f1" }),
+        })
+      );
+    });
+    expect(await screen.findByText("문서를 이동했습니다.")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("이미 폴더에 속한 문서를 '미분류'로 되돌리면 folderId: null로 호출한다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar([DOC_IN_FOLDER]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    const select = within(screen.getByRole("dialog")).getByRole("combobox");
+    await user.selectOptions(select, "");
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/editor/documents/2/folder",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ folderId: null }),
+        })
+      );
+    });
+  });
+
+  it("이동에 실패하면 오류 Toast를 보여준다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => jsonResponse({ error: { message: "개인 폴더가 없습니다." } }, 404));
+    renderSidebar([DOC_UNCLASSIFIED]);
+
+    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await user.click(screen.getByRole("button", { name: "이동" }));
+
+    expect(await screen.findByText("개인 폴더가 없습니다.")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 브레드크럼에서 도착한 폴더로 스크롤·강조(P7-7)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위", parentId: "f1", order: 0 },
+  ];
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("접혀 있던 조상 폴더까지 다시 펼치고, router.replace로 쿼리를 지운다", async () => {
+    // 둘 다 접힌 상태로 시작한다 — 그래야 "도착 처리가 실제로 펼쳤다"를 검증할 수 있다
+    // (기본값 자체가 이미 전부 펼침이라, 접어두지 않으면 이 효과가 없어도 통과해버린다).
+    window.localStorage.setItem(
+      "sfood-editor-folder-tree-expanded",
+      JSON.stringify({ f1: false, f2: false })
+    );
+    mockSearchParams.current = new URLSearchParams("folder=f2");
+
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    // f2(하위)는 f1(업무)의 자식이라, 둘 다 펼쳐져 있어야 f2 행이 실제로 보인다.
+    expect(await screen.findByRole("button", { name: "하위" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/editor");
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("트리에 없는 폴더 id(오래된 링크)는 조용히 무시하고 쿼리도 그대로 둔다", () => {
+    mockSearchParams.current = new URLSearchParams("folder=ghost");
+
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    // 대상 자체를 못 찾으면 일찍 반환하므로, 도착 처리(router.replace로 쿼리 제거)도
+    // 일어나지 않는다 — 렌더 자체는 평소(기본값 전부 펼침)와 다름없이 성공한다.
+    expect(screen.getByRole("button", { name: "업무" })).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("folder 쿼리가 없으면 기존과 동일하게 기본값(전부 펼침)으로 시작한다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    expect(screen.getByRole("button", { name: "업무" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "하위" })).toBeInTheDocument();
   });
 });
 

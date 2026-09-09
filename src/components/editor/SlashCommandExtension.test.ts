@@ -40,8 +40,8 @@ function createChainRecorder() {
 const RANGE: Range = { from: 1, to: 2 };
 
 describe("createSlashItems", () => {
-  it("빈 쿼리면 기본 9개 항목을 전부 반환한다", () => {
-    expect(createSlashItems("")).toHaveLength(9);
+  it("빈 쿼리면 기본 10개 항목을 전부 반환한다", () => {
+    expect(createSlashItems("")).toHaveLength(10);
   });
 
   it("대소문자를 구분하지 않고 제목에 쿼리가 포함된 항목만 반환한다", () => {
@@ -77,6 +77,7 @@ describe("기본 슬래시 항목의 run 커맨드 체인", () => {
       ],
     ],
     ["코드블록", ["focus()", 'deleteRange([{"from":1,"to":2}])', "toggleCodeBlock()", "run()"]],
+    ["인라인 코드", ["focus()", 'deleteRange([{"from":1,"to":2}])', "toggleCode()", "run()"]],
   ])("%s", (title, expectedCalls) => {
     const item = createSlashItems("").find((i) => i.title === title);
     expect(item).toBeDefined();

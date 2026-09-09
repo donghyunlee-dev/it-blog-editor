@@ -63,10 +63,12 @@ const MARK_TAGS: Record<string, (attrs: Record<string, unknown> | undefined) => 
   },
   code: () => ["<code>", "</code>"],
   underline: () => ["<u>", "</u>"],
-  textStyle: (attrs) =>
-    attrs?.color
-      ? [`<span style="color:${escapeHtml(String(attrs.color))}">`, "</span>"]
-      : ["", ""],
+  textStyle: (attrs) => {
+    const styles: string[] = [];
+    if (attrs?.color) styles.push(`color:${escapeHtml(String(attrs.color))}`);
+    if (attrs?.fontSize) styles.push(`font-size:${escapeHtml(String(attrs.fontSize))}`);
+    return styles.length > 0 ? [`<span style="${styles.join(";")}">`, "</span>"] : ["", ""];
+  },
   highlight: (attrs) => [
     `<span style="background-color:${escapeHtml(String(attrs?.color ?? "#ffff00"))}">`,
     "</span>",

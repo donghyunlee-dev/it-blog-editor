@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { ensurePersonalFolder } from "@/lib/editor/folder";
+import { listFolders } from "@/lib/editor/folders";
 import { listDocuments, listSharedDocuments } from "@/lib/editor/documents";
 import { getAccountMeta, needsOnboarding } from "@/lib/editor/account";
 import { EditorShell } from "@/components/editor/EditorShell";
@@ -35,9 +36,10 @@ export default async function EditorLayout({
     redirect("/welcome");
   }
 
-  const [documents, sharedDocuments] = await Promise.all([
+  const [documents, sharedDocuments, folders] = await Promise.all([
     listDocuments(folder.accountFolderId),
     listSharedDocuments(email),
+    listFolders(folder.accountFolderId),
   ]);
 
   return (
@@ -48,6 +50,7 @@ export default async function EditorLayout({
     <EditorShell
       documents={documents}
       sharedDocuments={sharedDocuments}
+      folders={folders}
       userEmail={email}
       userName={accountMeta.name}
       onLogout={logoutAction}

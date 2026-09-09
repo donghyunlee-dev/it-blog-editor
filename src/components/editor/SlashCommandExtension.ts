@@ -69,6 +69,10 @@ const ITEMS: CommandItem[] = [
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
   },
   {
+    title: "인라인 코드",
+    run: (editor, range) => editor.chain().focus().deleteRange(range).toggleCode().run(),
+  },
+  {
     title: "정보 패널",
     run: (editor, range) =>
       editor
