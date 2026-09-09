@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, ChipGroup, EmptyState, Modal, Select, Tag } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -11,14 +11,58 @@ import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 
 /** P1-1c: 문서 목록을 이 개수만큼씩 점진적으로 보여준다("더 보기" 버튼). */
 const PAGE_SIZE = 30;
+
+/**
+ * P7-4: 폴더 펼침/접힘 상태를 계정별이 아니라 브라우저별로 유지한다 — `EditorShell.tsx`의
+ * 사이드바 폭/접힘 상태(`WIDTH_STORAGE_KEY`/`COLLAPSED_STORAGE_KEY`)와 같은 이유·같은
+ * try/catch 패턴이다(프라이빗 브라우징 등 저장이 막힌 환경에서도 기능은 그대로 동작).
+ * 폴더 하나하나 키를 따로 두지 않고 `{ [folderId]: boolean }` 객체 하나로 묶어 저장한다.
+ */
+const FOLDER_EXPANDED_STORAGE_KEY = "sfood-editor-folder-tree-expanded";
+
+/**
+ * `@sfood/ui`의 `Icon`은 `search`/`comment`만 제공해 폴더 트리에 쓸 아이콘이 없다 —
+ * 이 파일의 기존 `StatusIcon`과 같은 스타일(`viewBox 0 0 20 20`, `stroke="currentColor"`)로
+ * 직접 그린다. 펼침 화살표는 상태에 따라 90도 회전시켜 하나의 path로 양쪽을 표현한다.
+ */
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 20 20"
+      fill="none"
+      className={`shrink-0 text-muted transition-transform duration-default ${expanded ? "rotate-90" : ""}`}
+      aria-hidden="true"
+    >
+      <path d="M7 4l6 6-6 6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-muted" aria-hidden="true">
+      <path
+        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.4l1.4 1.8h6.2A1.5 1.5 0 0 1 17 7.3v7.2A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-9z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 export interface EditorSidebarProps {
   documents: DocumentSummary[];
   /** 나에게 공유된 문서 목록(P6-5). 비어 있으면 이 영역 자체를 렌더링하지 않는다. */
   sharedDocuments?: SharedDocumentSummary[];
+  /** 내 폴더 트리(P7-4). 없거나 빈 배열이면 기존과 동일하게 평평한 문서 목록만 보여준다. */
+  folders?: FolderNode[];
   activePageId?: string;
   /** 모바일 오프캔버스 드로어에서 링크 클릭 시 드로어를 닫기 위한 콜백(데스크톱에서는 불필요). */
   onNavigate?: () => void;
@@ -108,6 +152,7 @@ export function extractPageIdFromPathname(
 export function EditorSidebar({
   documents,
   sharedDocuments = [],
+  folders = [],
   activePageId,
   onNavigate,
   onCollapse,
@@ -146,6 +191,52 @@ export function EditorSidebar({
   // 문서가 늘어나면 원하는 문서를 찾기 어렵다는 지적(감사 리포트)에 대응한다.
   const [sortBy, setSortBy] = useState<"updatedAt" | "title">("updatedAt");
 
+  // P7-4: 폴더 펼침/접힘 상태. 기본값(저장된 값이 없는 폴더)은 펼침이다 — 폴더가 있어도
+  // 처음엔 기존 "다 보이는" 경험과 최대한 비슷하게 시작한다. 서버 렌더링 시점에는
+  // localStorage를 읽을 수 없어 빈 객체(=전부 펼침)로 시작하고, 마운트 후 실제 값으로
+  // 동기화한다 — EditorShell.tsx의 사이드바 폭/접힘 상태와 동일한 2-pass 패턴이라
+  // hydration mismatch가 없다.
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(FOLDER_EXPANDED_STORAGE_KEY);
+      if (stored) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setExpandedFolders(JSON.parse(stored));
+      }
+    } catch {
+      // 무시 — 기본값(전부 펼침) 그대로 쓴다.
+    }
+  }, []);
+
+  function toggleFolder(folderId: string) {
+    setExpandedFolders((current) => {
+      const next = { ...current, [folderId]: !(current[folderId] ?? true) };
+      try {
+        window.localStorage.setItem(FOLDER_EXPANDED_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // 무시.
+      }
+      return next;
+    });
+  }
+
+  // 폴더를 parentId 기준으로 묶어 트리 순회에 바로 쓸 수 있게 한다. 같은 부모 아래
+  // 형제는 order로 정렬한다(폴더 배열 자체의 삽입 순서에 기대지 않는다).
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string | null, FolderNode[]>();
+    for (const folder of folders) {
+      const siblings = map.get(folder.parentId) ?? [];
+      siblings.push(folder);
+      map.set(folder.parentId, siblings);
+    }
+    for (const siblings of map.values()) {
+      siblings.sort((a, b) => a.order - b.order);
+    }
+    return map;
+  }, [folders]);
+  const topLevelFolders = childrenByParent.get(null) ?? [];
+
   const allTags = useMemo(
     () => Array.from(new Set(documents.flatMap((document) => document.tags))),
     [documents]
@@ -175,12 +266,27 @@ export function EditorSidebar({
         : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
 
+  // P7-4: 필터링된 문서를 소속 폴더별로 묶는다(filteredDocuments 자체가 매 렌더 새로
+  // 계산되는 값이라 memo 없이 그대로 따라간다). 폴더가 전혀 없는 계정(대부분의 현재
+  // 사용자 — 폴더를 만드는 UI 자체가 아직 없다, P7-5)은 모든 문서의 folderId가 항상
+  // null이라(P7-3에서 존재하는 폴더로만 배정 가능하도록 검증) unclassifiedDocuments가
+  // filteredDocuments와 완전히 같아져, 기존 동작이 그대로 유지된다.
+  const documentsByFolder = new Map<string, DocumentSummary[]>();
+  for (const document of filteredDocuments) {
+    if (document.folderId === null) continue;
+    const siblings = documentsByFolder.get(document.folderId) ?? [];
+    siblings.push(document);
+    documentsByFolder.set(document.folderId, siblings);
+  }
+  const unclassifiedDocuments = filteredDocuments.filter((document) => document.folderId === null);
+
   // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/태그/정렬이
   // 바뀌면 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서
   // 늘려둔 "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번
   // 더 오래된 개수로 그렸다가 다시 그리는 깜빡임이 생기므로, React 공식 문서가 권장하는
   // "렌더링 중 상태 조정" 패턴을 쓴다(https://react.dev/learn/you-might-not-need-an-effect
-  // "Adjusting some state when a prop changes").
+  // "Adjusting some state when a prop changes"). 폴더 안 문서는 페이지네이션하지 않는다
+  // (P7-4 범위 밖 — task.md 참고) — 이 페이지네이션은 미분류 문서에만 적용된다.
   const filterKey = `${activeTag ?? ""} ${query} ${sortBy}`;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
@@ -188,8 +294,76 @@ export function EditorSidebar({
     setPrevFilterKey(filterKey);
     setVisibleCount(PAGE_SIZE);
   }
-  const visibleDocuments = filteredDocuments.slice(0, visibleCount);
-  const hasMore = filteredDocuments.length > visibleDocuments.length;
+  const visibleDocuments = unclassifiedDocuments.slice(0, visibleCount);
+  const hasMore = unclassifiedDocuments.length > visibleDocuments.length;
+
+  function renderDocumentRow(document: DocumentSummary, depth: number) {
+    const isActive = document.pageId === currentPageId;
+    return (
+      <li key={document.pageId}>
+        <Link
+          href={`/editor/${document.pageId}`}
+          onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
+          aria-current={isActive ? "page" : undefined}
+          style={{ paddingLeft: 8 + depth * 14 }}
+          className={
+            "block rounded-btn py-1.5 pr-3 transition-colors duration-default " +
+            (isActive
+              ? "sidebar-row-active text-foreground"
+              : "text-foreground hover:bg-surface-raised")
+          }
+        >
+          <div className="flex items-start gap-1">
+            <span className="mt-0.5">
+              <StatusIcon isPublished={document.isPublished} />
+            </span>
+            <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
+          </div>
+          {document.tags.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
+              {document.tags.map((tag) => (
+                <Tag key={tag}>{tag}</Tag>
+              ))}
+            </div>
+          )}
+        </Link>
+      </li>
+    );
+  }
+
+  /**
+   * P7-4: 폴더 트리 재귀 렌더링. 폴더는 그 안 문서·하위 폴더의 필터 결과와 무관하게
+   * 항상 보인다(task.md "범위 밖" — 검색으로 텅 빈 폴더를 숨기는 "스마트 필터링"은
+   * 하지 않는다). 빈 폴더 전용 안내 문구는 P7-8이 맡는다 — 지금은 펼쳐도 그냥 빈 채로 둔다.
+   */
+  function renderFolderNode(folder: FolderNode, depth: number) {
+    const isExpanded = expandedFolders[folder.id] ?? true;
+    const childFolders = childrenByParent.get(folder.id) ?? [];
+    const childDocuments = documentsByFolder.get(folder.id) ?? [];
+    return (
+      <li key={folder.id}>
+        <button
+          type="button"
+          onClick={() => toggleFolder(folder.id)}
+          aria-expanded={isExpanded}
+          title={folder.name}
+          style={{ paddingLeft: 8 + depth * 14 }}
+          className="flex w-full items-center gap-1.5 rounded-btn py-1.5 pr-3 text-left text-sm font-medium text-foreground transition-colors duration-default hover:bg-surface-raised"
+        >
+          <ChevronIcon expanded={isExpanded} />
+          <FolderIcon />
+          <span className="min-w-0 flex-1 truncate">{folder.name}</span>
+        </button>
+        {isExpanded && (childFolders.length > 0 || childDocuments.length > 0) && (
+          <ul className="flex flex-col gap-0.5">
+            {childFolders.map((child) => renderFolderNode(child, depth + 1))}
+            {childDocuments.map((document) => renderDocumentRow(document, depth + 1))}
+          </ul>
+        )}
+      </li>
+    );
+  }
 
   return (
     // 폭을 더 이상 여기서 고정하지 않는다(w-64 → w-full) — EditorShell.tsx가 드래그로
@@ -383,60 +557,25 @@ export function EditorSidebar({
           // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
           // 구분 라인도 필요없어"라는 요청으로 뺐다(2026-08-26). 행 자체의 hover
           // 배경(아래 isActive 삼항)만으로도 행 구분은 충분하다.
-          <ul className="flex flex-col gap-0.5">
-            {visibleDocuments.map((document) => {
-              const isActive = document.pageId === currentPageId;
-              return (
-                <li key={document.pageId}>
-                  <Link
-                    href={`/editor/${document.pageId}`}
-                    onClick={onNavigate}
-                    onNavigate={(event) =>
-                      guardNavigate(event, `/editor/${document.pageId}`)
-                    }
-                    aria-current={isActive ? "page" : undefined}
-                    // 왼쪽 강조 테두리 바는 빼고 배경색만 쓴다 — 사용자 피드백: "이
-                    // 패턴은 AI가 자주 만드는 디자인이야"(2026-08-26). 위아래 패딩을
-                    // py-2(8px)에서 py-1.5(6px)로 좁혀 목록을 더 촘촘하게 만들고,
-                    // 왼쪽은 pl-2(8px, 기존 px-3 대비 4px 절약)로 줄여 제목이 잘리기
-                    // 전까지 보이는 글자 수를 늘렸다(2026-08-26, 사용자 요청 — "왼쪽
-                    // 공백도 좀 줄여서 제목이 더 보이게"). 오른쪽은 그대로 pr-3(12px)
-                    // 둬서 리사이즈 핸들과 부딪히지 않게 여유를 남긴다.
-                    className={
-                      "block rounded-btn py-1.5 pl-2 pr-3 transition-colors duration-default " +
-                      (isActive
-                        ? "sidebar-row-active text-foreground"
-                        : "text-foreground hover:bg-surface-raised")
-                    }
-                  >
-                    {/*
-                      예전엔 제목 옆에 문서 아이콘(모든 행에서 똑같아 정보가 없었다)이
-                      있었는데, 게시 상태 아이콘으로 바꿨다 — 한눈에 게시됨/초안을
-                      구분할 수 있어 더 쓸모 있는 자리다(2026-08-26, "페이지 아이콘
-                      제거하고 게시 아이콘을 넣어줘"). 날짜는 문서를 열었을 때 보이는
-                      풋터로 옮겨서(DocumentEditor.tsx) 여기서는 뺐다. 아이콘·간격도
-                      같은 이유로 좁혔다(14px→13px, gap-1.5→gap-1).
-                    */}
-                    <div className="flex items-start gap-1">
-                      <span className="mt-0.5">
-                        <StatusIcon isPublished={document.isPublished} />
-                      </span>
-                      <p className="min-w-0 truncate text-sm font-medium">
-                        {document.title}
-                      </p>
-                    </div>
-                    {document.tags.length > 0 && (
-                      <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
-                        {document.tags.map((tag) => (
-                          <Tag key={tag}>{tag}</Tag>
-                        ))}
-                      </div>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          // P7-4: 폴더가 있는 계정만 트리 + "미분류" 레이블이 추가로 보인다 — 폴더가
+          // 하나도 없으면(대부분의 현재 사용자) 이 블록 전체가 기존과 동일하게
+          // 미분류 목록 하나만 그린다(topLevelFolders.length === 0이라 첫 두 블록이
+          // 렌더링되지 않음).
+          <>
+            {topLevelFolders.length > 0 && (
+              <ul className="mb-2 flex flex-col gap-0.5">
+                {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
+              </ul>
+            )}
+            {folders.length > 0 && unclassifiedDocuments.length > 0 && (
+              <p className="px-2 pb-1 text-xs font-medium text-muted">미분류</p>
+            )}
+            {visibleDocuments.length > 0 && (
+              <ul className="flex flex-col gap-0.5">
+                {visibleDocuments.map((document) => renderDocumentRow(document, 0))}
+              </ul>
+            )}
+          </>
         )}
         {/* P1-1c: 문서가 많으면 한 번에 다 그리지 않고 점진적으로 보여준다. */}
         {hasMore && (
