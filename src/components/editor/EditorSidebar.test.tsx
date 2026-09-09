@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
 import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
+import type { FolderNode } from "@/lib/editor/folders";
 
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
 // 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
@@ -378,6 +379,89 @@ describe("EditorSidebar", () => {
     const link = screen.getByRole("link", { name: /공유받은 회의록/ });
     expect(link).toHaveAttribute("href", "/editor/shared-1");
     expect(within(link).getByText("홍길동(owner@s-food.com)")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 폴더 트리(P7-4)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위 폴더", parentId: "f1", order: 0 },
+  ];
+
+  const DOCS_WITH_FOLDERS: DocumentSummary[] = [
+    { pageId: "1", title: "업무 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: true, tags: [], folderId: "f1" },
+    { pageId: "2", title: "미분류 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: false, tags: [], folderId: null },
+    { pageId: "3", title: "하위 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: false, tags: [], folderId: "f2" },
+  ];
+
+  // 펼침/접힘 상태가 localStorage(FOLDER_EXPANDED_STORAGE_KEY)에 저장되고 happy-dom은
+  // 테스트 파일 전체가 같은 window를 공유한다 — EditorShell.test.tsx의 폭 조절 테스트와
+  // 같은 이유로 각 테스트가 "기본값(전부 펼침)에서 시작"을 전제하므로 매번 지운다.
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("폴더가 없으면 '미분류' 레이블이 보이지 않는다(회귀 확인)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByText("미분류")).not.toBeInTheDocument();
+  });
+
+  it("폴더가 있으면 트리로 보이고, 미분류 문서는 '미분류' 레이블 아래 별도로 보인다", () => {
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    expect(screen.getByText("업무")).toBeInTheDocument();
+    expect(screen.getByText("하위 폴더")).toBeInTheDocument();
+    expect(screen.getByText("미분류")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /업무 문서/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /하위 문서/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /미분류 문서/ })).toBeInTheDocument();
+  });
+
+  it("폴더를 접으면 그 안 문서(및 하위 폴더)가 숨고, 다시 펼치면 보인다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    const toggle = screen.getByRole("button", { name: "업무" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("하위 폴더")).toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: /업무 문서/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("하위 폴더")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: /업무 문서/ })).toBeInTheDocument();
+  });
+
+  it("하위 폴더는 상위 폴더보다 더 들여쓰기된다", () => {
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    const topButton = screen.getByRole("button", { name: "업무" });
+    const childButton = screen.getByRole("button", { name: "하위 폴더" });
+
+    const topPadding = parseInt(topButton.style.paddingLeft, 10);
+    const childPadding = parseInt(childButton.style.paddingLeft, 10);
+
+    expect(childPadding).toBeGreaterThan(topPadding);
+  });
+
+  it("접힘 상태는 localStorage에 저장되어 다음 마운트에도 유지된다", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />
+    );
+
+    await user.click(screen.getByRole("button", { name: "업무" }));
+    unmount();
+
+    render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
+
+    expect(screen.getByRole("button", { name: "업무" })).toHaveAttribute("aria-expanded", "false");
   });
 });
 
