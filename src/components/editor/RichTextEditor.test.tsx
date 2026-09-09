@@ -553,6 +553,26 @@ describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
     await waitFor(() => expect(container.querySelector(".ProseMirror s")).not.toBeNull());
   });
 
+  // P2-7
+  it("코드 버튼을 클릭하면 선택한 텍스트에 인라인 코드 마크가 적용된다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("코드")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).not.toBeNull());
+  });
+
+  it("코드 버튼을 다시 클릭하면 적용된 인라인 코드 마크가 해제된다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("코드")).click();
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).not.toBeNull());
+
+    (await screen.findByLabelText("코드")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).toBeNull());
+  });
+
   // P2-6
   it("글자 크기 메뉴에서 크기를 고르면 선택한 텍스트에 글자 크기가 적용된다", async () => {
     const { container } = renderWithText();
@@ -738,5 +758,19 @@ describe("RichTextEditor 표 셀 안 서식 버블 메뉴(P2-5)", () => {
     await waitFor(() =>
       expect(container.querySelector(".ProseMirror [style*='font-size']")).not.toBeNull()
     );
+  });
+
+  it("표 셀 안 텍스트를 선택하면 코드 버튼도 보이고 정상 동작한다(P2-7)", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    selectText(container, "r0c0");
+
+    (await screen.findByLabelText("코드")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).not.toBeNull());
   });
 });
