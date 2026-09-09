@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, uploadAttachment, listLabels } from "./client";
+import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, deletePageProperty, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, uploadAttachment, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -321,6 +321,45 @@ describe("upsertPageProperty", () => {
 
     const putCall = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
     expect(putCall).toBeUndefined();
+  });
+});
+
+describe("deletePageProperty", () => {
+  it("속성이 있으면 그 id로 DELETE를 보낸다(Confluence가 value:null을 거부해 값 대신 property 자체를 지운다)", async () => {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+      if (!init || init.method === undefined) {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: "prop-1", key: "folderId", value: "f1", version: { number: 1 } },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      expect(init.method).toBe("DELETE");
+      expect(url).toContain("/api/v2/pages/111/properties/prop-1");
+      return new Response(null, { status: 204 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deletePageProperty("111", "folderId");
+
+    const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === "DELETE");
+    expect(deleteCall).toBeDefined();
+  });
+
+  it("속성이 원래 없으면 아무 요청도 보내지 않는다(멱등)", async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(JSON.stringify({ results: [] }), { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await deletePageProperty("111", "folderId");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === "DELETE");
+    expect(deleteCall).toBeUndefined();
   });
 });
 

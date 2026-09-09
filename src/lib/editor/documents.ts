@@ -4,6 +4,7 @@ import {
   ConfluenceApiError,
   createPage,
   deletePage,
+  deletePageProperty,
   getConfiguredSpace,
   getPage,
   getPageProperty,
@@ -26,6 +27,7 @@ import { getSharedDocumentRefs, getSharingMeta, updateLastEditedBy } from "./sha
 import type { SharingLastEditedBy } from "./sharing";
 import { getAccountsByEmails } from "./account-index";
 import { getTags } from "./tags";
+import { listFolders } from "./folders";
 import type { PublishMetadata } from "./publish";
 import { logger, serializeError } from "@/lib/logger";
 import { formatAccountLabel } from "@/lib/account-display";
@@ -38,6 +40,8 @@ const AUTHOR_PROPERTY_KEY = "authorMeta";
 const MAX_TITLE_LENGTH = 200;
 const PUBLISH_PROPERTY_KEY = "publishMetadata";
 export const DELETED_DOCUMENTS_PROPERTY_KEY = "deletedDocuments";
+/** 문서의 폴더 소속(P7-3, Phase 7) — property가 없으면(기존 문서 포함) "미분류"(`null`). */
+const FOLDER_PROPERTY_KEY = "folderId";
 
 export interface DeletedDocumentEntry {
   pageId: string;
@@ -51,6 +55,8 @@ export interface DocumentSummary {
   updatedAt: string;
   isPublished: boolean;
   tags: string[];
+  /** 이 문서가 속한 폴더(P7-3) — "미분류"면 `null`. */
+  folderId: string | null;
 }
 
 /** 공유 목록 표시용 — accountIndex에 없는 이메일(아주 오래된 계정 등)은 `name`이 빈 문자열. */
@@ -155,13 +161,14 @@ async function fetchDocumentEntry(page: {
   title: string;
   version: { createdAt: string };
 }): Promise<DocumentEntry> {
-  const [tagList, sourceProperty, publishProperty] = await Promise.all([
+  const [tagList, sourceProperty, publishProperty, folderProperty] = await Promise.all([
     getTags(page.id),
     getPageProperty<{ title?: string; doc: JSONContent }>(
       page.id,
       SOURCE_DOCUMENT_PROPERTY_KEY
     ),
     getPageProperty<PublishMetadata>(page.id, PUBLISH_PROPERTY_KEY),
+    getPageProperty<string | null>(page.id, FOLDER_PROPERTY_KEY),
   ]);
 
   return {
@@ -171,6 +178,7 @@ async function fetchDocumentEntry(page: {
       updatedAt: page.version.createdAt,
       isPublished: publishProperty?.value?.isPublished ?? false,
       tags: tagList,
+      folderId: folderProperty?.value ?? null,
     },
     bodyText: sourceProperty?.value?.doc ? extractPlainText(sourceProperty.value.doc) : "",
   };
@@ -370,6 +378,20 @@ export interface CreateDocumentInput {
   title: string;
   doc: JSONContent;
   actualAuthorEmail: string;
+  /** 생성 시점에 바로 넣을 폴더(P7-3). 지정하지 않으면(또는 `null`) "미분류"로 시작한다. */
+  folderId?: string | null;
+}
+
+/** `folderId`가 있으면 그 계정의 폴더 트리에 실제로 존재하는지 검증한다(P7-3). */
+async function validateFolderId(
+  accountFolderId: string,
+  folderId: string | null
+): Promise<void> {
+  if (folderId === null) return;
+  const folders = await listFolders(accountFolderId);
+  if (!folders.some((folder) => folder.id === folderId)) {
+    throw new ValidationError("폴더를 찾을 수 없습니다.");
+  }
 }
 
 /**
@@ -394,6 +416,8 @@ export async function createDocument(input: CreateDocumentInput) {
   if (input.title.length > MAX_TITLE_LENGTH) {
     throw new ValidationError(`제목은 ${MAX_TITLE_LENGTH}자를 초과할 수 없습니다.`);
   }
+  const folderId = input.folderId ?? null;
+  await validateFolderId(input.accountFolderId, folderId);
 
   const space = await getConfiguredSpace();
   const internalKey = randomUUID();
@@ -413,9 +437,61 @@ export async function createDocument(input: CreateDocumentInput) {
       doc: input.doc,
     }),
     hidePageFromOthers(page.id),
+    // "미분류"(null)는 property 자체를 만들지 않는다 — 기존 문서가 전부 그런 상태로
+    // 시작하는 것과 대칭을 맞춘다(별도 마이그레이션 없이도 항상 같은 기본값으로 읽힘).
+    ...(folderId !== null ? [upsertPageProperty(page.id, FOLDER_PROPERTY_KEY, folderId)] : []),
   ]);
 
   return { pageId: page.id, version: page.version.number };
+}
+
+/**
+ * 기존 문서를 다른 폴더로 옮긴다(P7-3). `folderId`가 `null`이면 "미분류"로 되돌린다 —
+ * Confluence property API가 `value: null`을 거부하므로(2026-09-09 실사용 확인,
+ * `deletePageProperty` 참고) property를 값으로 지우는 대신 아예 없애는 방식으로 표현한다.
+ * 폴더는 소유자 개인의 조직 체계라 이 함수 자체는 소유권을 검사하지 않는다 — 호출부
+ * (API 라우트)가 `requireDocumentOwner`로 미리 확인해야 한다.
+ */
+export async function setDocumentFolder(
+  pageId: string,
+  accountFolderId: string,
+  folderId: string | null
+): Promise<void> {
+  await validateFolderId(accountFolderId, folderId);
+  if (folderId === null) {
+    await deletePageProperty(pageId, FOLDER_PROPERTY_KEY);
+  } else {
+    await upsertPageProperty(pageId, FOLDER_PROPERTY_KEY, folderId);
+  }
+}
+
+/**
+ * 계정의 모든 문서 중 `fromFolderId`에 속한 것을 전부 `toFolderId`로 재배정한다 —
+ * 폴더 삭제 시 그 안의 문서를 잃지 않고 상위로 승격시키는 정책(P7-2에서 하위 *폴더*만
+ * 먼저 구현하고 문서 쪽은 이 함수로 미뤄뒀다)의 문서 쪽 절반이다. `folders.ts`는 문서를
+ * 몰라야 하므로(순환 참조 방지), 이 오케스트레이션은 항상 `folders.deleteFolder`를 호출한
+ * 뒤 API 라우트에서 이 함수를 이어 호출하는 방식으로 조립한다.
+ */
+export async function reassignDocumentsFolder(
+  accountFolderId: string,
+  fromFolderId: string,
+  toFolderId: string | null
+): Promise<void> {
+  const pages = await listChildPages(accountFolderId);
+  const currentFolderIds = await Promise.all(
+    pages.map((page) => getPageProperty<string | null>(page.id, FOLDER_PROPERTY_KEY))
+  );
+  const affectedPageIds = pages
+    .filter((_, index) => (currentFolderIds[index]?.value ?? null) === fromFolderId)
+    .map((page) => page.id);
+
+  await Promise.all(
+    affectedPageIds.map((pageId) =>
+      toFolderId === null
+        ? deletePageProperty(pageId, FOLDER_PROPERTY_KEY)
+        : upsertPageProperty(pageId, FOLDER_PROPERTY_KEY, toFolderId)
+    )
+  );
 }
 
 export interface UpdateDocumentInput {

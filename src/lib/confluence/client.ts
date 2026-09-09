@@ -403,6 +403,25 @@ export async function upsertPageProperty<T = unknown>(
   );
 }
 
+/**
+ * content property를 아예 지운다. Confluence v2 property API는 `value`로 순수 JSON
+ * `null`을 보내면 `400 - value: must not be null`로 거부한다(2026-09-09, 실사용
+ * 확인 — `folderId`를 "미분류"로 되돌리려다 발견). "값 없음"을 표현해야 하는 property는
+ * `upsertPageProperty(key, null)`이 아니라 이 함수로 property 자체를 없애 표현한다 —
+ * 이미 이 프로젝트의 다른 property들(`sharedDocumentRefs` 등)도 "property가 없으면
+ * 기본값"이라는 규약을 따르고 있어 일관된 방식이다. property가 원래 없었으면 아무 일도
+ * 하지 않는다(멱등).
+ */
+export async function deletePageProperty(pageId: string, key: string): Promise<void> {
+  const existing = await getPageProperty(pageId, key);
+  if (!existing) {
+    return;
+  }
+  await confluenceRequest<void>(`/api/v2/pages/${pageId}/properties/${existing.id}`, {
+    method: "DELETE",
+  });
+}
+
 // ── Attachments (v1 REST API — v2에는 첨부파일 업로드 엔드포인트가 없음) ──
 
 export interface ConfluenceAttachment {

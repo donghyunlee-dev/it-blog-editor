@@ -44,7 +44,8 @@
 | GET | /api/editor/folders | 내 폴더 목록 조회(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
 | POST | /api/editor/folders | 폴더 생성(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
 | PUT | /api/editor/folders/{folderId} | 폴더 이름변경(2026-09-09 추가, P7-2) | 문서 폴더 구조 |
-| DELETE | /api/editor/folders/{folderId} | 폴더 삭제(하위 폴더는 상위로 승격, 2026-09-09 추가, P7-2) | 문서 폴더 구조 |
+| DELETE | /api/editor/folders/{folderId} | 폴더 삭제(하위 폴더·문서는 상위로 승격, 2026-09-09 추가, P7-2/P7-3) | 문서 폴더 구조 |
+| PUT | /api/editor/documents/{pageId}/folder | 문서를 다른 폴더로 이동(2026-09-09 추가, P7-3) | 문서 폴더 구조 |
 
 ## 엔드포인트 상세
 
@@ -130,13 +131,16 @@
       "title": "제목",
       "updatedAt": "2026-08-21T00:00:00.000Z",
       "isPublished": false,
-      "tags": ["React", "Backend"]
+      "tags": ["React", "Backend"],
+      "folderId": null
     }
   ]
 }
 ```
 
 > ⚠️ **화면 UI/UX 설계(2차)에서 확장됨** — 사이드바에 상태 뱃지·태그를 보여줘야 해서 `isPublished`, `tags` 필드가 추가됐다. `listDocuments()`가 "초안"/"게시" 서브페이지 두 곳의 자식을 모두 조회해 합치며, `isPublished`는 별도 property 조회 없이 각 문서가 어느 서브페이지(초안/게시)에서 나왔는지로 바로 판단한다(물리적 위치가 유일한 근거). 라벨(태그)만 문서별로 추가 조회한다(문서 수가 개인 단위라 N+1 호출을 허용).
+>
+> **2026-09-09 갱신(P7-3)**: `folderId`(문서가 속한 폴더의 id, 없으면 `null` — "미분류")가 추가됐다. `GET /api/editor/documents/search`, `GET /api/editor/documents/shared`가 내려주는 문서 목록에도 동일하게 포함된다.
 >
 > **2026-08-28 갱신(P0-7)**: `title`은 이제 `sourceDocument` property에서 읽어온다(문서마다 추가 조회 1회, 태그 조회와 함께 병렬) — Confluence page의 실제 title이 더 이상 표시용 제목이 아니기 때문이다(아래 "새 문서 생성" 참고). API 요청/응답 형식 자체는 바뀌지 않았다.
 
@@ -150,11 +154,13 @@
 
 **Request Body**
 ```json
-{ "title": "문서 제목", "doc": { "type": "doc", "content": [] } }
+{ "title": "문서 제목", "doc": { "type": "doc", "content": [] }, "folderId": null }
 ```
 `doc`은 TipTap/ProseMirror JSON(`JSONContent`)이다. 화면 UI/UX 설계(2차)에서 `body`(Markdown 문자열) 필드를 대체했다.
 
 > **2026-08-28 갱신(P0-7)**: 요청 형식은 그대로지만, 서버가 이 `title`을 Confluence page의 실제 title로 쓰지 않는다 — 대신 `randomUUID()`로 만든 내부 고유키를 title로 쓰고, 요청받은 `title`은 `sourceDocument` property에 저장한다. Confluence는 Space 전체에서 페이지 title이 유일해야 해서, 서로 다른 계정이 같은 제목("회의록" 등)을 쓰면 그대로는 생성이 실패하기 때문이다.
+
+> **2026-09-09 갱신(P7-3)**: 선택적 `folderId`(생성과 동시에 소속시킬 폴더 id, 생략하거나 `null`이면 "미분류")가 추가됐다. 지정하면 그 계정의 폴더 트리(`GET /api/editor/folders`)에 실제로 존재하는지 서버가 검증하고, 없으면 400을 반환한다.
 
 **Response Body (성공, 201)**
 ```json
@@ -165,9 +171,34 @@
 | 상태 코드 | 사유 | 설명 |
 |---|---|---|
 | 401 | UNAUTHORIZED | 로그인 필요 |
-| 400 | INVALID_REQUEST | 제목/본문 누락 |
+| 400 | INVALID_REQUEST | 제목/본문 누락, 또는 존재하지 않는 `folderId`(P7-3) |
 | 404 | NOT_FOUND | 개인 폴더가 없음(먼저 생성 필요) |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+### PUT /api/editor/documents/{pageId}/folder — 문서를 다른 폴더로 이동(2026-09-09 추가, P7-3)
+**Header**: Cookie(세션) 필수. **소유자만 가능**(`requireDocumentOwner`) — 폴더는 소유자
+개인의 조직 체계라 공유받은 사람이 남의 문서를 자기 폴더 구조에 끼워 넣을 수는 없다(P6-6의
+삭제 전용 판단과 같은 근거).
+
+**Request Body**
+```json
+{ "folderId": "uuid" }
+```
+`folderId`가 `null`이면 "미분류"로 되돌린다.
+
+**Response**: 성공 시 204 No Content
+
+**Response (실패)**
+| 상태 코드 | 사유 | 설명 |
+|---|---|---|
+| 401 | UNAUTHORIZED | 로그인 필요, 또는 문서 소유자가 아님 |
+| 400 | INVALID_REQUEST | 존재하지 않는 `folderId` |
+| 404 | NOT_FOUND | 문서 없음, 또는 개인 폴더가 없음 |
+| 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
+
+> `folderId: null`은 문서 property에 JSON `null`을 쓰는 대신 property 자체를 지워 표현한다
+> (Confluence content property API가 `value: null`을 거부함, `src/lib/editor/documents.ts`의
+> `setDocumentFolder` 참고 — 아래 `DELETE /api/editor/folders/{folderId}`의 설명과 같은 제약).
 
 ### PUT /api/editor/documents/{pageId} — 문서 수정
 **Header**: Cookie(세션) 필수
@@ -427,7 +458,8 @@ Confluence 첨부파일을 서버(API 토큰 인증)를 대신 거쳐 브라우�
       "ownerName": "홍길동",
       "updatedAt": "2026-09-03T00:00:00.000Z",
       "isPublished": false,
-      "tags": ["React"]
+      "tags": ["React"],
+      "folderId": null
     }
   ]
 }
@@ -509,14 +541,17 @@ Confluence 첨부파일을 서버(API 토큰 인증)를 대신 거쳐 브라우�
 | 400 | INVALID_REQUEST | 이름 누락/중복 |
 | 502 | UPSTREAM_ERROR | Confluence 연동 실패 |
 
-### DELETE /api/editor/folders/{folderId} — 폴더 삭제(2026-09-09 추가, P7-2)
+### DELETE /api/editor/folders/{folderId} — 폴더 삭제(2026-09-09 추가, P7-2/P7-3)
 **Header**: Cookie(세션) 필수
 
 **Response (성공)**: 204 No Content. 삭제 대상의 직속 하위 폴더는 함께 삭제되지 않고
 삭제된 폴더의 상위로 승격된다(최상위 폴더를 지우면 그 하위 폴더들은 최상위가 된다) —
-`src/lib/editor/folders.ts`의 `deleteFolder` 참고. **문서의 폴더 소속(`folderId`)에 같은
-승격을 적용하는 것은 P7-3에서 완성된다** — 이 시점에는 문서가 폴더에 속하는 메커니즘
-자체가 아직 없다.
+`src/lib/editor/folders.ts`의 `deleteFolder` 참고. **문서의 폴더 소속(`folderId`)도 같은
+방식으로 승격된다(P7-3, 구현 완료)** — 라우트가 `deleteFolder`가 반환한 삭제된 노드의
+`parentId`로 `src/lib/editor/documents.ts`의 `reassignDocumentsFolder`를 이어 호출한다
+(`folders.ts`는 문서를 몰라야 하므로 오케스트레이션은 라우트 계층에서 조립한다). 최상위
+폴더를 지워 문서가 "미분류"(`parentId: null`)로 승격되는 경우도 마찬가지로 property를
+지워 표현한다(위 `PUT /api/editor/documents/{pageId}/folder`의 설명 참고).
 
 **Response (실패)**
 | 상태 코드 | 사유 | 설명 |

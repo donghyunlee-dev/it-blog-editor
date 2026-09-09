@@ -224,9 +224,12 @@ describe("deleteFolder", () => {
       version: { number: 1 },
     });
 
-    await deleteFolder("account-1", "f1");
+    const deleted = await deleteFolder("account-1", "f1");
 
     expect(upsertSpy).toHaveBeenCalledWith("account-1", "folderIndex", [folders[1]]);
+    // 삭제된 노드를 그대로 반환한다(P7-3) — 호출부가 그 parentId로 문서 재배정을
+    // 오케스트레이션할 수 있어야 한다.
+    expect(deleted).toEqual(folders[0]);
   });
 
   it("존재하지 않는 폴더면 NotFoundError를 던지고 아무것도 쓰지 않는다", async () => {

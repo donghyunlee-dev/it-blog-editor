@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as client from "@/lib/confluence/client";
 import * as access from "./access";
 import * as folder from "./folder";
+import * as folders from "./folders";
 import * as tags from "./tags";
 import { ConflictError, UnauthorizedError, ValidationError } from "./errors";
 import {
@@ -11,9 +12,11 @@ import {
   getDocumentVersionHistory,
   listDocuments,
   listSharedDocuments,
+  reassignDocumentsFolder,
   requireDocumentAccess,
   requireDocumentOwner,
   searchDocuments,
+  setDocumentFolder,
   updateDocument,
 } from "./documents";
 
@@ -96,6 +99,7 @@ describe("listDocuments", () => {
         updatedAt: "2026-08-21T00:00:00.000Z",
         isPublished: false,
         tags: [],
+        folderId: null,
       },
     ]);
   });
@@ -128,6 +132,7 @@ describe("listDocuments", () => {
         updatedAt: "2026-08-21T00:00:00.000Z",
         isPublished: false,
         tags: [],
+        folderId: null,
       },
       {
         pageId: "doc-2",
@@ -135,6 +140,7 @@ describe("listDocuments", () => {
         updatedAt: "2026-08-21T00:00:00.000Z",
         isPublished: true,
         tags: [],
+        folderId: null,
       },
     ]);
   });
@@ -160,6 +166,7 @@ describe("listDocuments", () => {
         updatedAt: "2026-08-21T00:00:00.000Z",
         isPublished: true,
         tags: ["React"],
+        folderId: null,
       },
     ]);
     expect(tagsSpy).toHaveBeenCalledTimes(1);
@@ -344,6 +351,7 @@ describe("listSharedDocuments", () => {
         updatedAt: "2026-08-21T00:00:00.000Z",
         isPublished: true,
         tags: ["React"],
+        folderId: null,
         ownerEmail: "owner@s-food.com",
         ownerName: "홍길동",
       },
@@ -761,6 +769,197 @@ describe("createDocument", () => {
     });
 
     expect(result).toEqual({ pageId: "doc-1", version: 1 });
+  });
+
+  it("folderId를 지정하면 존재를 검증한 뒤 folderId property를 저장한다(P7-3)", async () => {
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "createPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    vi.spyOn(folders, "listFolders").mockResolvedValue([
+      { id: "f1", name: "업무", parentId: null, order: 0 },
+    ]);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "authorMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+
+    await createDocument({
+      accountFolderId: "folder-1",
+      title: "제목",
+      doc: SAMPLE_DOC,
+      actualAuthorEmail: "user@s-food.com",
+      folderId: "f1",
+    });
+
+    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "folderId", "f1");
+  });
+
+  it("존재하지 않는 folderId면 ValidationError를 던지고 아무것도 만들지 않는다(P7-3)", async () => {
+    vi.spyOn(folders, "listFolders").mockResolvedValue([]);
+    const createPageSpy = vi.spyOn(client, "createPage");
+
+    await expect(
+      createDocument({
+        accountFolderId: "folder-1",
+        title: "제목",
+        doc: SAMPLE_DOC,
+        actualAuthorEmail: "user@s-food.com",
+        folderId: "없는-id",
+      })
+    ).rejects.toThrow(ValidationError);
+    expect(createPageSpy).not.toHaveBeenCalled();
+  });
+
+  it("folderId를 지정하지 않으면 folderId property를 쓰지 않는다(미분류로 시작)", async () => {
+    vi.spyOn(client, "getConfiguredSpace").mockResolvedValue({
+      id: "space-1",
+      key: "SFOODIT",
+      homepageId: "home-1",
+    });
+    vi.spyOn(client, "createPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 1, createdAt: "" },
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "authorMeta",
+      value: {},
+      version: { number: 1 },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+
+    await createDocument({
+      accountFolderId: "folder-1",
+      title: "제목",
+      doc: SAMPLE_DOC,
+      actualAuthorEmail: "user@s-food.com",
+    });
+
+    expect(upsertSpy).not.toHaveBeenCalledWith("doc-1", "folderId", expect.anything());
+  });
+});
+
+describe("setDocumentFolder", () => {
+  it("폴더가 존재하면 folderId property를 갱신한다(P7-3)", async () => {
+    vi.spyOn(folders, "listFolders").mockResolvedValue([
+      { id: "f1", name: "업무", parentId: null, order: 0 },
+    ]);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "folderId",
+      value: "f1",
+      version: { number: 1 },
+    });
+
+    await setDocumentFolder("doc-1", "account-1", "f1");
+
+    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "folderId", "f1");
+  });
+
+  it("null을 지정하면 property를 upsert하는 대신 지워서 미분류로 되돌린다(Confluence가 value:null을 거부함, 2026-09-09 실사용 확인)", async () => {
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+    const deleteSpy = vi.spyOn(client, "deletePageProperty").mockResolvedValue(undefined);
+
+    await setDocumentFolder("doc-1", "account-1", null);
+
+    expect(deleteSpy).toHaveBeenCalledWith("doc-1", "folderId");
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("존재하지 않는 폴더면 ValidationError를 던지고 아무것도 쓰지 않는다", async () => {
+    vi.spyOn(folders, "listFolders").mockResolvedValue([]);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+
+    await expect(setDocumentFolder("doc-1", "account-1", "없는-id")).rejects.toThrow(
+      ValidationError
+    );
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("reassignDocumentsFolder", () => {
+  it("지정한 폴더에 속한 문서만 새 폴더로 재배정한다(P7-3, 폴더 삭제 시 문서 승격)", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+      page("doc-2", "internal-2", "account-1"),
+      page("doc-3", "internal-3", "account-1"),
+    ]);
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId) => {
+      const folderIdByPage: Record<string, string | null> = {
+        "doc-1": "target-folder",
+        "doc-2": "other-folder",
+        "doc-3": "target-folder",
+      };
+      return {
+        id: "prop-1",
+        key: "folderId",
+        value: folderIdByPage[pageId] ?? null,
+        version: { number: 1 },
+      };
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "folderId",
+      value: null,
+      version: { number: 1 },
+    });
+
+    await reassignDocumentsFolder("account-1", "target-folder", "parent-folder");
+
+    expect(upsertSpy).toHaveBeenCalledTimes(2);
+    expect(upsertSpy).toHaveBeenCalledWith("doc-1", "folderId", "parent-folder");
+    expect(upsertSpy).toHaveBeenCalledWith("doc-3", "folderId", "parent-folder");
+    expect(upsertSpy).not.toHaveBeenCalledWith("doc-2", "folderId", expect.anything());
+  });
+
+  it("해당 폴더에 속한 문서가 없으면 아무것도 쓰지 않는다", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([page("doc-1", "internal-1", "account-1")]);
+    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+    const deleteSpy = vi.spyOn(client, "deletePageProperty");
+
+    await reassignDocumentsFolder("account-1", "target-folder", null);
+
+    expect(upsertSpy).not.toHaveBeenCalled();
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it("최상위 폴더 삭제로 toFolderId가 null이면 property를 upsert하는 대신 지운다(Confluence가 value:null을 거부함, 2026-09-09 실사용 확인)", async () => {
+    vi.spyOn(client, "listChildPages").mockResolvedValue([
+      page("doc-1", "internal-1", "account-1"),
+      page("doc-2", "internal-2", "account-1"),
+    ]);
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId) => ({
+      id: "prop-1",
+      key: "folderId",
+      value: pageId === "doc-1" ? "target-folder" : "other-folder",
+      version: { number: 1 },
+    }));
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty");
+    const deleteSpy = vi.spyOn(client, "deletePageProperty").mockResolvedValue(undefined);
+
+    await reassignDocumentsFolder("account-1", "target-folder", null);
+
+    expect(deleteSpy).toHaveBeenCalledWith("doc-1", "folderId");
+    expect(deleteSpy).not.toHaveBeenCalledWith("doc-2", "folderId");
+    expect(upsertSpy).not.toHaveBeenCalled();
   });
 });
 

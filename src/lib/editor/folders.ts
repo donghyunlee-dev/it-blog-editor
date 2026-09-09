@@ -145,11 +145,12 @@ export async function renameFolder(
  * 그 뜻이다. 손자 폴더 이하는 건드리지 않아도 트리 구조상 자동으로 유지된다(자기 부모를
  * 그대로 따라간다).
  *
- * 문서(Document)의 폴더 소속도 같은 방식으로 승격돼야 하지만, 그 메커니즘(`folderId`
- * property) 자체가 아직 없다 — P7-3이 추가하면서 이 함수의 승격 로직을 재사용해야 한다
- * (`docs/superpowers/tasks/P7-2-folder-crud/task.md`의 "범위 밖" 참고).
+ * 문서(Document)의 폴더 소속도 같은 방식으로 승격된다 — 다만 그 재배정 자체는 이
+ * 함수가 하지 않는다(`folders.ts`는 문서를 몰라야 한다, 순환 참조 방지). 대신 삭제된
+ * 폴더 노드를 그대로 반환해, 호출부(API 라우트)가 그 `parentId`로 `documents.ts`의
+ * `reassignDocumentsFolder`를 이어 호출하는 오케스트레이션을 완성한다(P7-3).
  */
-export async function deleteFolder(accountFolderId: string, folderId: string): Promise<void> {
+export async function deleteFolder(accountFolderId: string, folderId: string): Promise<FolderNode> {
   const folders = await listFolders(accountFolderId);
   const target = folders.find((folder) => folder.id === folderId);
   if (!target) {
@@ -162,4 +163,5 @@ export async function deleteFolder(accountFolderId: string, folderId: string): P
       folder.parentId === folderId ? { ...folder, parentId: target.parentId } : folder
     );
   await upsertPageProperty(accountFolderId, FOLDER_INDEX_PROPERTY_KEY, next);
+  return target;
 }
