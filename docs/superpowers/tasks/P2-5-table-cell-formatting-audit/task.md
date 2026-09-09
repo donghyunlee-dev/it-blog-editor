@@ -12,13 +12,13 @@
 - 문서 전체 기능이고 값(글꼴 목록·크기 단계)이 정해지지 않아 [Issue #69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69)로 등록했다.
 
 ## 수용 기준 (Acceptance Criteria)
-- [ ] 표 셀 안 텍스트를 선택하면 서식 버블 메뉴가 뜨고 글자 색상 버튼이 노출됨을 검증하는 자동화 테스트를 `RichTextEditor.test.tsx`에 추가한다(회귀 방지 — 향후 표 관련 리팩터가 이 동작을 조용히 깨뜨리지 않도록 고정).
-- [ ] 조사 결과(색상/하이라이트는 이미 동작함, 폰트는 문서 전체 미구현)를 PRD·`result.md`에 명시한다.
-- [ ] 폰트(글꼴·크기) 서식 추가는 [Issue #69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69) 답변 전까지 구현하지 않는다.
+- [x] 표 셀 안 텍스트를 선택하면 서식 버블 메뉴가 뜨고 글자 색상 버튼이 노출됨을 검증하는 자동화 테스트를 `RichTextEditor.test.tsx`에 추가한다(회귀 방지 — 향후 표 관련 리팩터가 이 동작을 조용히 깨뜨리지 않도록 고정).
+- [x] 조사 결과(색상/하이라이트는 이미 동작함, 폰트는 문서 전체 미구현)를 PRD·`result.md`에 명시한다.
+- [x] 폰트(글꼴·크기) 서식 추가는 [Issue #69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69) 답변 전까지 구현하지 않는다 — 답변 결과 추가하지 않는 것으로 최종 결정됐다(아래 참고).
 
 ## 결정이 필요한 사항
-- [ ] 문서 전체(표 포함)에 글꼴 종류·글자 크기 서식을 추가할지, 추가한다면 어떤 목록/단계로 제한할지 — Issue: [#69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69)(추천안: 글꼴 종류는 추가 안 함, 글자 크기는 색상 팔레트와 동일하게 3~4단계 고정값)
+- [x] 문서 전체(표 포함)에 글꼴 종류·글자 크기 서식을 추가할지 — Issue: [#69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69). **2026-09-09 답변**: "글꼴을 빼고 서식(볼드, 이테리, 취소선 등)만 구현" — 글꼴 종류(font-family)·글자 크기(font-size) 둘 다 추가하지 않고, 기존 서식(굵게/기울임/취소선·글자색·하이라이트)만 유지하는 것으로 최종 결정됐다. 추가 구현 없음.
 
 ## 범위 밖
-- 폰트(글꼴·크기) 서식 자체의 구현은 위 결정이 나오기 전까지 이 작업의 범위 밖이다 — 이번 항목은 조사와 회귀 테스트 추가까지만 다룬다.
+- 폰트(글꼴·크기) 서식은 [Issue #69](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/69) 답변으로 추가하지 않는 것이 확정됐다 — 앞으로도 이 프로젝트 범위 밖이다(필요성이 다시 제기되면 그때 별도로 논의한다).
 - 표 삭제 기능은 별도 항목(P2-4)에서 이미 다뤘다.
