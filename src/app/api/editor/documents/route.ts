@@ -38,6 +38,8 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as {
       title?: string;
       doc?: unknown;
+      /** 생성 시점에 바로 넣을 폴더(P7-3). 지정하지 않으면 "미분류"로 시작한다. */
+      folderId?: string | null;
     };
 
     const result = await createDocument({
@@ -45,6 +47,7 @@ export async function POST(request: Request) {
       title: payload.title ?? "",
       doc: (payload.doc as JSONContent) ?? { type: "doc", content: [] },
       actualAuthorEmail: email,
+      folderId: payload.folderId ?? null,
     });
 
     return NextResponse.json(result, { status: 201 });

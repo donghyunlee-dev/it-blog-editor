@@ -10,6 +10,7 @@ function documentSummary(pageId: string, tags: string[]) {
     updatedAt: "2026-08-24T00:00:00Z",
     isPublished: false,
     tags,
+    folderId: null,
   };
 }
 

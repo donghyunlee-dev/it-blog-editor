@@ -46,6 +46,7 @@ describe("GET /api/editor/documents/search", () => {
         updatedAt: "2026-09-01T00:00:00.000Z",
         isPublished: false,
         tags: [],
+        folderId: null,
         snippet: "본문 일부",
       },
     ]);
@@ -63,6 +64,7 @@ describe("GET /api/editor/documents/search", () => {
           updatedAt: "2026-09-01T00:00:00.000Z",
           isPublished: false,
           tags: [],
+          folderId: null,
           snippet: "본문 일부",
         },
       ],

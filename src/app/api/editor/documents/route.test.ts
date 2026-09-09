@@ -45,7 +45,7 @@ describe("GET /api/editor/documents", () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
     vi.mocked(findPersonalFolder).mockResolvedValue({ accountFolderId: "folder-1", spaceKey: "SF" });
     vi.mocked(listDocuments).mockResolvedValue([
-      { pageId: "doc-1", title: "문서1", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
+      { pageId: "doc-1", title: "문서1", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [], folderId: null },
     ]);
 
     const response = await GET();
@@ -54,7 +54,7 @@ describe("GET /api/editor/documents", () => {
     expect(vi.mocked(listDocuments)).toHaveBeenCalledWith("folder-1");
     expect(body).toEqual({
       documents: [
-        { pageId: "doc-1", title: "문서1", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [] },
+        { pageId: "doc-1", title: "문서1", updatedAt: "2026-09-01T00:00:00.000Z", isPublished: false, tags: [], folderId: null },
       ],
     });
   });
@@ -103,9 +103,31 @@ describe("POST /api/editor/documents", () => {
       title: "제목",
       doc,
       actualAuthorEmail: "user@s-food.com",
+      folderId: null,
     });
     expect(response.status).toBe(201);
     expect(body).toEqual({ pageId: "doc-1", version: 1 });
+  });
+
+  it("folderId를 지정하면 그대로 createDocument에 전달한다(P7-3)", async () => {
+    vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
+    vi.mocked(findPersonalFolder).mockResolvedValue({ accountFolderId: "folder-1", spaceKey: "SF" });
+    vi.mocked(createDocument).mockResolvedValue({ pageId: "doc-1", version: 1 });
+
+    const doc = { type: "doc", content: [{ type: "paragraph", content: [] }] };
+    const request = new Request("http://localhost/api/editor/documents", {
+      method: "POST",
+      body: JSON.stringify({ title: "제목", doc, folderId: "f1" }),
+    });
+    await POST(request);
+
+    expect(vi.mocked(createDocument)).toHaveBeenCalledWith({
+      accountFolderId: "folder-1",
+      title: "제목",
+      doc,
+      actualAuthorEmail: "user@s-food.com",
+      folderId: "f1",
+    });
   });
 
   it("title/doc이 없으면 빈 문자열·빈 문서로 기본값을 채워 createDocument를 호출한다", async () => {
@@ -124,6 +146,7 @@ describe("POST /api/editor/documents", () => {
       title: "",
       doc: { type: "doc", content: [] },
       actualAuthorEmail: "user@s-food.com",
+      folderId: null,
     });
   });
 

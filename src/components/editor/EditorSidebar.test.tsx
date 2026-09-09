@@ -58,6 +58,7 @@ const DOCS: DocumentSummary[] = [
     updatedAt: "2026-08-21T00:00:00.000Z",
     isPublished: true,
     tags: ["React"],
+    folderId: null,
   },
   {
     pageId: "2",
@@ -65,6 +66,7 @@ const DOCS: DocumentSummary[] = [
     updatedAt: "2026-08-21T00:00:00.000Z",
     isPublished: false,
     tags: ["Backend"],
+    folderId: null,
   },
 ];
 
@@ -75,6 +77,7 @@ const MANY_DOCS: DocumentSummary[] = Array.from({ length: 35 }, (_, i) => ({
   updatedAt: "2026-08-21T00:00:00.000Z",
   isPublished: false,
   tags: ["공통"],
+  folderId: null,
 }));
 
 /** 정렬 테스트 전용 — 제목 순서(가나다)와 최신 수정 순서가 서로 반대가 되도록 만든다. */
@@ -85,6 +88,7 @@ const SORT_DOCS: DocumentSummary[] = [
     updatedAt: "2020-01-01T00:00:00.000Z",
     isPublished: false,
     tags: [],
+    folderId: null,
   },
   {
     pageId: "new",
@@ -92,6 +96,7 @@ const SORT_DOCS: DocumentSummary[] = [
     updatedAt: "2026-01-01T00:00:00.000Z",
     isPublished: false,
     tags: [],
+    folderId: null,
   },
 ];
 
@@ -362,6 +367,7 @@ describe("EditorSidebar", () => {
         updatedAt: "2026-09-04T00:00:00.000Z",
         isPublished: true,
         tags: [],
+        folderId: null,
         ownerEmail: "owner@s-food.com",
         ownerName: "홍길동",
       },
