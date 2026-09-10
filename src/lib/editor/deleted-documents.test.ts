@@ -46,6 +46,10 @@ describe("restoreDocument", () => {
   function stubGetPageProperty(options: {
     registry?: Array<{ pageId: string; title: string; deletedAt: string }>;
     publishMetadata?: { isPublished: boolean; viewers?: Record<string, unknown> };
+    /** 복구 대상 문서(doc-1)의 folderId property 원본값(P7-9). */
+    folderId?: string;
+    /** 계정 폴더의 folderIndex(P7-9 — 폴더가 실제로 존재하는지 검증하는 데 쓴다). */
+    folderIndex?: Array<{ id: string; name: string; parentId: string | null; order: number }>;
   }) {
     return vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
       if (key === "deletedDocuments" && pageId === "account-1") {
@@ -56,6 +60,16 @@ describe("restoreDocument", () => {
       if (key === "publishMetadata") {
         return options.publishMetadata
           ? { id: "prop-2", key, value: options.publishMetadata, version: { number: 1 } }
+          : null;
+      }
+      if (key === "folderId" && pageId === "doc-1") {
+        return options.folderId
+          ? { id: "prop-3", key, value: options.folderId, version: { number: 1 } }
+          : null;
+      }
+      if (key === "folderIndex" && pageId === "account-1") {
+        return options.folderIndex
+          ? { id: "prop-4", key, value: options.folderIndex, version: { number: 1 } }
           : null;
       }
       return null;
@@ -163,6 +177,88 @@ describe("restoreDocument", () => {
     await restoreDocument("user@s-food.com", "doc-1");
 
     expect(upsertSpy).not.toHaveBeenCalledWith("doc-1", "publishMetadata", expect.anything());
+  });
+
+  it("복구된 문서가 가리키던 폴더가 그대로 있으면 folderId를 건드리지 않는다(P7-9)", async () => {
+    stubGetPageProperty({
+      registry: [{ pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-01T00:00:00.000Z" }],
+      folderId: "f1",
+      folderIndex: [{ id: "f1", name: "업무", parentId: null, order: 0 }],
+    });
+    vi.spyOn(client, "movePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "문서 1",
+      spaceId: "space-1",
+      parentId: "account-1",
+      version: { number: 3, createdAt: "" },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "deletedDocuments",
+      value: [],
+      version: { number: 2 },
+    });
+    const deleteSpy = vi.spyOn(client, "deletePageProperty").mockResolvedValue(undefined);
+
+    await restoreDocument("user@s-food.com", "doc-1");
+
+    expect(deleteSpy).not.toHaveBeenCalled();
+  });
+
+  it("복구된 문서가 가리키던 폴더가 그 사이 삭제됐으면 미분류로 되돌린다(P7-9 — 휴지통에 있는 동안의 폴더 삭제는 reassignDocumentsFolder의 재배정 대상에서 빠지기 때문)", async () => {
+    stubGetPageProperty({
+      registry: [{ pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-01T00:00:00.000Z" }],
+      folderId: "deleted-folder",
+      folderIndex: [{ id: "f1", name: "업무", parentId: null, order: 0 }],
+    });
+    vi.spyOn(client, "movePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "문서 1",
+      spaceId: "space-1",
+      parentId: "account-1",
+      version: { number: 3, createdAt: "" },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "deletedDocuments",
+      value: [],
+      version: { number: 2 },
+    });
+    const deleteSpy = vi.spyOn(client, "deletePageProperty").mockResolvedValue(undefined);
+
+    await restoreDocument("user@s-food.com", "doc-1");
+
+    expect(deleteSpy).toHaveBeenCalledWith("doc-1", "folderId");
+  });
+
+  it("복구된 문서가 애초에 미분류(folderId 없음)였으면 아무 것도 하지 않는다(P7-9)", async () => {
+    stubGetPageProperty({
+      registry: [{ pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-01T00:00:00.000Z" }],
+    });
+    vi.spyOn(client, "movePage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "문서 1",
+      spaceId: "space-1",
+      parentId: "account-1",
+      version: { number: 3, createdAt: "" },
+    });
+    vi.spyOn(access, "hidePageFromOthers").mockResolvedValue(undefined);
+    vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-1",
+      key: "deletedDocuments",
+      value: [],
+      version: { number: 2 },
+    });
+    const deleteSpy = vi.spyOn(client, "deletePageProperty").mockResolvedValue(undefined);
+
+    await restoreDocument("user@s-food.com", "doc-1");
+
+    expect(deleteSpy).not.toHaveBeenCalled();
   });
 
   it("Confluence에서 이미 영구 삭제됐으면(404) 레지스트리에서 정리하고 NotFoundError를 던진다", async () => {

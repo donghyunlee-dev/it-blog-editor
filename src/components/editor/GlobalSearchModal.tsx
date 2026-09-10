@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Tag } from "@sfood/ui";
 import { StatusIcon } from "./EditorSidebar";
 import type { DocumentSearchResult } from "@/lib/editor/documents";
+import { buildFolderPath, type FolderNode } from "@/lib/editor/folders";
 
 const DEBOUNCE_MS = 300;
 const FOCUSABLE_SELECTOR =
@@ -86,7 +87,10 @@ function SearchIcon() {
  * 상태를 스스로 관리하고(Ctrl+K·Escape는 그대로 내부에서 처리) 외부에서 "열어달라"는 요청만
  * 추가로 받는 최소한의 확장이다. 처음 마운트 시 `undefined`라 즉시 열리지 않는다.
  */
-export function GlobalSearchModal({ openSignal }: { openSignal?: number } = {}) {
+export function GlobalSearchModal({
+  openSignal,
+  folders = [],
+}: { openSignal?: number; folders?: FolderNode[] } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [titleOnly, setTitleOnly] = useState(false);
@@ -228,6 +232,16 @@ export function GlobalSearchModal({ openSignal }: { openSignal?: number } = {}) 
     [visibleDocuments]
   );
 
+  // P7-9: 검색 결과에 소속 폴더 경로를 함께 보여준다 — 폴더 트리(EditorSidebar.tsx)를
+  // 직접 펼쳐보지 않아도 "이 문서가 어디 있는지" 알 수 있게 한다(P7-7 편집 화면
+  // 브레드크럼과 같은 동기). folders가 없는 계정(대부분)은 항상 빈 문자열이라 이 줄
+  // 자체가 렌더링되지 않는다.
+  function folderLabel(document: DocumentSearchResult): string {
+    return buildFolderPath(folders, document.folderId)
+      .map((folder) => folder.name)
+      .join("/");
+  }
+
   function openDocument(pageId: string) {
     setOpen(false);
     router.push(`/editor/${pageId}`);
@@ -318,6 +332,11 @@ export function GlobalSearchModal({ openSignal }: { openSignal?: number } = {}) 
                       <span className="min-w-0 truncate text-sm font-medium text-foreground">
                         {document.title || "(제목 없음)"}
                       </span>
+                      {folderLabel(document) && (
+                        <span className="shrink-0 truncate text-xs text-muted">
+                          {folderLabel(document)}
+                        </span>
+                      )}
                       {document.tags.length > 0 && (
                         <span className="min-w-0 truncate text-xs text-muted">
                           {" "}
@@ -351,6 +370,9 @@ export function GlobalSearchModal({ openSignal }: { openSignal?: number } = {}) 
                     {selectedDocument.title || "(제목 없음)"}
                   </h2>
                 </div>
+                {folderLabel(selectedDocument) && (
+                  <p className="-mt-2 truncate text-xs text-muted">{folderLabel(selectedDocument)}</p>
+                )}
                 <div className="rounded-btn border border-border bg-surface-subtle p-4 text-sm text-foreground">
                   {selectedDocument.snippet || "본문 미리보기가 없습니다."}
                 </div>

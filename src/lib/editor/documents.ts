@@ -470,6 +470,26 @@ export async function setDocumentFolder(
 }
 
 /**
+ * 복구된 문서가 가리키던 폴더가 휴지통에 있는 동안 삭제됐으면 미분류로 되돌린다(P7-9) —
+ * `reassignDocumentsFolder`는 `listChildPages`로 활성 문서만 훑으므로, 휴지통에 있던
+ * 문서는 그 사이 폴더가 삭제돼도 재배정 대상에서 빠져 `folderId`가 존재하지 않는 폴더를
+ * 가리킨 채로 남는다. 폴더가 그대로 있으면 아무것도 하지 않는다 — 복구된 문서는 원래
+ * 있던 폴더로 그대로 돌아간다는 뜻이다. 이 함수가 `deleted-documents.ts`의
+ * `restoreDocument`가 명시하는 "복구 시 폴더 소속" 정책 전체다.
+ */
+export async function reconcileFolderAfterRestore(
+  pageId: string,
+  accountFolderId: string
+): Promise<void> {
+  const folderProperty = await getPageProperty<string | null>(pageId, FOLDER_PROPERTY_KEY);
+  const folderId = folderProperty?.value ?? null;
+  if (folderId === null) return;
+  const folders = await listFolders(accountFolderId);
+  if (folders.some((folder) => folder.id === folderId)) return;
+  await deletePageProperty(pageId, FOLDER_PROPERTY_KEY);
+}
+
+/**
  * 계정의 모든 문서 중 `fromFolderId`에 속한 것을 전부 `toFolderId`로 재배정한다 —
  * 폴더 삭제 시 그 안의 문서를 잃지 않고 상위로 승격시키는 정책(P7-2에서 하위 *폴더*만
  * 먼저 구현하고 문서 쪽은 이 함수로 미뤄뒀다)의 문서 쪽 절반이다. `folders.ts`는 문서를

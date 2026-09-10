@@ -102,6 +102,38 @@ describe("GlobalSearchModal", () => {
     expect(screen.getByRole("button", { name: /React 19 정리/ })).toBeInTheDocument();
   });
 
+  it("문서가 폴더에 속해 있고 folders가 주어지면 결과 목록·미리보기에 폴더 경로를 함께 보여준다(P7-9)", async () => {
+    const FOLDERS = [
+      { id: "f1", name: "업무", parentId: null, order: 0 },
+      { id: "f2", name: "하위", parentId: "f1", order: 0 },
+    ];
+    stubFetch(() =>
+      jsonResponse({
+        documents: [makeDoc({ folderId: "f2" })],
+      })
+    );
+    const user = userEvent.setup();
+
+    render(<GlobalSearchModal folders={FOLDERS} />);
+    openWithCtrlK();
+    await user.type(screen.getByLabelText("문서 전체 검색"), "react");
+
+    // 목록 행과 미리보기 패널 양쪽에 "업무/하위"가 보여야 한다.
+    expect(await screen.findAllByText("업무/하위")).toHaveLength(2);
+  });
+
+  it("문서에 folderId가 없으면(대부분) 폴더 경로를 보여주지 않는다", async () => {
+    stubFetch(() => jsonResponse({ documents: [makeDoc()] }));
+    const user = userEvent.setup();
+
+    render(<GlobalSearchModal folders={[{ id: "f1", name: "업무", parentId: null, order: 0 }]} />);
+    openWithCtrlK();
+    await user.type(screen.getByLabelText("문서 전체 검색"), "react");
+
+    expect(await screen.findByRole("heading", { name: "React 19 정리" })).toBeInTheDocument();
+    expect(screen.queryByText("업무")).not.toBeInTheDocument();
+  });
+
   it("일치하는 문서가 없으면 안내 문구를 보여준다", async () => {
     stubFetch(() => jsonResponse({ documents: [] }));
     const user = userEvent.setup();
