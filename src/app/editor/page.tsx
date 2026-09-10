@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { Card, Typography } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
-import { LandingSearchButton } from "@/components/editor/LandingSearchButton";
 
 /*
  * 문서를 아직 하나도 열지 않은 상태의 기본 화면. 처음엔 EmptyState 한 줄만 있었고,
@@ -123,15 +122,6 @@ export default function EditorHomePage() {
           <PlusIcon />
           새 문서 작성
         </Link>
-        {/*
-          support.claude.com/ko 벤치마킹(design.md "8. 검색" 절, P8-4) — 히어로에 큰 검색
-          진입점을 추가한다. "새 문서 작성"이 이 화면의 유일한 primary 액션이라(CLAUDE.md
-          "한 화면에 primary는 1개"), 이 버튼은 중립 톤(border+bg-surface)으로 둬 시각적
-          우선순위가 겹치지 않게 한다.
-        */}
-        <div className="mt-1 w-full max-w-[420px]">
-          <LandingSearchButton />
-        </div>
       </div>
 
       <Card padding="lg" className="spotlight-card">
