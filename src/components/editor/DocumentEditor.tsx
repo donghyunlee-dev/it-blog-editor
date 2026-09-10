@@ -653,14 +653,23 @@ export function DocumentEditor({
             `/editor?folder={id}`로 이동한다 — 사이드바(EditorSidebar.tsx)가 이 쿼리를
             읽어 그 폴더까지 펼치고 스크롤·강조한다(전용 폴더 상세 화면은 없다, P7-4의
             사이드바 트리 하나로 탐색을 통일하는 기존 설계와 같은 이유).
+
+            P8-3: support.claude.com/ko 벤치마킹(design.md "5. 본문 콘텐츠 상단")의 시각
+            스펙 중 항목 간 gap:8px만 반영한다(gap-1→gap-2, 구분자 포함 모든 항목이
+            균등하게 8px씩 벌어지도록 바깥 nav와 각 span 안쪽 모두 적용). 나머지 값은
+            이 프로젝트의 더 상위 규칙과 충돌해 적용하지 않았다 — 폰트 13px는 design.md
+            "2. 사이즈" 표가 "헤더 버튼/링크"를 text-sm(14px)로 이미 고정해 둔 규칙과
+            충돌하고, 색 #595959는 CLAUDE.md의 토큰 우선 원칙에 따라 기존 text-muted를
+            유지하며, margin-bottom:16px는 이 브레드크럼이 고정 높이(h-14) 헤더 바 안에
+            있어 그대로 주면 헤더 높이가 깨진다(자세한 근거는 task.md 참고).
           */}
           {folderPath.length > 0 && (
             <nav
               aria-label="문서 위치"
-              className="flex min-w-0 items-center gap-1 overflow-hidden text-sm text-muted"
+              className="flex min-w-0 items-center gap-2 overflow-hidden text-sm text-muted"
             >
               {folderPath.map((folder, index) => (
-                <span key={folder.id} className="flex min-w-0 items-center gap-1">
+                <span key={folder.id} className="flex min-w-0 items-center gap-2">
                   {index > 0 && <span aria-hidden="true">/</span>}
                   <Link
                     href={`/editor?folder=${folder.id}`}
