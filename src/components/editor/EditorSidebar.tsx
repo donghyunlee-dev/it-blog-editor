@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Button, ChipGroup, EmptyState, Modal, Select, Tag, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -478,13 +478,114 @@ export function EditorSidebar({
   const visibleDocuments = unclassifiedDocuments.slice(0, visibleCount);
   const hasMore = unclassifiedDocuments.length > visibleDocuments.length;
 
-  function renderDocumentRow(document: DocumentSummary, depth: number) {
+  // P7-10: 방향키로 폴더 트리를 탐색하려면(WAI-ARIA tree/treeitem 패턴) 지금 화면에
+  // 실제로 보이는 노드 순서를 알아야 한다 — 접힌 폴더 밑은 건너뛴다. 렌더링과 같은
+  // 순서(자식 폴더 먼저, 그다음 그 폴더의 직속 문서)로 순회해 렌더 결과와 어긋나지
+  // 않게 한다. "미분류" 문서 목록은 트리 바깥의 별도 목록이라 여기 포함하지 않는다.
+  type TreeNode =
+    | { type: "folder"; id: string; depth: number }
+    | { type: "document"; id: string; depth: number; parentFolderId: string };
+
+  function collectVisibleTreeNodes(nodes: FolderNode[], depth: number, acc: TreeNode[]): void {
+    for (const node of nodes) {
+      acc.push({ type: "folder", id: node.id, depth });
+      const isExpanded = expandedFolders[node.id] ?? true;
+      if (!isExpanded) continue;
+      collectVisibleTreeNodes(childrenByParent.get(node.id) ?? [], depth + 1, acc);
+      for (const doc of documentsByFolder.get(node.id) ?? []) {
+        acc.push({ type: "document", id: doc.pageId, depth: depth + 1, parentFolderId: node.id });
+      }
+    }
+  }
+  const visibleTreeNodes: TreeNode[] = [];
+  collectVisibleTreeNodes(topLevelFolders, 0, visibleTreeNodes);
+
+  function treeNodeDomId(node: TreeNode): string {
+    return node.type === "folder"
+      ? `sidebar-folder-toggle-${node.id}`
+      : `sidebar-document-link-${node.id}`;
+  }
+
+  function focusTreeNode(node: TreeNode | undefined) {
+    if (!node) return;
+    window.document.getElementById(treeNodeDomId(node))?.focus();
+  }
+
+  /**
+   * WAI-ARIA 트리 뷰 패턴(방향키로 펼침/이동)을 폴더 토글 버튼·문서 링크에 공통으로
+   * 붙인다. Tab 순서는 손대지 않는다 — 기존처럼 각 버튼/링크를 그대로 Tab으로도
+   * 옮겨 다닐 수 있고, 방향키는 그 위에 얹는 추가 탐색 수단이다(P2-1b의 사이드바 폭
+   * 조절 핸들처럼, 새 상호작용을 기존 포커스 이동 방식과 함께 두는 방식).
+   */
+  function handleTreeKeyDown(event: KeyboardEvent<HTMLElement>, node: TreeNode) {
+    const index = visibleTreeNodes.findIndex((n) => n.type === node.type && n.id === node.id);
+    switch (event.key) {
+      case "ArrowDown":
+        event.preventDefault();
+        focusTreeNode(visibleTreeNodes[index + 1]);
+        break;
+      case "ArrowUp":
+        event.preventDefault();
+        focusTreeNode(visibleTreeNodes[index - 1]);
+        break;
+      case "Home":
+        event.preventDefault();
+        focusTreeNode(visibleTreeNodes[0]);
+        break;
+      case "End":
+        event.preventDefault();
+        focusTreeNode(visibleTreeNodes[visibleTreeNodes.length - 1]);
+        break;
+      case "ArrowRight": {
+        if (node.type !== "folder") break; // 문서(리프)는 펼칠 자식이 없다.
+        event.preventDefault();
+        const isExpanded = expandedFolders[node.id] ?? true;
+        if (!isExpanded) {
+          toggleFolder(node.id);
+        } else {
+          const next = visibleTreeNodes[index + 1];
+          if (next && next.depth > node.depth) focusTreeNode(next);
+        }
+        break;
+      }
+      case "ArrowLeft": {
+        event.preventDefault();
+        if (node.type === "folder") {
+          const isExpanded = expandedFolders[node.id] ?? true;
+          if (isExpanded) {
+            toggleFolder(node.id);
+            break;
+          }
+        }
+        const parentId =
+          node.type === "folder" ? (folders.find((f) => f.id === node.id)?.parentId ?? null) : node.parentFolderId;
+        if (parentId !== null) {
+          focusTreeNode({ type: "folder", id: parentId, depth: node.depth - 1 });
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  function renderDocumentRow(document: DocumentSummary, depth: number, treeItem = false) {
     const isActive = document.pageId === currentPageId;
+    // treeItem은 폴더 트리 안(renderFolderNode의 자식)에서만 true로 넘어오고, 그 경우
+    // childDocuments는 항상 document.folderId로 그룹핑된 결과라 folderId가 null일 수 없다.
+    const treeNode: TreeNode = {
+      type: "document",
+      id: document.pageId,
+      depth,
+      parentFolderId: document.folderId as string,
+    };
     const row = (
       <Link
+        id={`sidebar-document-link-${document.pageId}`}
         href={`/editor/${document.pageId}`}
         onClick={onNavigate}
         onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
+        onKeyDown={treeItem ? (event) => handleTreeKeyDown(event, treeNode) : undefined}
         aria-current={isActive ? "page" : undefined}
         className={
           "block min-w-0 flex-1 rounded-btn py-1.5 pr-3 transition-colors duration-default " +
@@ -508,11 +609,16 @@ export function EditorSidebar({
         )}
       </Link>
     );
+    // aria-selected는 treeitem의 필수 속성이다(jsx-a11y) — "지금 열려 있는 문서"를 이미
+    // Link의 aria-current="page"로 표시하고 있어, 트리 안에서의 선택 상태도 같은 값을 쓴다.
+    const treeItemAttrs = treeItem
+      ? { role: "treeitem" as const, "aria-level": depth + 1, "aria-selected": isActive }
+      : {};
     // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) "이동" 버튼
     // 자체를 숨긴다 — 눌러도 미분류(현재 상태)로만 되돌릴 수 있어 의미가 없다.
     if (flatFolderOptions.length === 0) {
       return (
-        <li key={document.pageId} style={{ paddingLeft: 8 + depth * 14 }}>
+        <li key={document.pageId} style={{ paddingLeft: 8 + depth * 14 }} {...treeItemAttrs}>
           {row}
         </li>
       );
@@ -522,6 +628,7 @@ export function EditorSidebar({
         key={document.pageId}
         className="group flex items-start gap-0.5 rounded-btn"
         style={{ paddingLeft: 8 + depth * 14 }}
+        {...treeItemAttrs}
       >
         {row}
         <button
@@ -550,8 +657,18 @@ export function EditorSidebar({
     // 보여준다 — 검색/태그 필터로 지금 안 보일 뿐인 폴더까지 "비어 있다"고 잘못 알리지
     // 않기 위해 filteredDocuments가 아니라 folderIdsWithDocuments(원본 기준)로 판단한다.
     const isReallyEmpty = childFolders.length === 0 && !folderIdsWithDocuments.has(folder.id);
+    const treeNode: TreeNode = { type: "folder", id: folder.id, depth };
     return (
-      <li key={folder.id}>
+      <li
+        key={folder.id}
+        role="treeitem"
+        aria-expanded={isExpanded}
+        aria-level={depth + 1}
+        // 폴더 자체는 "선택"되는 대상이 아니라 펼치고 접는 대상이라 항상 false다 —
+        // jsx-a11y가 요구하는 필수 속성(treeitem은 aria-selected가 있어야 한다)이라
+        // 값 없이 생략할 수는 없다.
+        aria-selected={false}
+      >
         {/*
           P7-5: 토글(펼침/접힘)과 액션 버튼(하위 폴더 추가·이름변경·삭제)은 서로 다른
           <button>이라 하나의 바깥 <div>로 나란히 둔다(버튼 중첩은 유효한 HTML이 아님).
@@ -570,7 +687,9 @@ export function EditorSidebar({
         >
           <button
             type="button"
+            id={`sidebar-folder-toggle-${folder.id}`}
             onClick={() => toggleFolder(folder.id)}
+            onKeyDown={(event) => handleTreeKeyDown(event, treeNode)}
             aria-expanded={isExpanded}
             title={folder.name}
             className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
@@ -612,9 +731,9 @@ export function EditorSidebar({
           </div>
         </div>
         {isExpanded && (childFolders.length > 0 || childDocuments.length > 0) && (
-          <ul className="flex flex-col gap-0.5">
+          <ul className="flex flex-col gap-0.5" role="group">
             {childFolders.map((child) => renderFolderNode(child, depth + 1))}
-            {childDocuments.map((document) => renderDocumentRow(document, depth + 1))}
+            {childDocuments.map((document) => renderDocumentRow(document, depth + 1, true))}
           </ul>
         )}
         {isExpanded && isReallyEmpty && (
@@ -861,7 +980,7 @@ export function EditorSidebar({
           // 렌더링되지 않음).
           <>
             {topLevelFolders.length > 0 && (
-              <ul className="mb-2 flex flex-col gap-0.5">
+              <ul className="mb-2 flex flex-col gap-0.5" role="tree" aria-label="폴더">
                 {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
               </ul>
             )}
