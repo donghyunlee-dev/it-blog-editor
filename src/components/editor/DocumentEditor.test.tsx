@@ -160,6 +160,14 @@ beforeEach(() => {
 });
 
 describe("DocumentEditor", () => {
+  it("본문 콘텐츠 컨테이너의 최대 폭이 830px다(P8-6, support.claude.com/ko 벤치마킹 실측값과 일치)", () => {
+    renderEditor(<DocumentEditor mode="create" />);
+
+    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[830px]"]');
+    expect(contentContainer).not.toBeNull();
+    expect(document.querySelector('[class*="max-w-[820px]"]')).not.toBeInTheDocument();
+  });
+
   it("새 문서 생성 성공 시 사이드바를 새로고침하고 새 문서로 이동한다", async () => {
     stubFetch(() => jsonResponse({ pageId: "new-1", version: 1 }, 201));
 
