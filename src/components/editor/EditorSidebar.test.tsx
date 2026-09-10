@@ -144,6 +144,22 @@ describe("EditorSidebar", () => {
     expect(screen.getByRole("img", { name: "초안" })).toBeInTheDocument();
   });
 
+  it("onOpenSearch가 없으면 헤더에 검색 버튼을 렌더링하지 않는다", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByRole("button", { name: "전체 검색 (Ctrl+K)" })).not.toBeInTheDocument();
+  });
+
+  it("onOpenSearch가 있으면 헤더 검색 버튼 클릭 시 호출한다(P8-1)", async () => {
+    const onOpenSearch = vi.fn();
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} onOpenSearch={onOpenSearch} />);
+
+    await user.click(screen.getByRole("button", { name: "전체 검색 (Ctrl+K)" }));
+
+    expect(onOpenSearch).toHaveBeenCalledTimes(1);
+  });
+
   it("문서에 붙은 태그를 함께 보여준다", () => {
     render(<EditorSidebar documents={DOCS} />);
 

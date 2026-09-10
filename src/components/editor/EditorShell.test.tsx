@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorShell } from "./EditorShell";
 import type { DocumentSummary } from "@/lib/editor/documents";
@@ -197,6 +197,44 @@ describe("EditorShell", () => {
       await user.click(toggleButton);
 
       expect(getDrawerFocusables()[0]).not.toHaveFocus();
+    });
+  });
+
+  describe("검색 트리거 버튼(P8-1)", () => {
+    it("모바일 상단 바의 검색 버튼을 누르면 GlobalSearchModal이 열린다", async () => {
+      mockMatchMedia(true);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      // 모바일 상단 바(hamburger 버튼과 같은 컨테이너)와 사이드바 헤더 행 둘 다에 같은
+      // 이름의 검색 버튼이 있어(둘 다 CSS로만 반응형 전환, DOM에는 항상 둘 다 존재) 상단
+      // 바 쪽으로 좁혀서 클릭한다.
+      const topBar = screen.getByRole("button", { name: "문서 목록 열기" }).parentElement as HTMLElement;
+      expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
+      await user.click(within(topBar).getByRole("button", { name: "전체 검색 (Ctrl+K)" }));
+
+      expect(screen.getByLabelText("문서 전체 검색")).toBeInTheDocument();
+    });
+
+    it("데스크톱 사이드바 헤더의 검색 버튼을 누르면 GlobalSearchModal이 열린다", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      // 모바일 상단 바(항상 DOM에 존재, md:hidden으로만 숨김)에도 같은 이름의 버튼이 있어
+      // 사이드바 쪽(문서 목록 aside 안)으로 좁혀서 클릭한다.
+      const sidebar = screen.getByText("문서A").closest("aside") as HTMLElement;
+      await user.click(within(sidebar).getByRole("button", { name: "전체 검색 (Ctrl+K)" }));
+
+      expect(screen.getByLabelText("문서 전체 검색")).toBeInTheDocument();
     });
   });
 

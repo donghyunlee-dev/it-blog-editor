@@ -128,6 +128,8 @@ export interface EditorSidebarProps {
   onNavigate?: () => void;
   /** 데스크톱에서 사이드바를 접을 때 호출한다(EditorShell.tsx). 없으면 접기 버튼을 렌더링하지 않는다. */
   onCollapse?: () => void;
+  /** 헤더의 검색 트리거 버튼 클릭 시 호출한다(P8-1, EditorShell.tsx의 GlobalSearchModal을 연다). 없으면 버튼을 렌더링하지 않는다. */
+  onOpenSearch?: () => void;
   /** 로그인한 사용자 이메일. 있으면 사이드바 하단에 로그아웃과 함께 표시한다. */
   userEmail?: string;
   /** 계정 폴더의 accountMeta.name(P5-5). 있으면 "이름(이메일)" 형식으로 표시한다. */
@@ -146,6 +148,20 @@ export interface EditorSidebarProps {
  * 아이콘 제거하고 게시 아이콘을 넣어달라"는 요청으로 제목 옆 자리를 이걸로 대체했다
  * (2026-08-26).
  */
+/**
+ * 헤더 검색 트리거 버튼(P8-1)과 모바일 상단 바(EditorShell.tsx)가 함께 쓴다 — 같은
+ * 버튼을 두 군데(데스크톱 사이드바 헤더 행, 모바일 오프캔버스가 닫혀 있을 때 보이는 상단
+ * 바)에 두는 것이라 StatusIcon처럼 여기서 한 번만 정의해 내보낸다.
+ */
+export function SearchTriggerIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <circle cx="9" cy="9" r="6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M13.4 13.4L17 17" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function StatusIcon({ isPublished }: { isPublished: boolean }) {
   if (isPublished) {
     return (
@@ -216,6 +232,7 @@ export function EditorSidebar({
   activePageId,
   onNavigate,
   onCollapse,
+  onOpenSearch,
   userEmail,
   userName,
   onLogout,
@@ -647,6 +664,26 @@ export function EditorSidebar({
             SFOOD IT Editor
           </span>
         </Link>
+        {/*
+          레퍼런스(support.claude.com/ko) 헤더의 검색 트리거 버튼(140×30px, radius:12px)을
+          참고했다(design.md "벤치마킹" 절 "3. 헤더", P8-1). 이 프로젝트는 사이드바 폭이
+          220~440px로 가변이라 고정 픽셀 크기를 그대로 옮기지 않고 내용물(아이콘+"검색")
+          기준으로 자연스럽게 줄어들게 한다 — 단축키 힌트는 이미 목록 위(위 "Ctrl+K(Mac: ⌘K)"
+          문구)에 있어 여기서 다시 pill로 반복하지 않는다. 새 검색 로직이 아니라 기존
+          GlobalSearchModal(Ctrl+K)을 여는 트리거일 뿐이다.
+        */}
+        {onOpenSearch && (
+          <button
+            type="button"
+            onClick={onOpenSearch}
+            aria-label="전체 검색 (Ctrl+K)"
+            title="전체 검색 (Ctrl+K)"
+            className="flex shrink-0 items-center gap-1.5 rounded-btn bg-surface-subtle px-2.5 py-1.5 text-sm text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+          >
+            <SearchTriggerIcon />
+            <span className="hidden sm:inline">검색</span>
+          </button>
+        )}
         {onCollapse && (
           <button
             type="button"

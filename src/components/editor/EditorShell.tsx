@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { EditorSidebar } from "./EditorSidebar";
+import { EditorSidebar, SearchTriggerIcon } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
@@ -85,6 +85,14 @@ export function EditorShell({
   const [collapsed, setCollapsed] = useState(false);
   const draggingRef = useRef(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+  // GlobalSearchModal.tsx의 openSignal로 넘겨줄 단조 증가 카운터(P8-1) — 헤더의 검색
+  // 트리거 버튼(사이드바 상단, 모바일 상단 바)이 둘 다 이 함수 하나만 호출한다. 그 모달은
+  // 여전히 자기 open 상태를 스스로 관리하고(Ctrl+K는 그대로 내부 처리) 이 신호는 "열어달라"
+  // 는 요청만 추가로 전달한다.
+  const [searchOpenSignal, setSearchOpenSignal] = useState<number>();
+  function triggerSearch() {
+    setSearchOpenSignal((prev) => (prev ?? 0) + 1);
+  }
 
   useEffect(() => {
     const mql = window.matchMedia(MOBILE_QUERY);
@@ -245,7 +253,7 @@ export function EditorShell({
   // 링크 모두에 적용되려면 두 쪽이 같은 Context를 공유해야 한다.
   return (
     <UnsavedChangesProvider>
-    <GlobalSearchModal />
+    <GlobalSearchModal openSignal={searchOpenSignal} />
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button
@@ -256,7 +264,19 @@ export function EditorShell({
         >
           <HamburgerIcon />
         </button>
-        <span className="text-sm font-medium text-foreground">SFOOD IT Editor</span>
+        <span className="flex-1 text-sm font-medium text-foreground">SFOOD IT Editor</span>
+        {/* 데스크톱 사이드바 헤더 행의 검색 버튼(EditorSidebar.tsx, P8-1)과 같은 트리거를
+            오프캔버스 드로어가 닫혀 있는 모바일 상단 바에도 둔다 — 드로어를 열지 않고도
+            바로 전체 검색에 접근할 수 있어야 한다. */}
+        <button
+          type="button"
+          onClick={triggerSearch}
+          aria-label="전체 검색 (Ctrl+K)"
+          title="전체 검색 (Ctrl+K)"
+          className="rounded-btn p-2 text-foreground hover:bg-surface-raised"
+        >
+          <SearchTriggerIcon />
+        </button>
       </div>
 
       {open && (
@@ -307,6 +327,7 @@ export function EditorShell({
             folders={folders}
             onNavigate={() => setOpen(false)}
             onCollapse={() => toggleCollapsed(true)}
+            onOpenSearch={triggerSearch}
             userEmail={userEmail}
             userName={userName}
             onLogout={onLogout}

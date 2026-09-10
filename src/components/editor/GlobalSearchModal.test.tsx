@@ -70,6 +70,19 @@ describe("GlobalSearchModal", () => {
     expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
   });
 
+  it("openSignal이 undefined에서 숫자로 바뀌면 모달이 열린다(P8-1, 헤더 검색 트리거 버튼)", () => {
+    const { rerender } = render(<GlobalSearchModal openSignal={undefined} />);
+    expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
+
+    rerender(<GlobalSearchModal openSignal={1} />);
+    expect(screen.getByLabelText("문서 전체 검색")).toBeInTheDocument();
+  });
+
+  it("openSignal이 없으면(undefined) 마운트 시 자동으로 열리지 않는다", () => {
+    render(<GlobalSearchModal openSignal={undefined} />);
+    expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
+  });
+
   it("검색어를 입력하면 결과를 목록에 보여주고, 첫 번째 결과가 자동으로 미리보기에 나타난다", async () => {
     const fetchMock = stubFetch((url) => {
       expect(url).toBe("/api/editor/documents/search?q=react");

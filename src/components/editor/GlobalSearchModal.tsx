@@ -80,8 +80,13 @@ function SearchIcon() {
  * Notion과 달리 이 앱은 문서 계층(브레드크럼)·다른 사용자 문서 열람·북마크가 없어, 그 자리는
  * 태그로 대신하고 "생성자"/"검색 범위" 필터는 두지 않는다(계정당 본인 문서만 대상이라 필터할
  * 대상 자체가 없다).
+ *
+ * @param openSignal - 헤더의 검색 트리거 버튼(P8-1, `EditorSidebar.tsx`/`EditorShell.tsx`)이
+ * 바뀔 때마다(단조 증가하는 숫자) 이 모달을 강제로 연다. 이 컴포넌트는 여전히 자기 `open`
+ * 상태를 스스로 관리하고(Ctrl+K·Escape는 그대로 내부에서 처리) 외부에서 "열어달라"는 요청만
+ * 추가로 받는 최소한의 확장이다. 처음 마운트 시 `undefined`라 즉시 열리지 않는다.
  */
-export function GlobalSearchModal() {
+export function GlobalSearchModal({ openSignal }: { openSignal?: number } = {}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [titleOnly, setTitleOnly] = useState(false);
@@ -106,6 +111,14 @@ export function GlobalSearchModal() {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, []);
+
+  useEffect(() => {
+    if (openSignal === undefined) return;
+    // 외부(헤더 검색 버튼)의 "열어달라" 신호를 이 컴포넌트의 open 상태로 동기화한다 —
+    // EditorShell.tsx의 isMobile/sidebarWidth 초기화와 같은 의도된 패턴이다.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(true);
+  }, [openSignal]);
 
   // `Modal`의 `Ns`/`ys` 헬퍼(포커스 트랩·바디 스크롤 잠금)와 동일한 동작을 재현한다 —
   // 이 컴포넌트만 `Modal`을 안 쓰므로 그 두 가지 접근성 보장을 스스로 책임져야 한다.
