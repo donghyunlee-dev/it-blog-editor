@@ -253,7 +253,7 @@ export function EditorShell({
   // 링크 모두에 적용되려면 두 쪽이 같은 Context를 공유해야 한다.
   return (
     <UnsavedChangesProvider>
-    <GlobalSearchModal openSignal={searchOpenSignal} />
+    <GlobalSearchModal openSignal={searchOpenSignal} folders={folders} />
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button

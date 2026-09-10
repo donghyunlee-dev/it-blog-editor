@@ -422,6 +422,30 @@ describe("EditorSidebar", () => {
     expect(link).toHaveAttribute("href", "/editor/shared-1");
     expect(within(link).getByText("홍길동(owner@s-food.com)")).toBeInTheDocument();
   });
+
+  it("공유받은 문서는 내 폴더 트리(P7-4)와 무관하게 항상 별도 영역에만 있다(P7-9 — folderId는 소유자 쪽 배정일 뿐, 내 폴더 구조에 편입되지 않는다)", () => {
+    const folders: FolderNode[] = [{ id: "f1", name: "업무", parentId: null, order: 0 }];
+    const shared: SharedDocumentSummary[] = [
+      {
+        pageId: "shared-1",
+        title: "공유받은 회의록",
+        updatedAt: "2026-09-04T00:00:00.000Z",
+        isPublished: true,
+        tags: [],
+        folderId: "f1",
+        ownerEmail: "owner@s-food.com",
+        ownerName: "홍길동",
+      },
+    ];
+    render(<EditorSidebar documents={DOCS} sharedDocuments={shared} folders={folders} />);
+
+    expect(screen.getByRole("link", { name: /공유받은 회의록/ })).toBeInTheDocument();
+
+    // "업무" 폴더 트리 행 안에는 이 공유 문서가 보이지 않는다 — 있다면 folderId만으로
+    // 남의 문서를 내 폴더 구조에 편입시키는 회귀다.
+    const folderRow = screen.getByRole("button", { name: "업무" }).closest("li") as HTMLElement;
+    expect(within(folderRow).queryByText(/공유받은 회의록/)).not.toBeInTheDocument();
+  });
 });
 
 describe("EditorSidebar 폴더 트리(P7-4)", () => {

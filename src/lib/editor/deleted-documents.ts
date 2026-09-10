@@ -7,6 +7,7 @@ import {
 import { hidePageFromOthers } from "./access";
 import {
   DELETED_DOCUMENTS_PROPERTY_KEY,
+  reconcileFolderAfterRestore,
   type DeletedDocumentEntry,
 } from "./documents";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
@@ -82,6 +83,9 @@ export async function restoreDocument(email: string, pageId: string): Promise<vo
   }
 
   await hidePageFromOthers(pageId);
+  // P7-9: 휴지통에 있는 동안 소속 폴더가 삭제됐을 수 있다 — 그러면 미분류로 되돌린다
+  // (reconcileFolderAfterRestore 참고). 폴더가 그대로 있으면 원래 있던 폴더로 돌아간다.
+  await reconcileFolderAfterRestore(pageId, folder.accountFolderId);
 
   const publishProperty = await getPageProperty<PublishMetadata>(
     pageId,
