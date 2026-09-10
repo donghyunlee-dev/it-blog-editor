@@ -391,6 +391,38 @@ body {
 }
 
 /*
+ * P8-5(우측 목차 TOC, TableOfContents.tsx): 활성 항목 강조색은 바로 위 `.prose` 링크색과
+ * 정확히 같은 문제(같은 배경, 같은 두 브랜드 톤 중 선택)라 같은 결론·같은 패턴을 그대로
+ * 쓴다 — 라이트 배경(#f8fafc에 가까움)에서는 --color-brand-hover, 다크 배경(#030712에
+ * 가까움)에서는 --color-brand(대비 약 4.91:1) — brand-hover는 다크 배경에서 대비가
+ * 약 3.06:1로 나빠져 반대로 쓴다.
+ */
+.toc-active-link {
+  color: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .toc-active-link {
+    color: var(--color-brand);
+    border-color: var(--color-brand);
+  }
+}
+[data-theme="dark"] .toc-active-link {
+  color: var(--color-brand);
+  border-color: var(--color-brand);
+}
+
+/*
+ * P8-5: 목차 항목을 클릭(또는 Enter)하면 해당 헤딩으로 스크롤 이동한다 — 이 여백이
+ * 없으면 문서 편집 화면의 sticky 헤더(h-14, 56px)가 헤딩 위를 그대로 덮어 버린다.
+ * scroll-margin-top은 scrollIntoView()·네이티브 해시 이동 둘 다 동일하게 적용된다.
+ */
+.prose h2,
+.prose h3 {
+  scroll-margin-top: 4.5rem;
+}
+
+/*
  * @tailwindcss/typography의 기본 `prose` 스케일(RichTextEditor.tsx 참고)은 문단·헤딩
  * 여백이 넉넉해(예: h2 marginTop 48px) 목록이 많은 문서에서 스크롤이 과도하게 길어졌다
  * (2026-08-26, Notion 캡쳐와 비교 — Notion은 문단·목록 간격이 훨씬 촘촘하다). 글자
