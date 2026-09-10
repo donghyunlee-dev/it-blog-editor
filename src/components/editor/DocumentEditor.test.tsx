@@ -819,4 +819,22 @@ describe("DocumentEditor — 헤더 폴더 경로 브레드크럼(P7-7)", () => 
 
     expect(screen.queryByRole("navigation", { name: "문서 위치" })).not.toBeInTheDocument();
   });
+
+  it("브레드크럼 항목 간 간격이 8px(gap-2)다(P8-3, support.claude.com/ko 벤치마킹 실측값)", () => {
+    renderEditor(
+      <DocumentEditor
+        {...EDIT_PROPS}
+        folderPath={[
+          { id: "f1", name: "업무", parentId: null, order: 0 },
+          { id: "f2", name: "하위", parentId: "f1", order: 0 },
+        ]}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "문서 위치" });
+    expect(nav).toHaveClass("gap-2");
+    expect(nav).not.toHaveClass("gap-1");
+    const segment = within(nav).getByRole("link", { name: "하위" }).parentElement;
+    expect(segment).toHaveClass("gap-2");
+  });
 });

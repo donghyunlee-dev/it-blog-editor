@@ -53,12 +53,33 @@ const ITEMS: CommandItem[] = [
     run: (editor, range) => editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run(),
   },
   {
+    // P2-8: heading의 level:3은 StarterKit 설정(`RichTextEditor.tsx`의 `heading: { levels: [1,2,3] }`)에
+    // 스키마상 이미 켜져 있었지만, "제목 1"/"제목 2"와 달리 슬래시 메뉴 항목이 없어 발견이
+    // 불가능했다 — 그 둘과 완전히 같은 패턴으로 추가한다.
+    title: "제목 3",
+    run: (editor, range) => editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run(),
+  },
+  {
     title: "글머리 목록",
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleBulletList().run(),
   },
   {
     title: "번호 목록",
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleOrderedList().run(),
+  },
+  {
+    // P2-8: blockquote도 StarterKit 기본값으로 이미 켜져 있었다. "글머리 목록"/"번호 목록"과
+    // 같은 블록 레벨 토글이라(선택 텍스트를 서식화하는 마크가 아니라 블록 구조 자체를
+    // 바꾸는 명령) 버블 툴바가 아니라 슬래시 메뉴 항목으로 추가한다.
+    title: "인용구",
+    run: (editor, range) => editor.chain().focus().deleteRange(range).toggleBlockquote().run(),
+  },
+  {
+    // P2-8: horizontalRule도 StarterKit 기본값으로 이미 켜져 있었다. "표"/"코드블록"과 같은
+    // "삽입형" 명령이라(선택 영역을 서식화하는 게 아니라 새 블록을 끼워 넣음) 버블 툴바에는
+    // 애초에 맞지 않아 슬래시 메뉴 항목으로만 추가한다.
+    title: "구분선",
+    run: (editor, range) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
   {
     title: "표",
