@@ -777,7 +777,7 @@ export function DocumentEditor({
         느껴짐"). 제목→태그는 좁게(같은 "문서 메타" 묶음), 태그→본문은 넓게(여기부터
         진짜 쓰는 영역이라는 전환), 본문→풋터는 그 중간으로 차등을 준다.
       */}
-      <div className="mx-auto flex max-w-[820px] flex-col px-6 py-10">
+      <div className="mx-auto flex max-w-[830px] flex-col px-6 py-10">
         {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
             sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
             실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).

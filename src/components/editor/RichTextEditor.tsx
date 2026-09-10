@@ -1031,8 +1031,10 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
         읽기 영역이 아니었다. 그 UI 크롬은 여전히 text-sm으로 압축된 채 유지하고,
         본문만 사내 문서 뷰어(SF-Note) 캡쳐와 비교해 표준 prose 스케일(본문 16px,
         H1 36px/H2 24px/H3 20px)로 되돌렸다(2026-08-26, 실측 비교 — SF-Note의 실제
-        본문 폭이 약 819px로 이 프로젝트의 max-w-[820px]와 사실상 동일했고, 다른 건
-        본문·헤딩 글자 크기뿐이었다).
+        본문 폭이 약 819px로 당시 이 프로젝트의 max-w-[820px]와 사실상 동일했고, 다른 건
+        본문·헤딩 글자 크기뿐이었다. 본문 최대 폭은 이후 P8-6에서 support.claude.com/ko
+        벤치마킹 실측값에 맞춰 max-w-[830px]로 다시 조정됐다 — 819px과의 차이는 여전히
+        10px 안쪽이라 이 절의 비교 결론 자체는 바뀌지 않는다).
         본문 글자색은 `dark:prose-invert`가 아니라 globals.css에서 --tw-prose-* 변수를
         이 프로젝트 토큰에 직접 매핑해 해결한다 — Tailwind의 dark: variant는
         prefers-color-scheme 미디어 쿼리만 따르는데, 이 앱은 ThemeToggle이 다는
