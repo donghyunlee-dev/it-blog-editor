@@ -201,6 +201,79 @@ describe("EditorShell", () => {
     });
   });
 
+  describe("폴더 트리와 모바일 오프캔버스 드로어(P7-10)", () => {
+    // P2-1c의 포커스 트랩(Tab 순환·Escape 닫기)이 폴더 트리가 추가한 새 상호작용
+    // 요소(토글·하위 폴더 추가/이름변경/삭제·이동 버튼)와 함께 있어도 그대로 동작하는지,
+    // 트리 방향키 탐색(P7-10 본체)이 드로어 밖으로 초점을 놓치지 않는지 확인한다.
+    const FOLDERS = [
+      { id: "f1", name: "업무", parentId: null, order: 0 },
+      { id: "f2", name: "하위", parentId: "f1", order: 0 },
+    ];
+    const DOCS_WITH_FOLDER: DocumentSummary[] = [
+      { pageId: "1", title: "업무 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: true, tags: [], folderId: "f1" },
+    ];
+
+    const FOCUSABLE_SELECTOR =
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+    function getDrawer(): HTMLElement {
+      const aside = screen.getByRole("button", { name: "업무" }).closest("aside") as HTMLElement;
+      return aside.parentElement!.parentElement as HTMLElement;
+    }
+
+    function getDrawerFocusables(): HTMLElement[] {
+      return Array.from(getDrawer().querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (el) => !el.classList.contains("hidden")
+      );
+    }
+
+    // 폴더 펼침/접힘 상태가 localStorage에 저장되고 happy-dom은 테스트 파일 전체가 같은
+    // window를 공유한다 — EditorSidebar.test.tsx의 P7-4 describe 블록과 같은 이유로 매번
+    // 지워 "기본값(전부 펼침)"에서 시작하게 한다.
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    it("폴더 트리가 있어도 드로어를 열면 포커스가 드로어 안 첫 요소로 이동하고, Tab 순환이 폴더 행까지 포함한다", async () => {
+      mockMatchMedia(true);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS_WITH_FOLDER} folders={FOLDERS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+
+      await user.click(screen.getByRole("button", { name: "문서 목록 열기" }));
+
+      expect(getDrawerFocusables()[0]).toHaveFocus();
+
+      const focusables = getDrawerFocusables();
+      const last = focusables[focusables.length - 1];
+      last.focus();
+      await user.tab();
+      expect(focusables[0]).toHaveFocus();
+    });
+
+    it("모바일 드로어가 열려 있어도 폴더 트리 방향키 탐색이 정상 동작한다", async () => {
+      mockMatchMedia(true);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS_WITH_FOLDER} folders={FOLDERS}>
+          <p>본문 영역</p>
+        </EditorShell>
+      );
+      await user.click(screen.getByRole("button", { name: "문서 목록 열기" }));
+
+      const f1Toggle = screen.getByRole("button", { name: "업무" });
+      f1Toggle.focus();
+      await user.keyboard("{ArrowDown}");
+
+      // P2-1c의 Tab/Escape 트랩이 방향키까지 가로채면 초점이 그대로 f1Toggle에 남는다 —
+      // 실제로 하위 폴더로 옮겨갔다는 것이 트랩과 방향키 탐색이 충돌하지 않는다는 증거다.
+      expect(screen.getByRole("button", { name: "하위" })).toHaveFocus();
+    });
+  });
+
   describe("검색 트리거 버튼(P8-1)", () => {
     it("모바일 상단 바의 검색 버튼을 누르면 GlobalSearchModal이 열린다", async () => {
       mockMatchMedia(true);

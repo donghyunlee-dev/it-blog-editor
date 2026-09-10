@@ -933,6 +933,135 @@ describe("EditorSidebar 빈 폴더 안내(P7-8)", () => {
   });
 });
 
+describe("EditorSidebar 폴더 트리 키보드 탐색·WAI-ARIA(P7-10)", () => {
+  // f1(업무) > f2(하위) > 하위 문서, f1 > 업무 문서, f3(개인, 비어 있음) — 순서대로.
+  const FOLDERS: FolderNode[] = [
+    { id: "f1", name: "업무", parentId: null, order: 0 },
+    { id: "f2", name: "하위", parentId: "f1", order: 0 },
+    { id: "f3", name: "개인", parentId: null, order: 1 },
+  ];
+  const DOCS: DocumentSummary[] = [
+    { pageId: "d1", title: "업무 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: true, tags: [], folderId: "f1" },
+    { pageId: "d2", title: "하위 문서", updatedAt: "2026-08-21T00:00:00.000Z", isPublished: false, tags: [], folderId: "f2" },
+  ];
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("트리 컨테이너·폴더·문서에 WAI-ARIA tree/treeitem/group 역할과 aria-level이 붙는다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const tree = screen.getByRole("tree", { name: "폴더" });
+    expect(tree).toBeInTheDocument();
+
+    const f1Item = screen.getByRole("button", { name: "업무" }).closest('[role="treeitem"]');
+    expect(f1Item).toHaveAttribute("aria-level", "1");
+    expect(f1Item).toHaveAttribute("aria-expanded", "true");
+
+    const f2Item = screen.getByRole("button", { name: "하위" }).closest('[role="treeitem"]');
+    expect(f2Item).toHaveAttribute("aria-level", "2");
+
+    const d2Item = screen.getByRole("link", { name: /하위 문서/ }).closest('[role="treeitem"]');
+    expect(d2Item).toHaveAttribute("aria-level", "3");
+  });
+
+  it("ArrowDown/ArrowUp은 지금 보이는 트리 순서대로 초점을 옮긴다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const f1Toggle = screen.getByRole("button", { name: "업무" });
+    f1Toggle.focus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("button", { name: "하위" })).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("link", { name: /하위 문서/ })).toHaveFocus();
+
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("link", { name: /업무 문서/ })).toHaveFocus();
+
+    await user.keyboard("{ArrowUp}");
+    expect(screen.getByRole("link", { name: /하위 문서/ })).toHaveFocus();
+  });
+
+  it("접힌 폴더에서 ArrowRight를 누르면 초점은 그대로 두고 펼친다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const f1Toggle = screen.getByRole("button", { name: "업무" });
+    await user.click(f1Toggle); // 접는다
+    expect(f1Toggle).toHaveAttribute("aria-expanded", "false");
+
+    f1Toggle.focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(f1Toggle).toHaveAttribute("aria-expanded", "true");
+    expect(f1Toggle).toHaveFocus();
+  });
+
+  it("펼쳐진 폴더에서 ArrowRight를 누르면 첫 자식으로 초점이 옮겨간다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const f1Toggle = screen.getByRole("button", { name: "업무" });
+    f1Toggle.focus();
+    await user.keyboard("{ArrowRight}");
+
+    expect(screen.getByRole("button", { name: "하위" })).toHaveFocus();
+  });
+
+  it("펼쳐진 폴더에서 ArrowLeft를 누르면 초점은 그대로 두고 접는다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const f1Toggle = screen.getByRole("button", { name: "업무" });
+    f1Toggle.focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(f1Toggle).toHaveAttribute("aria-expanded", "false");
+    expect(f1Toggle).toHaveFocus();
+  });
+
+  it("접힌 폴더(하위 폴더)에서 ArrowLeft를 누르면 상위 폴더로 초점이 옮겨간다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const f2Toggle = screen.getByRole("button", { name: "하위" });
+    await user.click(f2Toggle); // 접는다(자식이 없으므로 ArrowLeft가 곧장 부모로 가야 함)
+    f2Toggle.focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(screen.getByRole("button", { name: "업무" })).toHaveFocus();
+  });
+
+  it("문서 행에서 ArrowLeft를 누르면 그 문서가 속한 폴더로 초점이 옮겨간다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const doc = screen.getByRole("link", { name: /업무 문서/ });
+    doc.focus();
+    await user.keyboard("{ArrowLeft}");
+
+    expect(screen.getByRole("button", { name: "업무" })).toHaveFocus();
+  });
+
+  it("Home/End는 트리에서 보이는 첫/마지막 노드로 초점을 옮긴다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const middleDoc = screen.getByRole("link", { name: /하위 문서/ });
+    middleDoc.focus();
+
+    await user.keyboard("{Home}");
+    expect(screen.getByRole("button", { name: "업무" })).toHaveFocus();
+
+    await user.keyboard("{End}");
+    expect(screen.getByRole("button", { name: "개인" })).toHaveFocus();
+  });
+});
+
 describe("extractPageIdFromPathname", () => {
   it("/editor/{pageId} 경로에서 pageId를 추출한다", () => {
     expect(extractPageIdFromPathname("/editor/abc123")).toBe("abc123");
