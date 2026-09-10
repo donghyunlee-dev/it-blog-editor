@@ -434,6 +434,16 @@ export function EditorSidebar({
   }
   const unclassifiedDocuments = filteredDocuments.filter((document) => document.folderId === null);
 
+  // P7-8: 빈 폴더 안내는 검색어/태그 필터로 "지금 안 보일 뿐"인 폴더까지 "문서가 없다"고
+  // 잘못 알리면 안 되므로, 필터링 전 원본 documents로 "이 폴더가 한 번이라도 문서를
+  // 가진 적 있는지"를 따로 판단한다(documentsByFolder는 filteredDocuments 기준이라 이
+  // 판단에는 쓸 수 없다).
+  const folderIdsWithDocuments = new Set(
+    documents
+      .map((document) => document.folderId)
+      .filter((folderId): folderId is string => folderId !== null)
+  );
+
   // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/태그/정렬이
   // 바뀌면 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서
   // 늘려둔 "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번
@@ -519,6 +529,10 @@ export function EditorSidebar({
     const isExpanded = expandedFolders[folder.id] ?? true;
     const childFolders = childrenByParent.get(folder.id) ?? [];
     const childDocuments = documentsByFolder.get(folder.id) ?? [];
+    // P7-8: 하위 폴더도, (필터와 무관하게) 문서를 가진 적도 없는 진짜 빈 폴더에만 안내를
+    // 보여준다 — 검색/태그 필터로 지금 안 보일 뿐인 폴더까지 "비어 있다"고 잘못 알리지
+    // 않기 위해 filteredDocuments가 아니라 folderIdsWithDocuments(원본 기준)로 판단한다.
+    const isReallyEmpty = childFolders.length === 0 && !folderIdsWithDocuments.has(folder.id);
     return (
       <li key={folder.id}>
         {/*
@@ -585,6 +599,11 @@ export function EditorSidebar({
             {childFolders.map((child) => renderFolderNode(child, depth + 1))}
             {childDocuments.map((document) => renderDocumentRow(document, depth + 1))}
           </ul>
+        )}
+        {isExpanded && isReallyEmpty && (
+          <div style={{ paddingLeft: 8 + (depth + 1) * 14 }}>
+            <EmptyState title="이 폴더에는 아직 문서가 없습니다." />
+          </div>
         )}
       </li>
     );

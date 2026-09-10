@@ -813,6 +813,86 @@ describe("EditorSidebar 브레드크럼에서 도착한 폴더로 스크롤·강
   });
 });
 
+describe("EditorSidebar 빈 폴더 안내(P7-8)", () => {
+  const FOLDERS: FolderNode[] = [
+    { id: "empty", name: "빈 폴더", parentId: null, order: 0 },
+    { id: "parent", name: "상위", parentId: null, order: 1 },
+    { id: "child", name: "하위", parentId: "parent", order: 0 },
+    { id: "has-docs", name: "문서 있음", parentId: null, order: 2 },
+  ];
+  const DOCS: DocumentSummary[] = [
+    {
+      pageId: "1",
+      title: "회의록",
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      isPublished: true,
+      tags: ["React"],
+      folderId: "has-docs",
+    },
+    {
+      pageId: "2",
+      title: "하위 문서",
+      updatedAt: "2026-08-21T00:00:00.000Z",
+      isPublished: false,
+      tags: [],
+      folderId: "child",
+    },
+  ];
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("하위 폴더도 문서도 없는 폴더는 '이 폴더에는 아직 문서가 없습니다'를 보여준다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const emptyFolderRow = screen.getByRole("button", { name: "빈 폴더" }).closest("li") as HTMLElement;
+    expect(within(emptyFolderRow).getByText("이 폴더에는 아직 문서가 없습니다.")).toBeInTheDocument();
+  });
+
+  it("직속 문서는 없어도 하위 폴더가 있으면 빈 폴더 안내를 보여주지 않는다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const parentRow = screen.getByRole("button", { name: "상위" }).closest("li") as HTMLElement;
+    expect(within(parentRow).queryByText("이 폴더에는 아직 문서가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("문서가 있는 폴더는 빈 폴더 안내를 보여주지 않는다", () => {
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const hasDocsRow = screen.getByRole("button", { name: "문서 있음" }).closest("li") as HTMLElement;
+    expect(within(hasDocsRow).queryByText("이 폴더에는 아직 문서가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("검색어로 폴더의 문서만 가려져도, 실제로 문서가 있는 폴더는 빈 폴더 안내를 보여주지 않는다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    // "하위 문서"는 검색어와 일치해 전체 목록이 비지 않는다(트리 자체는 계속 그려짐).
+    // "문서 있음" 폴더의 "회의록"은 이 검색어와 무관해 걸러지지만, 그 폴더가 실제로는
+    // 문서를 갖고 있다는 사실은 변하지 않으므로 잘못된 빈 폴더 안내를 보여주면 안 된다.
+    await user.type(screen.getByPlaceholderText("문서 검색"), "하위 문서");
+
+    const hasDocsRow = screen.getByRole("button", { name: "문서 있음" }).closest("li") as HTMLElement;
+    expect(within(hasDocsRow).queryByText("이 폴더에는 아직 문서가 없습니다.")).not.toBeInTheDocument();
+  });
+
+  it("접힌 빈 폴더는 안내를 보여주지 않고, 펼치면 보여준다", async () => {
+    const user = userEvent.setup();
+    render(<EditorSidebar documents={DOCS} folders={FOLDERS} />);
+
+    const toggle = screen.getByRole("button", { name: "빈 폴더" });
+    await user.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("이 폴더에는 아직 문서가 없습니다.")).not.toBeInTheDocument();
+
+    await user.click(toggle);
+
+    expect(screen.getByText("이 폴더에는 아직 문서가 없습니다.")).toBeInTheDocument();
+  });
+});
+
 describe("extractPageIdFromPathname", () => {
   it("/editor/{pageId} 경로에서 pageId를 추출한다", () => {
     expect(extractPageIdFromPathname("/editor/abc123")).toBe("abc123");
