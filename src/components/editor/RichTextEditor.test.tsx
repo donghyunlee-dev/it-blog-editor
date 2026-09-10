@@ -523,6 +523,7 @@ describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
     await waitFor(() => expect(screen.getByLabelText("굵게")).toBeInTheDocument());
     expect(screen.getByLabelText("기울임")).toBeInTheDocument();
     expect(screen.getByLabelText("취소선")).toBeInTheDocument();
+    expect(screen.getByLabelText("밑줄")).toBeInTheDocument();
   });
 
   it("굵게 버튼을 클릭하면 선택한 텍스트에 굵게 마크가 적용되고 onChange가 호출된다", async () => {
@@ -551,6 +552,16 @@ describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
     (await screen.findByLabelText("취소선")).click();
 
     await waitFor(() => expect(container.querySelector(".ProseMirror s")).not.toBeNull());
+  });
+
+  // P2-8: underline은 StarterKit 기본값으로 스키마상 이미 켜져 있었지만 버블 메뉴에
+  // 진입점이 없었다 — 굵게·기울임·취소선과 같은 인라인 마크 패턴으로 추가한다.
+  it("밑줄 버튼을 클릭하면 선택한 텍스트에 밑줄 마크가 적용된다", async () => {
+    const { container } = renderWithText();
+
+    (await screen.findByLabelText("밑줄")).click();
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror u")).not.toBeNull());
   });
 
   // P2-7
