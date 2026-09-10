@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button, Modal, useToast } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
+import { TableOfContents } from "./TableOfContents";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
 import { VersionHistory } from "./VersionHistory";
@@ -281,6 +282,9 @@ export function DocumentEditor({
   >("idle");
   const [recoverableSnapshot, setRecoverableSnapshot] =
     useState<AutosaveSnapshot | null>(null);
+  // P8-5: 우측 목차(TableOfContents)가 이 컨테이너 안의 실제 렌더링된 h2/h3 DOM을
+  // 직접 훑는다 — RichTextEditor.tsx를 감싸는 경계를 그대로 ref로 넘긴다.
+  const richTextContainerRef = useRef<HTMLDivElement>(null);
 
   /**
    * 1분 주기 타이머(아래)는 매 키 입력마다 다시 만들어지면 안 된다("1분마다 체크"는
@@ -786,60 +790,71 @@ export function DocumentEditor({
         느껴짐"). 제목→태그는 좁게(같은 "문서 메타" 묶음), 태그→본문은 넓게(여기부터
         진짜 쓰는 영역이라는 전환), 본문→풋터는 그 중간으로 차등을 준다.
       */}
-      <div className="mx-auto flex max-w-[830px] flex-col px-6 py-10">
-        {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
-            sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
-            실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).
-            <input>은 원래 한 줄이라 제목이 길면 안 잘리고 가로 스크롤이 생겼다
-            (2026-08-26, 사용자 피드백 — "긴 경우 wordwrap 해서 내려서 보이게").
-            <input>은 애초에 여러 줄을 표시할 수 없는 요소라 <textarea>로 바꾸고,
-            useAutoGrowHeight로 줄바꿈될 때마다 높이를 늘린다. Enter는 줄바꿈이
-            아니라 "제목 입력 끝"으로 취급해 막는다(제목은 개념적으로 한 줄이다). */}
-        <TitleTextarea value={title} onChange={handleTitleChange} />
+      {/*
+        P8-5: 우측 목차(TOC)를 본문 옆에 나란히 둔다. `justify-center`로 [본문+TOC]를
+        하나의 묶음처럼 가운데 정렬한다 — 본문에 `flex-1`+`mx-auto`를 함께 주면 TOC가
+        차지한 고정 폭(240px)만큼 자동 여백(margin: auto)이 먼저 다 소진돼 버려
+        가운데 정렬이 깨진다(flex 아이템의 auto margin과 flex-grow가 같은 여유 공간을
+        두고 경쟁하기 때문). TOC가 없는 상태(헤딩이 없는 문서, xl 미만 화면)에서는
+        본문 하나만 남아 기존과 완전히 같은 가운데 정렬로 보인다.
+      */}
+      <div className="flex justify-center gap-12">
+        <div className="flex w-full max-w-[830px] flex-col px-6 py-10">
+          {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
+              sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
+              실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).
+              <input>은 원래 한 줄이라 제목이 길면 안 잘리고 가로 스크롤이 생겼다
+              (2026-08-26, 사용자 피드백 — "긴 경우 wordwrap 해서 내려서 보이게").
+              <input>은 애초에 여러 줄을 표시할 수 없는 요소라 <textarea>로 바꾸고,
+              useAutoGrowHeight로 줄바꿈될 때마다 높이를 늘린다. Enter는 줄바꿈이
+              아니라 "제목 입력 끝"으로 취급해 막는다(제목은 개념적으로 한 줄이다). */}
+          <TitleTextarea value={title} onChange={handleTitleChange} />
 
-        <div className="mt-2">
-          <TagInput value={tags} onChange={handleTagsChange} suggestions={tagSuggestions} />
+          <div className="mt-2">
+            <TagInput value={tags} onChange={handleTagsChange} suggestions={tagSuggestions} />
+          </div>
+
+          {/*
+            예전엔 새 문서를 열면 곧바로 "문서를 저장한 뒤에 이미지를 끌어다 놓거나
+            붙여넣을 수 있습니다"라는 안내문이 떴는데, 화면 어디에도 이미지 관련 UI가
+            없는 상태에서 맥락 없이 떠서 무슨 기능을 말하는 건지 알기 어려웠다
+            (2026-08-26, 사용자 피드백 — "이게 무슨 기능 설명인지 이해가 안된다").
+            같은 안내는 이제 실제로 이미지를 붙여넣거나 끌어다 놓으려는 "그 순간"에
+            토스트로 뜬다(RichTextEditor.tsx의 handleDrop/handlePaste) — 필요한
+            시점에 필요한 사람에게만 보이므로, 미리 띄워두던 이 문구는 그냥 뺀다.
+          */}
+          <div className="mt-6" ref={richTextContainerRef}>
+            <RichTextEditor content={doc} onChange={handleDocChange} pageId={pageId} />
+          </div>
+
+          {/*
+            예전엔 사이드바 목록 행에 수정일이 있었는데, 사이드바를 더 단순한 리스트로
+            바꾸면서(2026-08-26, "문서함을 좀 더 심플하게") 날짜 정보를 문서를 열었을 때
+            보이는 하단 풋터로 옮겼다 — 컨플루언스 등 문서 도구들이 흔히 쓰는, 구분선 +
+            옅은 글자의 메타 정보 풋터 형태를 따른다.
+          */}
+          {mode === "edit" && initialUpdatedAt && (
+            <footer className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted">
+              <span>
+                최종 수정: {formatUpdatedAt(initialUpdatedAt)}
+                {/* P6-7: 생성 직후(아직 한 번도 수정 저장을 거치지 않은 문서) 또는 이 기능
+                    이전에 마지막으로 저장된 문서는 lastEditedBy가 없어 표시되지 않는다 —
+                    updateDocument(수정 저장)만 이 값을 채우고, createDocument(최초 생성)는
+                    채우지 않는다. */}
+                {lastEditedBy && (
+                  <> · 마지막 수정자: {formatAccountLabel(lastEditedBy.email, lastEditedBy.name)}</>
+                )}
+              </span>
+              {/* 자동 저장(P0-1b)은 매번 "저장되었습니다" 토스트를 띄우지 않는다(1분마다
+                  뜨면 방해가 된다) — 대신 이 조용한 상태 표시만 남긴다. */}
+              <span role="status" aria-live="polite">
+                {autosaveStatus === "saving" && "자동 저장 중..."}
+                {autosaveStatus === "saved" && "자동 저장됨"}
+              </span>
+            </footer>
+          )}
         </div>
-
-        {/*
-          예전엔 새 문서를 열면 곧바로 "문서를 저장한 뒤에 이미지를 끌어다 놓거나
-          붙여넣을 수 있습니다"라는 안내문이 떴는데, 화면 어디에도 이미지 관련 UI가
-          없는 상태에서 맥락 없이 떠서 무슨 기능을 말하는 건지 알기 어려웠다
-          (2026-08-26, 사용자 피드백 — "이게 무슨 기능 설명인지 이해가 안된다").
-          같은 안내는 이제 실제로 이미지를 붙여넣거나 끌어다 놓으려는 "그 순간"에
-          토스트로 뜬다(RichTextEditor.tsx의 handleDrop/handlePaste) — 필요한
-          시점에 필요한 사람에게만 보이므로, 미리 띄워두던 이 문구는 그냥 뺀다.
-        */}
-        <div className="mt-6">
-          <RichTextEditor content={doc} onChange={handleDocChange} pageId={pageId} />
-        </div>
-
-        {/*
-          예전엔 사이드바 목록 행에 수정일이 있었는데, 사이드바를 더 단순한 리스트로
-          바꾸면서(2026-08-26, "문서함을 좀 더 심플하게") 날짜 정보를 문서를 열었을 때
-          보이는 하단 풋터로 옮겼다 — 컨플루언스 등 문서 도구들이 흔히 쓰는, 구분선 +
-          옅은 글자의 메타 정보 풋터 형태를 따른다.
-        */}
-        {mode === "edit" && initialUpdatedAt && (
-          <footer className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted">
-            <span>
-              최종 수정: {formatUpdatedAt(initialUpdatedAt)}
-              {/* P6-7: 생성 직후(아직 한 번도 수정 저장을 거치지 않은 문서) 또는 이 기능
-                  이전에 마지막으로 저장된 문서는 lastEditedBy가 없어 표시되지 않는다 —
-                  updateDocument(수정 저장)만 이 값을 채우고, createDocument(최초 생성)는
-                  채우지 않는다. */}
-              {lastEditedBy && (
-                <> · 마지막 수정자: {formatAccountLabel(lastEditedBy.email, lastEditedBy.name)}</>
-              )}
-            </span>
-            {/* 자동 저장(P0-1b)은 매번 "저장되었습니다" 토스트를 띄우지 않는다(1분마다
-                뜨면 방해가 된다) — 대신 이 조용한 상태 표시만 남긴다. */}
-            <span role="status" aria-live="polite">
-              {autosaveStatus === "saving" && "자동 저장 중..."}
-              {autosaveStatus === "saved" && "자동 저장됨"}
-            </span>
-          </footer>
-        )}
+        <TableOfContents containerRef={richTextContainerRef} doc={doc} />
       </div>
 
       <Modal
