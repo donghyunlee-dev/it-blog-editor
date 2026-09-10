@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { EditorShell } from "./EditorShell";
+import { useGlobalSearch } from "./GlobalSearchContext";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 // EditorShell이 UnsavedChangesProvider(P0-1a)를 통해 useRouter()를 호출하게 됐다 — 실제
@@ -235,6 +236,51 @@ describe("EditorShell", () => {
       await user.click(within(sidebar).getByRole("button", { name: "전체 검색 (Ctrl+K)" }));
 
       expect(screen.getByLabelText("문서 전체 검색")).toBeInTheDocument();
+    });
+
+    /** children(라우트 페이지)이 useGlobalSearch()로 같은 트리거를 쓸 수 있는지 확인하는
+     * 용도의 대역 — 실제 LandingSearchButton(P8-4)과 같은 훅만 쓴다. */
+    function ChildSearchTrigger() {
+      const { triggerSearch } = useGlobalSearch();
+      return (
+        <button type="button" onClick={triggerSearch}>
+          랜딩 검색 버튼 대역
+        </button>
+      );
+    }
+
+    it("children이 useGlobalSearch()로 같은 GlobalSearchModal을 열 수 있다(P8-4, 랜딩 화면 서버 컴포넌트 경유)", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <ChildSearchTrigger />
+        </EditorShell>
+      );
+
+      expect(screen.queryByLabelText("문서 전체 검색")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "랜딩 검색 버튼 대역" }));
+
+      expect(screen.getByLabelText("문서 전체 검색")).toBeInTheDocument();
+    });
+
+    it("헤더 버튼과 children의 검색 트리거가 서로 충돌하지 않고 같은 하나의 모달만 연다", async () => {
+      mockMatchMedia(false);
+      const user = userEvent.setup();
+      render(
+        <EditorShell documents={DOCS}>
+          <ChildSearchTrigger />
+        </EditorShell>
+      );
+
+      const sidebar = screen.getByText("문서A").closest("aside") as HTMLElement;
+      await user.click(within(sidebar).getByRole("button", { name: "전체 검색 (Ctrl+K)" }));
+      expect(screen.getAllByLabelText("문서 전체 검색")).toHaveLength(1);
+
+      // Escape로 닫은 뒤 이번엔 children 쪽 트리거로 열어도 여전히 같은 모달 하나만 뜬다.
+      await user.keyboard("{Escape}");
+      await user.click(screen.getByRole("button", { name: "랜딩 검색 버튼 대역" }));
+      expect(screen.getAllByLabelText("문서 전체 검색")).toHaveLength(1);
     });
   });
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { EditorSidebar, SearchTriggerIcon } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
+import { GlobalSearchProvider } from "./GlobalSearchContext";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 import type { FolderNode } from "@/lib/editor/folders";
@@ -382,7 +383,14 @@ export function EditorShell({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">{children}</div>
+      {/*
+        children(라우트 페이지, 예: /editor 랜딩 화면)은 서버 컴포넌트일 수 있어 triggerSearch를
+        prop으로 직접 내려줄 수 없다 — Context로 감싸 그 아래 어디서든(랜딩 화면의
+        LandingSearchButton, P8-4) useGlobalSearch()로 같은 트리거를 쓸 수 있게 한다.
+      */}
+      <div className="flex-1 overflow-y-auto">
+        <GlobalSearchProvider value={{ triggerSearch }}>{children}</GlobalSearchProvider>
+      </div>
     </div>
     </UnsavedChangesProvider>
   );
