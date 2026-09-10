@@ -588,7 +588,13 @@ export function EditorSidebar({
         onKeyDown={treeItem ? (event) => handleTreeKeyDown(event, treeNode) : undefined}
         aria-current={isActive ? "page" : undefined}
         className={
-          "block min-w-0 flex-1 rounded-btn py-1.5 pr-3 transition-colors duration-default " +
+          // P8-2: support.claude.com/ko 벤치마킹 실측값(design.md "4. 좌측 사이드바")
+          // — 레퍼런스는 목록 항목 패딩이 `8px` 전방향, radius는 12px(이 프로젝트의
+          // `--radius-card` 토큰과 같은 값)이다. 기존 `rounded-btn`(8px)·비대칭 패딩
+          // (py-1.5/pr-3 = 6px/12px)을 이 값에 맞춘다 — 왼쪽 패딩은 폴더 트리 들여쓰기를
+          // 감당하는 `<li>`의 inline style(`8 + depth * 14`)이 이미 depth 0에서 8px와
+          // 일치해 따로 바꿀 필요가 없다.
+          "block min-w-0 flex-1 rounded-card py-2 pr-2 transition-colors duration-default " +
           (isActive
             ? "sidebar-row-active text-foreground"
             : "text-foreground hover:bg-surface-raised")
@@ -636,7 +642,8 @@ export function EditorSidebar({
           aria-label="다른 폴더로 이동"
           title="이동"
           onClick={() => setMoveDocumentTarget(document)}
-          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+          // mt-2는 위 Link의 상단 패딩(py-2, P8-2)과 맞춰 첫 줄과 나란히 보이게 한다.
+          className="mt-2 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <MoveToFolderIcon />
         </button>
@@ -679,8 +686,11 @@ export function EditorSidebar({
         */}
         <div
           id={`sidebar-folder-${folder.id}`}
+          // P8-2: 문서 목록 행과 radius를 맞춘다(rounded-btn 8px → rounded-card 12px,
+          // design.md "4. 좌측 사이드바" 벤치마킹 참고) — 같은 트리 안에서 폴더 행만
+          // 다른 radius를 쓰면 어색하다.
           className={
-            "group flex items-center gap-0.5 rounded-btn pr-1 transition-colors duration-default hover:bg-surface-raised " +
+            "group flex items-center gap-0.5 rounded-card pr-1 transition-colors duration-default hover:bg-surface-raised " +
             (highlightedFolderId === folder.id ? "bg-brand/10" : "")
           }
           style={{ paddingLeft: 8 + depth * 14 }}
@@ -692,7 +702,8 @@ export function EditorSidebar({
             onKeyDown={(event) => handleTreeKeyDown(event, treeNode)}
             aria-expanded={isExpanded}
             title={folder.name}
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
+            // P8-2: 문서 행과 같은 높이가 되도록 py-1.5(6px) → py-2(8px)로 맞춘다.
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left text-sm font-medium text-foreground"
           >
             <ChevronIcon expanded={isExpanded} />
             <FolderIcon />
@@ -877,8 +888,9 @@ export function EditorSidebar({
                     onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
                     aria-current={isActive ? "page" : undefined}
                     title={`공유자: ${ownerLabel}`}
+                    // P8-2: 문서 목록 행과 같은 이유로 8px 전방향 패딩·12px radius로 맞춘다.
                     className={
-                      "block rounded-btn py-1.5 pl-2 pr-3 transition-colors duration-default " +
+                      "block rounded-card py-2 pl-2 pr-2 transition-colors duration-default " +
                       (isActive
                         ? "sidebar-row-active text-foreground"
                         : "text-foreground hover:bg-surface-raised")
