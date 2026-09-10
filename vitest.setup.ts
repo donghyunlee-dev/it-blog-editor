@@ -25,6 +25,25 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
 
+// jsdom은 IntersectionObserver도 구현하지 않는다(P8-5 — TableOfContents.tsx가 스크롤에
+// 따라 활성 헤딩을 추적하는 데 쓴다). 기본값은 아무것도 관찰하지 않는 no-op 스텁이다 —
+// 실제 교차 이벤트를 시뮬레이션해야 하는 TableOfContents.test.tsx는 이 전역 스텁을
+// vi.stubGlobal로 자기 것으로 덮어써서 콜백을 직접 제어한다.
+if (typeof window.IntersectionObserver === "undefined") {
+  class NoopIntersectionObserver implements IntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = "";
+    readonly thresholds: ReadonlyArray<number> = [];
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  window.IntersectionObserver = NoopIntersectionObserver;
+}
+
 // We don't enable Vitest's `globals: true` mode, so React Testing Library's
 // own auto-cleanup (which relies on detecting a global `afterEach`) never
 // fires. Without this, DOM nodes from one test's render() linger into the
