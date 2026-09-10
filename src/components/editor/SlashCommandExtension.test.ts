@@ -40,8 +40,8 @@ function createChainRecorder() {
 const RANGE: Range = { from: 1, to: 2 };
 
 describe("createSlashItems", () => {
-  it("빈 쿼리면 기본 10개 항목을 전부 반환한다", () => {
-    expect(createSlashItems("")).toHaveLength(10);
+  it("빈 쿼리면 기본 13개 항목을 전부 반환한다", () => {
+    expect(createSlashItems("")).toHaveLength(13);
   });
 
   it("대소문자를 구분하지 않고 제목에 쿼리가 포함된 항목만 반환한다", () => {
@@ -65,8 +65,11 @@ describe("기본 슬래시 항목의 run 커맨드 체인", () => {
   it.each([
     ["제목 1", ["focus()", 'deleteRange([{"from":1,"to":2}])', 'setNode(["heading",{"level":1}])', "run()"]],
     ["제목 2", ["focus()", 'deleteRange([{"from":1,"to":2}])', 'setNode(["heading",{"level":2}])', "run()"]],
+    ["제목 3", ["focus()", 'deleteRange([{"from":1,"to":2}])', 'setNode(["heading",{"level":3}])', "run()"]],
     ["글머리 목록", ["focus()", 'deleteRange([{"from":1,"to":2}])', "toggleBulletList()", "run()"]],
     ["번호 목록", ["focus()", 'deleteRange([{"from":1,"to":2}])', "toggleOrderedList()", "run()"]],
+    ["인용구", ["focus()", 'deleteRange([{"from":1,"to":2}])', "toggleBlockquote()", "run()"]],
+    ["구분선", ["focus()", 'deleteRange([{"from":1,"to":2}])', "setHorizontalRule()", "run()"]],
     [
       "표",
       [

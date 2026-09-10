@@ -398,6 +398,18 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
         >
           S
         </ToggleButton>
+        {/*
+          P2-8: underline은 StarterKit 기본값으로 이미 켜져 있었지만(스키마상 활성) 굵게·
+          기울임·취소선과 달리 버블 툴바에 진입점이 없어 Ctrl+U를 우연히 아는 경우에만
+          접근 가능했다 — 나머지 인라인 마크와 완전히 같은 방식(선택 텍스트에 토글)으로 추가한다.
+        */}
+        <ToggleButton
+          active={editor.isActive("underline")}
+          label="밑줄"
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
+          U
+        </ToggleButton>
         <ToggleButton
           active={editor.isActive("code")}
           label="코드"
