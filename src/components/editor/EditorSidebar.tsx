@@ -815,11 +815,11 @@ export function EditorSidebar({
           </span>
         </Link>
         {/*
-          레퍼런스(support.claude.com/ko) 헤더의 검색 트리거 버튼(140×30px, radius:12px)을
-          참고했다(design.md "벤치마킹" 절 "3. 헤더", P8-1). 이 프로젝트는 사이드바 폭이
-          220~440px로 가변이라 고정 픽셀 크기를 그대로 옮기지 않고 내용물(아이콘+"검색")
-          기준으로 자연스럽게 줄어들게 한다 — 단축키 힌트를 pill로 반복하지 않는다. 새 검색
-          로직이 아니라 기존 GlobalSearchModal(Ctrl+K)을 여는 트리거일 뿐이다.
+          레퍼런스(support.claude.com/ko) 헤더의 검색 트리거 버튼(P8-1)에서 출발했지만,
+          2026-09-11 사용자 요청으로 "새 폴더 만들기"·접기 버튼과 같은 아이콘 전용
+          스타일로 더 단순하게 바꿨다(글자 라벨 제거) — 아이콘 버튼 여러 개가 나란히
+          있을 때 서로 다른 스타일(하나만 배경 필+텍스트)이면 오히려 눈에 띈다는 판단.
+          새 검색 로직이 아니라 기존 GlobalSearchModal(Ctrl+K)을 여는 트리거일 뿐이다.
         */}
         {onOpenSearch && (
           <button
@@ -827,10 +827,9 @@ export function EditorSidebar({
             onClick={onOpenSearch}
             aria-label="전체 검색 (Ctrl+K)"
             title="전체 검색 (Ctrl+K)"
-            className="flex shrink-0 items-center gap-1.5 rounded-btn bg-surface-subtle px-2.5 py-1.5 text-sm text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+            className="shrink-0 rounded-btn p-1.5 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
           >
             <SearchTriggerIcon />
-            <span className="hidden sm:inline">검색</span>
           </button>
         )}
         {onCollapse && (
