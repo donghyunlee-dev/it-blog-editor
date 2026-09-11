@@ -146,6 +146,17 @@ body {
   background: var(--color-surface-subtle);
 }
 
+.panel-icon {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  line-height: 1.5rem;
+}
+
+.panel-content {
+  flex: 1;
+  min-width: 0;
+}
+
 .ProseMirror table {
   border-collapse: collapse;
   width: 100%;

@@ -218,7 +218,24 @@ describe("표·패널 매크로", () => {
     });
 
     expect(html).toBe(
-      '<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>주의</p></ac:rich-text-body></ac:structured-macro>'
+      '<ac:structured-macro ac:name="warning"><ac:parameter ac:name="icon">⚠️</ac:parameter><ac:rich-text-body><p>주의</p></ac:rich-text-body></ac:structured-macro>'
+    );
+  });
+
+  it("패널의 icon attrs가 있으면 타입 기본값 대신 그대로 사용한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "panel",
+          attrs: { panelType: "note", icon: "🔥" },
+          content: [{ type: "paragraph", content: [{ type: "text", text: "커스텀 아이콘" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      '<ac:structured-macro ac:name="note"><ac:parameter ac:name="icon">🔥</ac:parameter><ac:rich-text-body><p>커스텀 아이콘</p></ac:rich-text-body></ac:structured-macro>'
     );
   });
 
@@ -290,7 +307,24 @@ describe("표·패널 매크로", () => {
     });
 
     expect(html).toBe(
-      '<ac:structured-macro ac:name="info&quot;&gt;&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;&lt;div class=&quot;"><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
+      '<ac:structured-macro ac:name="info&quot;&gt;&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;&lt;div class=&quot;"><ac:parameter ac:name="icon">ℹ️</ac:parameter><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
+    );
+  });
+
+  it("패널 매크로의 icon도 이스케이프 처리한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        {
+          type: "panel",
+          attrs: { panelType: "info", icon: `"><script>alert(1)</script>` },
+          content: [{ type: "paragraph", content: [{ type: "text", text: "콘텐츠" }] }],
+        },
+      ],
+    });
+
+    expect(html).toBe(
+      '<ac:structured-macro ac:name="info"><ac:parameter ac:name="icon">&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</ac:parameter><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
     );
   });
 });
