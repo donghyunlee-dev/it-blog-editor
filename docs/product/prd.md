@@ -4,7 +4,8 @@
 
   
 
-> 전체 진행률: 109 / 109 항목 완료 (최근 갱신: 2026-09-11 — **P8-5 긴급 수정**(직전 버그 수정 배포 후 "새로고침해도 목차가 안 뜨고 `## 중제목`을 입력하면 사이트가 멈춘다"는 제보 — `TableOfContents.tsx`가 헤딩 DOM에 `element.id`를 직접 써서 ProseMirror 자신의 `DOMObserver`가 이를 예상 밖 변경으로 보고 재조정하고, 그 재조정을 우리 `MutationObserver`가 다시 감지해 무한 루프가 되던 것이 원인이었다(소스 코드로 확정). 헤딩을 id 대신 엘리먼트 참조로 추적해 ProseMirror가 관리하는 DOM에 아무것도 쓰지 않도록 고쳤다). 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용, Phase 9 완료), **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
+> 전체 진행률: 110 / 110 항목 완료 (최근 갱신: 2026-09-11 — **P10-1**(문서 링크 카드 블록 — [노션 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)의 두 번째 격차. `documentLink` atom 노드로 다른 문서를 아이콘(📄)+제목+화살표 카드로 삽입하고 클릭 시 이동한다. 슬래시 메뉴 "문서 링크" 항목이 기존 문서 검색 API를 재사용하는 피커 모달을 연다 — 제목은 삽입 시점 스냅샷 캐시, 아이콘은 고정, 링크 대상은 검색 피커로만 고른다). Phase 10(문서 링크 카드 블록)이 이로써 완료됐다. 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용). Phase 9(콜아웃 패널 아이콘 커스터마이징)가 이로써 완료됐다. 이전 갱신: **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
+
 
  
 >
@@ -273,6 +274,19 @@
 - 진행 방식: Phase 5·6·7·8과 동일 — 항목마다 4파일(task/plan/result/test)을 만들고 개별 PR로 머지·확인 후 다음 항목을 진행한다. P9-1(데이터 모델·storage) → P9-2(아이콘 선택 UI, Issue #101 답변 후 착수) 순서를 권장한다.
 - 범위 밖: 노션 문서 실제 가져오기/내보내기 파이프라인(별도 Phase 후보 — 전체 블록 타입 매핑이 필요해 이번 Phase보다 훨씬 큰 작업이다), 색상 팔레트 자유 선택, 외부 이미지 아이콘(노션의 `icon.type === "external"/"file"`), 콜아웃 외 다른 블록 타입 신규 추가(to-do·toggle·컬럼 등 — 이번 요청과 무관).
 
+### Phase 10 — 문서 링크 카드 블록 (신규, 2026-09-11 계획)
+- 배경: [노션 페이지 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)에서 지적된 두 번째 격차 — 노션은 다른 페이지를 아이콘+제목+화살표가 있는 카드형 블록으로 삽입해 클릭 한 번으로 이동할 수 있는데, 이 프로젝트는 일반 텍스트 하이퍼링크만 있고 이런 카드형 블록이 없다. 사용자가 Phase 9(콜아웃 아이콘) 완료 후 이어서 요청했다(2026-09-11).
+- 목표: 에디터 안에서 이 서비스의 다른 문서를 검색해 아이콘+제목이 있는 카드로 삽입하고, 클릭하면 그 문서로 이동하는 `documentLink` 블록을 추가한다.
+- 포함 기능: `documentLink` TipTap 노드(카드 NodeView, 클릭 시 `/editor/{pageId}`로 이동), 슬래시 메뉴 "문서 링크" 항목, 문서 검색 피커 모달(기존 `GET /api/editor/documents/search` 재사용), Confluence storage 직렬화(사람이 읽을 수 있는 텍스트로 — 기존 `panel`과 같은 이유로 역방향 파싱은 하지 않음).
+- 핵심 결정(2026-09-11, GitHub Issue 없이 직접 정함 — 값 자체에 정답이 없는 구조적 선택이라 P1-6a와 같은 근거로 바로 진행):
+  - **제목은 삽입 시점 스냅샷을 캐시해 보여준다**(노션처럼 항상 최신 제목을 실시간 조회하지 않음) — 카드 하나당 렌더링마다 대상 문서를 다시 조회하면 카드가 많은 문서에서 API 호출이 N배로 늘어난다. 원본 문서 제목이 바뀌면 카드는 갱신되지 않으니(알려진 제약), 최신 제목을 반영하려면 카드를 지우고 다시 삽입해야 한다.
+  - **링크 대상은 검색 피커로 고른 문서로 한정한다**(pageId를 직접 입력하는 방법은 없음) — 기존 문서 검색 API(`searchDocuments`)가 이미 "내 계정 폴더 문서만" 범위로 좁혀져 있어, 자연스럽게 타인의 비공개 문서를 링크할 수 없다.
+  - **공유받은 문서(내 소유가 아닌 문서)는 이번 피커의 검색 대상에 포함하지 않는다** — `searchDocuments`가 계정 폴더 기준이라 기본적으로 내 문서만 나온다. 필요해지면 별도 항목으로 확장한다.
+  - **아이콘은 모든 카드에 동일한 고정 이모지(📄)를 쓴다** — 문서 자체에 아이콘 필드가 없어(조사 결과), 문서마다 다른 아이콘을 지원하려면 문서 데이터 모델 확장이 먼저 필요한 별개의 큰 작업이다. 이번 범위는 카드 블록 자체이지 문서 아이콘 기능이 아니다.
+  - 새로 저장하지 않은 문서(`pageId` 없음)에서는 "문서 링크" 슬래시 항목 자체를 노출하지 않는다 — 기존 "이미지" 슬래시 항목과 같은 제약(`RichTextEditor.tsx`의 `pageId ? ... : ...` 분기)을 그대로 재사용한다.
+- 진행 방식: Phase 5~9와 동일 — task/plan/result/test 4파일 + 개별 PR.
+- 범위 밖: 실시간 제목 갱신, pageId 직접 입력, 공유받은 문서 링크, 문서별 커스텀 아이콘, 카드 미리보기(본문 스니펫 등 — 노션의 "미리보기" 모드는 다루지 않는다).
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -430,6 +444,9 @@
 ### Phase 9 — 콜아웃(패널) 아이콘 커스터마이징 (신규, 2026-09-11 계획)
 - [x] (완료, P9-1) 패널 노드 데이터 모델 확장 + Confluence storage 직렬화 — `panel` 노드에 `icon` attrs(이모지 1개 문자열) 추가, 노션 콜아웃 블록 스키마(`icon.emoji`~`icon`, `color`~`panelType`) 매핑을 `src/lib/editor/panel-icons.ts` 주석으로 명시. `icon` attrs가 없는 기존 문서는 `resolvePanelIcon()`이 타입별 기본 아이콘(정보=ℹ️/경고=⚠️/노트=📝)으로 보정한다(마이그레이션 스크립트 없음). 슬래시 메뉴로 삽입하는 패널 3종은 기본 아이콘을 attrs에 명시적으로 함께 넣는다. `tiptap-to-storage.ts`는 기존 `ac:structured-macro` 구조를 유지한 채 `<ac:parameter ac:name="icon">`를 추가해 아이콘을 보존한다(이스케이프 포함). 산출물: `docs/superpowers/tasks/P9-1-callout-icon-model/{task,plan,result,test}.md`, src/lib/editor/panel-icons.ts, src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx, src/components/editor/SlashCommandExtension.ts, src/components/editor/SlashCommandExtension.test.ts, src/lib/editor/tiptap-to-storage.ts, src/lib/editor/tiptap-to-storage.test.ts, src/app/globals.css
 - [x] (완료, P9-2, [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변 후 착수 — 추천안 24개 그대로 확정) 콜아웃 아이콘 선택 UI — `panel` 노드에 `addNodeView()`(`ReactNodeViewRenderer`)를 추가해 아이콘을 `<button class="panel-icon">` 트리거로 렌더링하고, 클릭하면 `Popover`(글자색/하이라이트 스와치와 같은 패턴) 안에 큐레이션 이모지 24개를 6열 그리드로 보여준다. 클릭한 이모지로 `updateAttributes({ icon })`가 즉시 반영된다. 패널 색상 테마(정보/경고/노트)는 이 UI로 바꾸지 않는다(범위 밖 유지). 산출물: `docs/superpowers/tasks/P9-2-callout-icon-picker-ui/{task,plan,result,test}.md`, src/lib/editor/panel-icons.ts, src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx, src/app/globals.css
+
+### Phase 10 — 문서 링크 카드 블록 (신규, 2026-09-11 계획)
+- [x] (완료, P10-1) `documentLink` 노드 + 검색 피커 + storage 직렬화 — 카드 NodeView(고정 아이콘 📄 + 제목 + 화살표, 클릭 시 `/editor/{pageId}` 이동), 슬래시 메뉴 "문서 링크" 항목(기존 `GET /api/editor/documents/search` 재사용한 피커 모달 `DocumentLinkPickerModal.tsx`, 현재 문서 자신은 결과에서 제외), Confluence storage에는 사람이 읽을 수 있는 텍스트로 직렬화(역방향 파싱 없음, `panel`과 동일한 이유). 슬래시 항목은 "이미지"와 같은 이유로 `pageId`가 있을 때만 노출된다. 산출물: `docs/superpowers/tasks/P10-1-document-link-card/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx, src/components/editor/DocumentLinkPickerModal.tsx, src/components/editor/DocumentLinkPickerModal.test.tsx, src/lib/editor/tiptap-to-storage.ts, src/lib/editor/tiptap-to-storage.test.ts, src/app/globals.css
 
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { useRouter } from "next/navigation";
+import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
 import {
   EditorContent,
   NodeViewContent,
@@ -30,6 +31,7 @@ import { SlashCommandExtension, createSlashItems, type CommandItem } from "./Sla
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
 import { CURATED_PANEL_ICONS, resolvePanelIcon } from "@/lib/editor/panel-icons";
+import { DocumentLinkPickerModal } from "./DocumentLinkPickerModal";
 
 // TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
 // `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
@@ -130,6 +132,19 @@ function createImageSlashItem(
       });
       input.click();
     },
+  };
+}
+
+/**
+ * 슬래시 메뉴의 "문서 링크" 항목(P10-1). "이미지"와 달리 이 자리에서 바로 편집기를
+ * 조작하지 않는다 — 어떤 문서를 링크할지 검색해서 골라야 하므로, 실제 삭제·삽입은
+ * `onOpen`이 연 검색 피커 모달에서 문서를 고른 뒤(`RichTextEditor` 컴포넌트 안) 이뤄진다.
+ * "이미지"와 같은 이유로 pageId가 있을 때만 메뉴에 노출한다(호출부에서 조건부로 넣음).
+ */
+function createDocumentLinkSlashItem(onOpen: (range: Range) => void): CommandItem {
+  return {
+    title: "문서 링크",
+    run: (_editor, range) => onOpen(range),
   };
 }
 
@@ -242,6 +257,71 @@ const Panel = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(PanelView);
+  },
+});
+
+/**
+ * 문서 링크 카드(P10-1) — 노션의 "하위 페이지 링크" 블록에 대응한다. `panel`과 달리
+ * 내부에 편집 가능한 콘텐츠가 없는 atom 노드다: 삽입 시점에 고른 문서의 `pageId`·제목을
+ * attrs로 캐시해 두고 그대로 보여준다(실시간 재조회 없음 — task.md "결정이 필요한 사항"
+ * 참고). 아이콘은 문서 데이터 모델에 아이콘 필드가 없어 모든 카드가 고정 이모지(📄)를 쓴다.
+ */
+function DocumentLinkView({ node }: Pick<NodeViewProps, "node">) {
+  const router = useRouter();
+  const pageId = String(node.attrs.pageId ?? "");
+  const title = String(node.attrs.title ?? "").trim() || "(제목 없음)";
+
+  return (
+    <NodeViewWrapper contentEditable={false}>
+      <button
+        type="button"
+        className="document-link-card"
+        onClick={() => {
+          if (pageId) router.push(`/editor/${pageId}`);
+        }}
+      >
+        <span aria-hidden="true">📄</span>
+        <span className="document-link-title">{title}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+    </NodeViewWrapper>
+  );
+}
+
+const DocumentLink = Node.create({
+  name: "documentLink",
+  group: "block",
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { pageId: { default: null }, title: { default: "" } };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: "a[data-document-link]",
+        getAttrs: (el) => ({
+          pageId: (el as HTMLElement).getAttribute("data-page-id"),
+          title: (el as HTMLElement).getAttribute("data-title"),
+        }),
+      },
+    ];
+  },
+  renderHTML({ node }) {
+    return [
+      "a",
+      {
+        "data-document-link": "true",
+        "data-page-id": node.attrs.pageId,
+        "data-title": node.attrs.title,
+        href: `/editor/${node.attrs.pageId}`,
+        class: "document-link-card",
+      },
+      String(node.attrs.title ?? "") || "(제목 없음)",
+    ];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DocumentLinkView);
   },
 });
 
@@ -999,6 +1079,7 @@ const lowlight = createLowlight(common);
 
 export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
   const { toast } = useToast();
+  const [documentLinkPicker, setDocumentLinkPicker] = useState<{ range: Range } | null>(null);
 
   const editor = useEditor({
     extensions: [
@@ -1019,6 +1100,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       Highlight.configure({ multicolor: true }),
       AttachmentImage,
       Panel,
+      DocumentLink,
       TableWithToolbar.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -1037,6 +1119,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
               items: ({ query }: { query: string }) =>
                 createSlashItems(query, [
                   createImageSlashItem(pageId, (message) => toast(message, "danger")),
+                  createDocumentLinkSlashItem((range) => setDocumentLinkPicker({ range })),
                 ]),
             },
           })
@@ -1129,6 +1212,22 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
         항상 일치하므로 이 문제 자체가 생기지 않는다.
       */}
       <EditorContent editor={editor} className="prose max-w-none" />
+      <DocumentLinkPickerModal
+        open={documentLinkPicker !== null}
+        onClose={() => setDocumentLinkPicker(null)}
+        excludePageId={pageId}
+        onSelect={({ pageId: linkedPageId, title }) => {
+          if (editor && documentLinkPicker) {
+            editor
+              .chain()
+              .focus()
+              .deleteRange(documentLinkPicker.range)
+              .insertContent({ type: "documentLink", attrs: { pageId: linkedPageId, title } })
+              .run();
+          }
+          setDocumentLinkPicker(null);
+        }}
+      />
     </>
   );
 }
