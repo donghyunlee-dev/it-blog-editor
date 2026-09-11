@@ -490,6 +490,57 @@ describe("RichTextEditor 기본 렌더링(P1-9e)", () => {
   });
 });
 
+describe("RichTextEditor 패널 아이콘(P9-1)", () => {
+  it.each([
+    ["info", "ℹ️"],
+    ["warning", "⚠️"],
+    ["note", "📝"],
+  ])("icon attrs가 없는 패널(panelType: %s)은 타입 기본 아이콘(%s)으로 렌더링된다", (panelType, icon) => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              {
+                type: "panel",
+                attrs: { panelType },
+                content: [{ type: "paragraph", content: [{ type: "text", text: "내용" }] }],
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(container.querySelector(".panel-icon")?.textContent).toBe(icon);
+  });
+
+  it("icon attrs가 명시된 패널은 타입 기본값 대신 그 아이콘으로 렌더링된다", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              {
+                type: "panel",
+                attrs: { panelType: "note", icon: "🔥" },
+                content: [{ type: "paragraph", content: [{ type: "text", text: "커스텀 아이콘" }] }],
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(container.querySelector(".panel-icon")?.textContent).toBe("🔥");
+    expect(screen.getByText("커스텀 아이콘")).toBeInTheDocument();
+  });
+});
+
 describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
   function renderWithText(onChange = vi.fn()) {
     const utils = render(

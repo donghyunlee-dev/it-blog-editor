@@ -19,6 +19,7 @@ import { Button, Modal, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
+import { resolvePanelIcon } from "@/lib/editor/panel-icons";
 
 // TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
 // `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
@@ -158,18 +159,32 @@ const Panel = Node.create({
   group: "block",
   content: "block+",
   addAttributes() {
-    return { panelType: { default: "info" } };
+    return { panelType: { default: "info" }, icon: { default: null } };
   },
   parseHTML() {
     return [
       {
         tag: "div[data-panel-type]",
-        getAttrs: (el) => ({ panelType: (el as HTMLElement).getAttribute("data-panel-type") }),
+        contentElement: ".panel-content",
+        getAttrs: (el) => ({
+          panelType: (el as HTMLElement).getAttribute("data-panel-type"),
+          icon: (el as HTMLElement).getAttribute("data-panel-icon"),
+        }),
       },
     ];
   },
   renderHTML({ node }) {
-    return ["div", { "data-panel-type": node.attrs.panelType, class: `panel panel-${node.attrs.panelType}` }, 0];
+    const icon = resolvePanelIcon(node.attrs.panelType, node.attrs.icon);
+    return [
+      "div",
+      {
+        "data-panel-type": node.attrs.panelType,
+        "data-panel-icon": icon,
+        class: `panel panel-${node.attrs.panelType}`,
+      },
+      ["span", { class: "panel-icon", "aria-hidden": "true" }, icon],
+      ["div", { class: "panel-content" }, 0],
+    ];
   },
 });
 

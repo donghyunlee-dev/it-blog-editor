@@ -1,3 +1,5 @@
+import { resolvePanelIcon } from "./panel-icons";
+
 export interface JSONContent {
   type: string;
   attrs?: Record<string, unknown>;
@@ -152,7 +154,8 @@ function serializeNode(node: JSONContent): string {
       }>${serializeChildren(node)}</th>`;
     case "panel": {
       const panelType = escapeHtml(String(node.attrs?.panelType ?? "info"));
-      return `<ac:structured-macro ac:name="${panelType}"><ac:rich-text-body>${serializeChildren(node)}</ac:rich-text-body></ac:structured-macro>`;
+      const icon = escapeHtml(resolvePanelIcon(node.attrs?.panelType, node.attrs?.icon));
+      return `<ac:structured-macro ac:name="${panelType}"><ac:parameter ac:name="icon">${icon}</ac:parameter><ac:rich-text-body>${serializeChildren(node)}</ac:rich-text-body></ac:structured-macro>`;
     }
     default:
       return serializeChildren(node);

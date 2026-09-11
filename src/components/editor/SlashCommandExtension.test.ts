@@ -92,10 +92,10 @@ describe("기본 슬래시 항목의 run 커맨드 체인", () => {
   });
 
   it.each([
-    ["정보 패널", "info"],
-    ["경고 패널", "warning"],
-    ["노트 패널", "note"],
-  ])("%s은 panelType: %s로 삽입한다", (title, panelType) => {
+    ["정보 패널", "info", "ℹ️"],
+    ["경고 패널", "warning", "⚠️"],
+    ["노트 패널", "note", "📝"],
+  ])("%s은 panelType: %s, icon: %s로 삽입한다", (title, panelType, icon) => {
     const item = createSlashItems("").find((i) => i.title === title);
     expect(item).toBeDefined();
 
@@ -105,7 +105,7 @@ describe("기본 슬래시 항목의 run 커맨드 체인", () => {
     expect(calls).toEqual([
       "focus()",
       'deleteRange([{"from":1,"to":2}])',
-      `insertContent([{"type":"panel","attrs":{"panelType":"${panelType}"},"content":[{"type":"paragraph"}]}])`,
+      `insertContent([{"type":"panel","attrs":{"panelType":"${panelType}","icon":"${icon}"},"content":[{"type":"paragraph"}]}])`,
       "run()",
     ]);
   });

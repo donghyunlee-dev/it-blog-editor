@@ -1,5 +1,6 @@
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import Suggestion, { type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
+import { DEFAULT_PANEL_ICONS } from "@/lib/editor/panel-icons";
 
 // TipTap v3's `@tiptap/suggestion` (verified at the installed 3.30.2, matching
 // the other @tiptap/* packages exactly) still ships as a standalone package
@@ -100,7 +101,11 @@ const ITEMS: CommandItem[] = [
         .chain()
         .focus()
         .deleteRange(range)
-        .insertContent({ type: "panel", attrs: { panelType: "info" }, content: [{ type: "paragraph" }] })
+        .insertContent({
+          type: "panel",
+          attrs: { panelType: "info", icon: DEFAULT_PANEL_ICONS.info },
+          content: [{ type: "paragraph" }],
+        })
         .run(),
   },
   {
@@ -110,7 +115,11 @@ const ITEMS: CommandItem[] = [
         .chain()
         .focus()
         .deleteRange(range)
-        .insertContent({ type: "panel", attrs: { panelType: "warning" }, content: [{ type: "paragraph" }] })
+        .insertContent({
+          type: "panel",
+          attrs: { panelType: "warning", icon: DEFAULT_PANEL_ICONS.warning },
+          content: [{ type: "paragraph" }],
+        })
         .run(),
   },
   {
@@ -120,7 +129,11 @@ const ITEMS: CommandItem[] = [
         .chain()
         .focus()
         .deleteRange(range)
-        .insertContent({ type: "panel", attrs: { panelType: "note" }, content: [{ type: "paragraph" }] })
+        .insertContent({
+          type: "panel",
+          attrs: { panelType: "note", icon: DEFAULT_PANEL_ICONS.note },
+          content: [{ type: "paragraph" }],
+        })
         .run(),
   },
 ];

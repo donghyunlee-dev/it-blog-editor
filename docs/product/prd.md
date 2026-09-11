@@ -261,6 +261,18 @@
 - 진행 방식: 항목마다 4파일(task/plan/result/test)을 만들고 개별 PR로 머지·확인 후 다음 항목을 진행한다(Phase 5·6·7과 동일). 항목 간 선행 의존성은 없어 순서 상관없이 진행 가능하나, 권장 순서는 P8-1 → P8-4 → P8-6(가벼운 항목부터) → P8-3 → P8-2 → P8-5(TOC, 신규 컴포넌트라 가장 크다) → P8-7(구현 없는 비교표만).
 - 범위 밖: 헤더 높이 변경, 타이포그래피 스케일 변경(P8-7은 비교만), 사이드바/본문 폭의 큰 구조 변경(이미 유사해 불필요), "LLM용 복사" 버튼 등 레퍼런스의 콘텐츠 기능(이 프로젝트 문서 작성 도구의 목적과 무관).
 
+### Phase 9 — 콜아웃(패널) 아이콘 커스터마이징 (신규, 2026-09-11 계획)
+- 배경: [노션 페이지(SFOOD 생성형 AI 업무 지침 가이드) 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)에서, 원본이 콜아웃마다 다른 이모지(📷/💡/⚠️ 등)를 자유롭게 쓰는 반면 이 프로젝트의 패널(`panel` 노드, `src/components/editor/RichTextEditor.tsx`)은 정보/경고/노트 3종 고정이고 애초에 아이콘 자체가 구현돼 있지 않다는 격차가 드러났다(조사 결과: 렌더링은 CSS 클래스의 테두리·배경색뿐, 아이콘 요소가 없음). 사용자가 이 격차를 좁히는 기능 추가를 요청했다(2026-09-11).
+- 목표: 콜아웃 아이콘을 큐레이션된 이모지 목록 중에서 자유롭게 고를 수 있게 하고, 데이터 모델을 노션의 콜아웃 블록 스키마(`icon: {type:"emoji", emoji}`, `color`)와 최대한 1:1로 맞춰 **노션 데이터와 실제 상호 호환**되게 설계한다(사용자 확인, 2026-09-11) — 단, 노션 문서를 실제로 가져오거나 내보내는 가져오기/내보내기 파이프라인 자체는 이번 Phase가 만들지 않는다(아래 "범위 밖" 참고). 이번 Phase는 "그 기능이 나중에 생겼을 때 이 컴포넌트의 데이터 모델을 다시 설계하지 않아도 되는 것"까지가 목표다.
+- 포함 기능: 패널 노드에 `icon` attrs 추가(노션 호환 스키마 설계 포함), Confluence storage 직렬화에 아이콘 보존, 슬래시 메뉴로 삽입한 패널의 타입별 기본 아이콘, 콜아웃 블록에 아이콘 선택 UI(큐레이션된 이모지 그리드) 추가.
+- 핵심 결정(2026-09-11, 사용자와의 대화로 확정):
+  - "노션과 호환"의 의미는 시각적 재현이 아니라 **노션 데이터와의 실제 상호 호환**(향후 가져오기/내보내기가 이 데이터 모델을 그대로 재사용할 수 있는 수준)이다.
+  - 아이콘 선택 UI는 전체 유니코드 이모지 피커가 아니라 **큐레이션된 목록 중에서 고르는 방식**이다 — 목록 자체는 [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101)로 등록해 답을 받은 뒤 확정한다. **P9-2(아이콘 선택 UI)는 이 이슈 답변 전까지 착수하지 않는다.**
+  - 기존 3종 색상 테마(정보/경고/노트)는 그대로 유지한다 — 이번 요청은 "아이콘"에 관한 것이고 색상 팔레트 확장(노션처럼 배경색 자유 선택)은 요청 범위 밖이라 임의로 넓히지 않는다.
+  - 기존 문서(아이콘 attrs가 없는 패널)는 타입별 고정 기본 아이콘(정보=ℹ️/경고=⚠️/노트=📝)으로 보정한다 — 마이그레이션 스크립트 없이 조회 시점 기본값으로 처리(P5-1의 `accountMeta` 보정과 같은 패턴).
+- 진행 방식: Phase 5·6·7·8과 동일 — 항목마다 4파일(task/plan/result/test)을 만들고 개별 PR로 머지·확인 후 다음 항목을 진행한다. P9-1(데이터 모델·storage) → P9-2(아이콘 선택 UI, Issue #101 답변 후 착수) 순서를 권장한다.
+- 범위 밖: 노션 문서 실제 가져오기/내보내기 파이프라인(별도 Phase 후보 — 전체 블록 타입 매핑이 필요해 이번 Phase보다 훨씬 큰 작업이다), 색상 팔레트 자유 선택, 외부 이미지 아이콘(노션의 `icon.type === "external"/"file"`), 콜아웃 외 다른 블록 타입 신규 추가(to-do·toggle·컬럼 등 — 이번 요청과 무관).
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -414,6 +426,10 @@
 
 - [x] (완료, P8-6) 본문 최대 폭 조정 — `DocumentEditor.tsx`의 본문 콘텐츠 컨테이너를 `max-w-[820px]` → `max-w-[830px]`로 레퍼런스 실측값과 일치시켰다(다른 클래스는 변경 없음). `RichTextEditor.tsx`의 2026-08-26 SF-Note 실측 비교 주석도 옛 820px 값 언급을 함께 갱신했다(코드-문서 드리프트 방지, 비교 결론 자체는 바뀌지 않음). **AX Auth 로그인 제약으로 이 세션은 실제 픽셀 렌더링 확인을 하지 못해**, `getBoundingClientRect()`/스크린샷 대신 Tailwind 클래스 적용 여부(830px 클래스 있음/820px 클래스 없음)로 회귀 테스트를 고정했다. 산출물: `docs/superpowers/tasks/P8-6-body-max-width/{task,plan,result,test}.md`.
 - [x] (완료, P8-7, 구현 없음 — 비교표만) 타이포그래피 스케일 비교 검토 — design.md "6. 본문 리치 텍스트 타이포" 표에 레퍼런스(15/22/17/15px)와 현재 값(16/24/20/16px)의 차이, "이번 벤치마크만으로 타이포 스케일을 바꾸지 않는다"는 결론이 이미 반영돼 있음을 확인했다. **변경은 이 항목의 범위 밖**이라 코드·design.md 모두 수정하지 않았다 — 축소를 원하면 SF-Note 대비 근거를 다시 검토하고 별도 GitHub Issue로 결정한 뒤 신규 항목으로 진행한다. 산출물: `docs/superpowers/tasks/P8-7-typography-comparison/{task,plan,result,test}.md`.
+
+### Phase 9 — 콜아웃(패널) 아이콘 커스터마이징 (신규, 2026-09-11 계획)
+- [x] (완료, P9-1) 패널 노드 데이터 모델 확장 + Confluence storage 직렬화 — `panel` 노드에 `icon` attrs(이모지 1개 문자열) 추가, 노션 콜아웃 블록 스키마(`icon.emoji`~`icon`, `color`~`panelType`) 매핑을 `src/lib/editor/panel-icons.ts` 주석으로 명시. `icon` attrs가 없는 기존 문서는 `resolvePanelIcon()`이 타입별 기본 아이콘(정보=ℹ️/경고=⚠️/노트=📝)으로 보정한다(마이그레이션 스크립트 없음). 슬래시 메뉴로 삽입하는 패널 3종은 기본 아이콘을 attrs에 명시적으로 함께 넣는다. `tiptap-to-storage.ts`는 기존 `ac:structured-macro` 구조를 유지한 채 `<ac:parameter ac:name="icon">`를 추가해 아이콘을 보존한다(이스케이프 포함). 산출물: `docs/superpowers/tasks/P9-1-callout-icon-model/{task,plan,result,test}.md`, src/lib/editor/panel-icons.ts, src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx, src/components/editor/SlashCommandExtension.ts, src/components/editor/SlashCommandExtension.test.ts, src/lib/editor/tiptap-to-storage.ts, src/lib/editor/tiptap-to-storage.test.ts, src/app/globals.css
+- [ ] (P9-2, [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변 후 착수) 콜아웃 아이콘 선택 UI — 큐레이션된 이모지 그리드(`Popover` 재사용), 패널 NodeView 신설. 산출물(예정): `docs/superpowers/tasks/P9-2-callout-icon-picker-ui/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx
 
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)
