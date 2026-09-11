@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Button, ChipGroup, EmptyState, Modal, Select, Tag, useToast } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Modal, Tag, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
@@ -64,6 +64,26 @@ function PlusIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/**
+ * "정렬" 아이콘 버튼(2026-09-11, 사용자 요청 — 공간을 아끼기 위해 드롭다운
+ * `<Select>` 한 줄을 없애고 "새 폴더 만들기"와 같은 아이콘 버튼으로 대체했다).
+ * 최신순/제목순 두 값만 있어 클릭할 때마다 토글하고, 지금 값은 아이콘 상태가 아니라
+ * aria-label/title로 전달한다("새 폴더 만들기"와 같은 관례).
+ */
+function SortIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M6 4v12M6 4L3 7M6 4l3 3M14 16V4M14 16l3-3M14 16l-3-3"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -798,9 +818,8 @@ export function EditorSidebar({
           레퍼런스(support.claude.com/ko) 헤더의 검색 트리거 버튼(140×30px, radius:12px)을
           참고했다(design.md "벤치마킹" 절 "3. 헤더", P8-1). 이 프로젝트는 사이드바 폭이
           220~440px로 가변이라 고정 픽셀 크기를 그대로 옮기지 않고 내용물(아이콘+"검색")
-          기준으로 자연스럽게 줄어들게 한다 — 단축키 힌트는 이미 목록 위(위 "Ctrl+K(Mac: ⌘K)"
-          문구)에 있어 여기서 다시 pill로 반복하지 않는다. 새 검색 로직이 아니라 기존
-          GlobalSearchModal(Ctrl+K)을 여는 트리거일 뿐이다.
+          기준으로 자연스럽게 줄어들게 한다 — 단축키 힌트를 pill로 반복하지 않는다. 새 검색
+          로직이 아니라 기존 GlobalSearchModal(Ctrl+K)을 여는 트리거일 뿐이다.
         */}
         {onOpenSearch && (
           <button
@@ -844,29 +863,28 @@ export function EditorSidebar({
       </div>
 
       {/*
-        "새 문서"와 아래 검색 입력 사이 구분선을 없앴다(2026-08-26, 사용자 피드백 —
-        "새문서와 검색 사이 라인은 불필요하다"). 이 둘은 같은 "컨트롤 영역"이라 굳이
-        나눌 필요가 없고, 진짜 구분이 필요한 경계(컨트롤 영역 ↔ 문서 목록)는 검색
-        입력 쪽 border-b가 그대로 맡는다.
+        공간을 더 효율적으로 쓰기 위해(2026-09-11, 사용자 요청) 문서 검색을 사이드바
+        맨 위로 올렸다 — 문서가 많아질수록 "새로 만들기"보다 "찾기"가 더 자주 쓰이는
+        동작이라는 판단이다. 정렬(최신순/제목순)은 더 이상 여기 없다 — 아래 "폴더" 행의
+        아이콘 버튼으로 옮겼다(같은 이유, 드롭다운 한 줄을 통째로 없앤다). "본문까지
+        찾으려면 Ctrl+K" 힌트 문장도 함께 뺐다(사용자 요청 — 화면이 복잡해 보인다는
+        피드백).
       */}
-      <div className="p-3 pb-0">
-        {/*
-          @sfood/ui의 Button은 <button>만 지원해 href를 받을 수 없다(ButtonHTMLAttributes 기반).
-          실제 페이지 이동이 필요하므로 Link를 쓰되, 이 사이드바의 유일한 1차 액션이라는 의미를
-          살리기 위해 Button variant="primary"와 동일한 토큰 클래스를 그대로 재사용한다.
-        */}
-        <Link
-          href="/editor/new"
-          onClick={onNavigate}
-          onNavigate={(event) => guardNavigate(event, "/editor/new")}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
-        >
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          새 문서
-        </Link>
-      </div>
+      {documents.length > 0 && (
+        <div className="border-b border-border p-3">
+          <label className="sr-only" htmlFor="sidebar-doc-search">
+            문서 제목·태그 검색
+          </label>
+          <input
+            id="sidebar-doc-search"
+            type="search"
+            placeholder="문서 검색"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            className="w-full rounded-input border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
+          />
+        </div>
+      )}
 
       {/*
         "내 문서"와 섞이지 않도록 분리된 영역이다(P6-5, prd.md "공유받은 문서 목록 조회").
@@ -911,43 +929,6 @@ export function EditorSidebar({
         </div>
       )}
 
-      {documents.length > 0 && (
-        <div className="flex flex-col gap-2 border-b border-border p-3">
-          <label className="sr-only" htmlFor="sidebar-doc-search">
-            문서 제목·태그 검색
-          </label>
-          <input
-            id="sidebar-doc-search"
-            type="search"
-            placeholder="문서 검색"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            className="w-full rounded-input border border-border bg-surface px-3 py-1.5 text-sm text-foreground outline-none placeholder:text-placeholder focus:border-brand focus:ring-2 focus:ring-brand"
-          />
-          {/*
-            이 검색창은 제목·태그만 본다(위 label 참고). 본문까지 찾고 싶을 때 쓸 수 있는
-            Ctrl+K 전체 검색(GlobalSearchModal.tsx, P1-1a 후속)이 있다는 걸 알리는 힌트다 —
-            그 모달은 자체적으로 열림 상태를 관리해(EditorShell.tsx에 한 번만 마운트) 여기서
-            직접 열 수는 없다.
-          */}
-          <p className="text-xs text-muted">본문까지 찾으려면 Ctrl+K(Mac: ⌘K)</p>
-          <label className="sr-only" htmlFor="sidebar-doc-sort">
-            문서 정렬
-          </label>
-          <Select
-            id="sidebar-doc-sort"
-            value={sortBy}
-            onChange={(event) =>
-              setSortBy(event.target.value as "updatedAt" | "title")
-            }
-            options={[
-              { value: "updatedAt", label: "최신순" },
-              { value: "title", label: "제목순" },
-            ]}
-          />
-        </div>
-      )}
-
       {allTags.length > 0 && (
         <div className="border-b border-border p-3">
           <ChipGroup
@@ -960,6 +941,32 @@ export function EditorSidebar({
         </div>
       )}
 
+      {/*
+        "새 문서"를 폴더 생성 바로 위로 옮겼다(2026-09-11, 사용자 요청) — 문서를 새로
+        만드는 시점은 대개 "지금 보고 있는 폴더 맥락에 문서를 추가한다"는 흐름이라, 폴더
+        영역 바로 위에 두는 것이 아래로 스크롤해야 있던 예전 위치보다 더 자연스럽다.
+        border-b로 "컨트롤 영역 ↔ 문서 목록"의 경계를 표시한다(예전엔 검색 입력 쪽이
+        이 경계를 맡았다).
+      */}
+      <div className="border-b border-border p-3">
+        {/*
+          @sfood/ui의 Button은 <button>만 지원해 href를 받을 수 없다(ButtonHTMLAttributes 기반).
+          실제 페이지 이동이 필요하므로 Link를 쓰되, 이 사이드바의 유일한 1차 액션이라는 의미를
+          살리기 위해 Button variant="primary"와 동일한 토큰 클래스를 그대로 재사용한다.
+        */}
+        <Link
+          href="/editor/new"
+          onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, "/editor/new")}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
+        >
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          새 문서
+        </Link>
+      </div>
+
       <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
         {/*
           P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
@@ -968,15 +975,34 @@ export function EditorSidebar({
         */}
         <div className="mb-2 flex items-center justify-between px-1">
           <p className="text-xs font-medium text-muted">폴더</p>
-          <button
-            type="button"
-            aria-label="새 폴더 만들기"
-            title="새 폴더 만들기"
-            onClick={() => setFolderFormState({ type: "create", parentId: null })}
-            className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
-          >
-            <PlusIcon />
-          </button>
+          <div className="flex items-center gap-0.5">
+            {documents.length > 0 && (
+              <button
+                type="button"
+                aria-label={
+                  sortBy === "updatedAt"
+                    ? "정렬: 최신순 (누르면 제목순으로 변경)"
+                    : "정렬: 제목순 (누르면 최신순으로 변경)"
+                }
+                title={sortBy === "updatedAt" ? "정렬: 최신순" : "정렬: 제목순"}
+                onClick={() =>
+                  setSortBy((current) => (current === "updatedAt" ? "title" : "updatedAt"))
+                }
+                className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+              >
+                <SortIcon />
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="새 폴더 만들기"
+              title="새 폴더 만들기"
+              onClick={() => setFolderFormState({ type: "create", parentId: null })}
+              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+            >
+              <PlusIcon />
+            </button>
+          </div>
         </div>
         {documents.length === 0 ? (
           <EmptyState title="아직 작성한 문서가 없습니다." />
