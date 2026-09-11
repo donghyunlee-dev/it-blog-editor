@@ -19,3 +19,35 @@ export function resolvePanelIcon(panelType: unknown, icon: unknown): string {
   const type = typeof panelType === "string" ? panelType : "info";
   return DEFAULT_PANEL_ICONS[type] ?? DEFAULT_PANEL_ICONS.info;
 }
+
+/**
+ * 콜아웃 아이콘 선택 UI(P9-2)가 고르게 하는 큐레이션 목록 — 전체 유니코드 이모지
+ * 피커가 아니라 이 목록 중에서만 고른다(사용자 결정, Issue #101, 추천안 그대로 확정).
+ * 기존 3종 기본 아이콘(ℹ️/⚠️/📝)을 포함한다.
+ */
+export const CURATED_PANEL_ICONS: string[] = [
+  "ℹ️",
+  "⚠️",
+  "📝",
+  "💡",
+  "📌",
+  "🔥",
+  "✅",
+  "❌",
+  "❓",
+  "🎉",
+  "📷",
+  "📎",
+  "📊",
+  "📅",
+  "🔗",
+  "👀",
+  "🚀",
+  "📚",
+  "🔒",
+  "🔔",
+  "💬",
+  "🧩",
+  "⭐",
+  "🗂️",
+];
