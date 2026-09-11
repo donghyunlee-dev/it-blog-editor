@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Button, ChipGroup, EmptyState, Modal, Tag, useToast } from "@sfood/ui";
+import { Button, ChipGroup, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
@@ -626,13 +626,6 @@ export function EditorSidebar({
           </span>
           <p className="min-w-0 truncate text-sm font-medium">{document.title}</p>
         </div>
-        {document.tags.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 pl-[18px]">
-            {document.tags.map((tag) => (
-              <Tag key={tag}>{tag}</Tag>
-            ))}
-          </div>
-        )}
       </Link>
     );
     // aria-selected는 treeitem의 필수 속성이다(jsx-a11y) — "지금 열려 있는 문서"를 이미
