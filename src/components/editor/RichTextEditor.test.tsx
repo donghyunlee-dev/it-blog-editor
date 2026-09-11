@@ -5,6 +5,13 @@ import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import * as imageUpload from "@/lib/editor/image-upload";
 
+// P10-1(문서 링크 카드)의 NodeView가 next/navigation의 useRouter를 쓴다 — AppRouterContext
+// 없이 호출하면 던지므로 직접 모킹한다(GlobalSearchModal.test.tsx와 동일한 패턴).
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
+
 /**
  * TipTap(ProseMirror)은 실제 렌더링된 contenteditable에 드래그/붙여넣기 DOM 이벤트를
  * 그대로 받는 구조라, RichTextEditor는 처음엔 테스트가 없었다(P0-4b가 최초로 추가).
@@ -566,6 +573,7 @@ describe("RichTextEditor 패널 아이콘(P9-1)", () => {
     // 본문 편집 영역은 아이콘 변경 후에도 그대로 유지된다(NodeView 도입에 따른 회귀 없음).
     expect(screen.getByText("안내")).toBeInTheDocument();
   });
+
 });
 
 describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
