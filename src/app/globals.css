@@ -169,6 +169,35 @@ body {
   min-width: 0;
 }
 
+/* 문서 링크 카드(P10-1) — 노션의 "하위 페이지 링크" 블록에 대응. */
+.document-link-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.document-link-card:hover,
+.document-link-card:focus-visible {
+  background: var(--color-surface-subtle);
+}
+
+.document-link-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
 .ProseMirror table {
   border-collapse: collapse;
   width: 100%;

@@ -327,6 +327,37 @@ describe("표·패널 매크로", () => {
       '<ac:structured-macro ac:name="info"><ac:parameter ac:name="icon">&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</ac:parameter><ac:rich-text-body><p>콘텐츠</p></ac:rich-text-body></ac:structured-macro>'
     );
   });
+
+  it("문서 링크 카드를 사람이 읽을 수 있는 텍스트로 변환한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "documentLink", attrs: { pageId: "target-doc", title: "연결된 문서" } }],
+    });
+
+    expect(html).toBe("<p>🔗 <strong>연결된 문서</strong> (문서 ID: target-doc)</p>");
+  });
+
+  it("문서 링크 카드의 제목이 없으면 '제목 없음'으로 대체한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [{ type: "documentLink", attrs: { pageId: "target-doc", title: "" } }],
+    });
+
+    expect(html).toBe("<p>🔗 <strong>제목 없음</strong> (문서 ID: target-doc)</p>");
+  });
+
+  it("문서 링크 카드의 제목·문서 ID를 이스케이프 처리한다", () => {
+    const html = tiptapDocToStorageFormat({
+      type: "doc",
+      content: [
+        { type: "documentLink", attrs: { pageId: `"><script>alert(1)</script>`, title: `<b>제목</b>` } },
+      ],
+    });
+
+    expect(html).toBe(
+      "<p>🔗 <strong>&lt;b&gt;제목&lt;/b&gt;</strong> (문서 ID: &quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt;)</p>"
+    );
+  });
 });
 
 describe("isSafeLinkHref", () => {

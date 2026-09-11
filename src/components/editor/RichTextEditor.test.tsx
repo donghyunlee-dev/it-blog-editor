@@ -5,6 +5,13 @@ import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import * as imageUpload from "@/lib/editor/image-upload";
 
+// P10-1(문서 링크 카드)의 NodeView가 next/navigation의 useRouter를 쓴다 — AppRouterContext
+// 없이 호출하면 던지므로 직접 모킹한다(GlobalSearchModal.test.tsx와 동일한 패턴).
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push }),
+}));
+
 /**
  * TipTap(ProseMirror)은 실제 렌더링된 contenteditable에 드래그/붙여넣기 DOM 이벤트를
  * 그대로 받는 구조라, RichTextEditor는 처음엔 테스트가 없었다(P0-4b가 최초로 추가).
@@ -565,6 +572,52 @@ describe("RichTextEditor 패널 아이콘(P9-1)", () => {
     await waitFor(() => expect(container.querySelector(".panel-icon")?.textContent).toBe("🔥"));
     // 본문 편집 영역은 아이콘 변경 후에도 그대로 유지된다(NodeView 도입에 따른 회귀 없음).
     expect(screen.getByText("안내")).toBeInTheDocument();
+  });
+});
+
+describe("RichTextEditor 문서 링크 카드(P10-1)", () => {
+  beforeEach(() => {
+    push.mockClear();
+  });
+
+  function docWithDocumentLink(pageId = "target-doc", title = "연결된 문서") {
+    return {
+      type: "doc",
+      content: [{ type: "documentLink", attrs: { pageId, title } }],
+    } as JSONContent;
+  }
+
+  it("카드에 고정 아이콘과 캐시된 제목이 표시된다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={docWithDocumentLink(undefined, "회의록")} onChange={vi.fn()} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    expect(screen.getByText("회의록")).toBeInTheDocument();
+    expect(screen.getByText("📄")).toBeInTheDocument();
+  });
+
+  it("제목이 비어 있으면 '(제목 없음)'으로 표시된다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={docWithDocumentLink("target-doc", "")} onChange={vi.fn()} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    expect(screen.getByText("(제목 없음)")).toBeInTheDocument();
+  });
+
+  it("카드를 클릭하면 해당 문서 편집 화면으로 이동한다", () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={docWithDocumentLink("target-doc", "연결된 문서")} onChange={vi.fn()} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    fireEvent.click(screen.getByText("연결된 문서"));
+
+    expect(push).toHaveBeenCalledWith("/editor/target-doc");
   });
 });
 

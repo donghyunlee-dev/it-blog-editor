@@ -157,6 +157,14 @@ function serializeNode(node: JSONContent): string {
       const icon = escapeHtml(resolvePanelIcon(node.attrs?.panelType, node.attrs?.icon));
       return `<ac:structured-macro ac:name="${panelType}"><ac:parameter ac:name="icon">${icon}</ac:parameter><ac:rich-text-body>${serializeChildren(node)}</ac:rich-text-body></ac:structured-macro>`;
     }
+    case "documentLink": {
+      // Confluence storage는 이 값을 사람이 읽는 용도로만 보존한다(panel과 동일한 이유로
+      // 역방향 파서가 없음 — 진짜 소스는 sourceDocument JSON). 실제 이동은 이 앱 안에서만
+      // pageId 기준으로 일어나므로 Confluence 페이지 링크 매크로로 해석되게 만들 필요가 없다.
+      const title = escapeHtml(String(node.attrs?.title ?? "").trim() || "제목 없음");
+      const pageId = escapeHtml(String(node.attrs?.pageId ?? ""));
+      return `<p>🔗 <strong>${title}</strong> (문서 ID: ${pageId})</p>`;
+    }
     default:
       return serializeChildren(node);
   }
