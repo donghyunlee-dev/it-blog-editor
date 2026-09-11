@@ -207,6 +207,34 @@ describe("EditorSidebar", () => {
     );
   });
 
+  it("문서 검색 입력이 '새 문서' 링크보다 위(앞)에 있다(2026-09-11, 공간 효율화를 위한 레이아웃 재배치)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    const searchInput = screen.getByLabelText("문서 제목·태그 검색");
+    const newDocLink = screen.getByRole("link", { name: "새 문서" });
+
+    expect(
+      searchInput.compareDocumentPosition(newDocLink) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("'새 문서' 링크가 '폴더' 섹션 바로 위(앞)에 있다(2026-09-11, 폴더 생성 위로 재배치)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    const newDocLink = screen.getByRole("link", { name: "새 문서" });
+    const folderLabel = screen.getByText("폴더");
+
+    expect(
+      newDocLink.compareDocumentPosition(folderLabel) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  it("'본문까지 찾으려면 Ctrl+K' 안내 문구는 더 이상 없다(2026-09-11, 화면이 복잡해 보인다는 피드백으로 삭제)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.queryByText(/본문까지 찾으려면/)).not.toBeInTheDocument();
+  });
+
   it("activePageId와 일치하는 문서 링크에만 aria-current='page'를 붙인다", () => {
     render(<EditorSidebar documents={DOCS} activePageId="1" />);
 
@@ -275,10 +303,10 @@ describe("EditorSidebar", () => {
     expect(items[1]).toHaveTextContent("가나다 문서(오래됨)");
   });
 
-  it("제목순으로 바꾸면 제목 오름차순으로 정렬된다(P1-1b)", async () => {
+  it("정렬 아이콘 버튼을 누르면 제목 오름차순으로 정렬된다(P1-1b, 2026-09-11부터 드롭다운 대신 토글 버튼)", async () => {
     render(<EditorSidebar documents={SORT_DOCS} />);
 
-    await userEvent.selectOptions(screen.getByLabelText("문서 정렬"), "title");
+    await userEvent.click(screen.getByRole("button", { name: "정렬: 최신순 (누르면 제목순으로 변경)" }));
 
     const nav = screen.getByRole("navigation", { name: "문서 목록" });
     const items = within(nav).getAllByRole("listitem");
@@ -287,10 +315,25 @@ describe("EditorSidebar", () => {
     expect(items[1]).toHaveTextContent("마바사 문서(최근)");
   });
 
-  it("문서가 없으면 정렬 드롭다운을 보여주지 않는다(P1-1b)", () => {
+  it("정렬 아이콘 버튼을 다시 누르면 최신순으로 되돌아간다(P1-1b)", async () => {
+    render(<EditorSidebar documents={SORT_DOCS} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "정렬: 최신순 (누르면 제목순으로 변경)" }));
+    await userEvent.click(screen.getByRole("button", { name: "정렬: 제목순 (누르면 최신순으로 변경)" }));
+
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    const items = within(nav).getAllByRole("listitem");
+
+    expect(items[0]).toHaveTextContent("마바사 문서(최근)");
+    expect(items[1]).toHaveTextContent("가나다 문서(오래됨)");
+  });
+
+  it("문서가 없으면 정렬 버튼을 보여주지 않는다(P1-1b)", () => {
     render(<EditorSidebar documents={[]} />);
 
-    expect(screen.queryByLabelText("문서 정렬")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "정렬: 최신순 (누르면 제목순으로 변경)" })
+    ).not.toBeInTheDocument();
   });
 
   it("결과가 30개 이하면 더 보기 버튼이 없다(P1-1c)", () => {
