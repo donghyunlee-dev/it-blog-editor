@@ -457,6 +457,7 @@
 ### Phase 11 — 사이드바 다듬기 (신규, 2026-09-11 계획)
 - [x] (완료, P11-1) 사이드바 문서 목록 행에서 태그 표시 제거 — `EditorSidebar.tsx`의 문서 행 렌더러에서 태그 칩 나열 블록을 제거해, 모든 목록(미분류/폴더/공유받은 문서)에서 행이 항상 제목 한 줄로 고정된다. 태그 필터(`ChipGroup`)와 태그 검색(Ctrl+K, 태그 기준 매칭)은 그대로 유지된다. 산출물: `docs/superpowers/tasks/P11-1-sidebar-remove-inline-tags/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 
+
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)
 

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
+
 import {
   EditorContent,
   NodeViewContent,
@@ -32,6 +33,7 @@ import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
 import { CURATED_PANEL_ICONS, resolvePanelIcon } from "@/lib/editor/panel-icons";
 import { DocumentLinkPickerModal } from "./DocumentLinkPickerModal";
+
 
 // TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
 // `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
