@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -150,6 +150,37 @@ describe("TableOfContents", () => {
 
     await waitFor(() => expect(linkB).toHaveAttribute("aria-current", "true"));
     expect(linkA).not.toHaveAttribute("aria-current");
+  });
+
+  it("본문 DOM이 마운트 이후 비동기로 채워져도(TipTap의 immediatelyRender:false 타이밍 재현) 목차가 뒤늦게라도 나타난다", async () => {
+    function AsyncMountHarness() {
+      const containerRef = useRef<HTMLDivElement>(null);
+      useEffect(() => {
+        // useEditor({ immediatelyRender: false })는 첫 렌더에서는 아무 DOM도 그리지
+        // 않고, 마운트 후 다음 커밋에서야 실제 ProseMirror DOM(h2/h3 포함)을 붙인다 —
+        // 그 사이 doc prop은 전혀 바뀌지 않는다(사용자가 편집하지 않고 읽기만 해도
+        // 목차가 보여야 하는데, doc은 onUpdate가 있어야만 바뀐다). setTimeout으로
+        // "다음 커밋"을 흉내 낸다.
+        const timer = setTimeout(() => {
+          if (containerRef.current) {
+            containerRef.current.innerHTML = "<h2>나중에 나타난 섹션</h2>";
+          }
+        }, 0);
+        return () => clearTimeout(timer);
+      }, []);
+      return (
+        <div>
+          <div ref={containerRef} />
+          <TableOfContents containerRef={containerRef} doc={EMPTY_DOC} />
+        </div>
+      );
+    }
+
+    render(<AsyncMountHarness />);
+
+    expect(screen.queryByRole("navigation", { name: "이 페이지" })).not.toBeInTheDocument();
+
+    expect(await screen.findByRole("link", { name: "나중에 나타난 섹션" })).toBeInTheDocument();
   });
 
   it("doc이 바뀌면(본문 변경) 목차를 다시 훑어 새 헤딩을 반영한다", async () => {
