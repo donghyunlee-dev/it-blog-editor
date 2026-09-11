@@ -160,14 +160,15 @@ describe("EditorSidebar", () => {
     expect(onOpenSearch).toHaveBeenCalledTimes(1);
   });
 
-  it("문서에 붙은 태그를 함께 보여준다", () => {
+  it("문서 목록 행에는 태그를 표시하지 않는다(2026-09-11, 태그가 많으면 행이 늘어나 밀도가 떨어진다는 피드백으로 제거)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
-    // "React"/"Backend"는 상단 태그 필터 칩(tab)에도, 문서 목록의 Tag 표시에도
-    // 나오므로, 문서 목록 영역(aria-label="문서 목록")으로 좁혀서 확인한다.
+    // 태그 필터 칩(상단 ChipGroup, role="tab")에는 "React"/"Backend"가 여전히 남아 있지만,
+    // 문서 목록 행(aria-label="문서 목록") 안에는 더 이상 태그가 렌더링되지 않는다.
     const list = screen.getByRole("navigation", { name: "문서 목록" });
-    expect(within(list).getByText("React")).toBeInTheDocument();
-    expect(within(list).getByText("Backend")).toBeInTheDocument();
+    expect(within(list).queryByText("React")).not.toBeInTheDocument();
+    expect(within(list).queryByText("Backend")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "React" })).toBeInTheDocument();
   });
 
   it("태그를 클릭하면 그 태그가 붙은 문서만 보여준다", async () => {

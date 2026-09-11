@@ -4,7 +4,7 @@
 
   
 
-> 전체 진행률: 110 / 110 항목 완료 (최근 갱신: 2026-09-11 — **P10-1**(문서 링크 카드 블록 — [노션 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)의 두 번째 격차. `documentLink` atom 노드로 다른 문서를 아이콘(📄)+제목+화살표 카드로 삽입하고 클릭 시 이동한다. 슬래시 메뉴 "문서 링크" 항목이 기존 문서 검색 API를 재사용하는 피커 모달을 연다 — 제목은 삽입 시점 스냅샷 캐시, 아이콘은 고정, 링크 대상은 검색 피커로만 고른다). Phase 10(문서 링크 카드 블록)이 이로써 완료됐다. 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용). Phase 9(콜아웃 패널 아이콘 커스터마이징)가 이로써 완료됐다. 이전 갱신: **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
+> 전체 진행률: 111 / 111 항목 완료 (최근 갱신: 2026-09-11 — **P11-1**(사이드바 문서 목록 행에서 태그 표시 제거 — 노션 재현 문서를 실제로 만들어 넣고 검토하다가 "태그가 리스트 공간을 너무 차지한다"는 지적을 받아, 목록 행의 태그 칩 나열을 제거하고 태그 필터·Ctrl+K 검색은 유지했다). Phase 11(사이드바 다듬기)이 이로써 완료됐다. 이전 갱신: **P10-1**(문서 링크 카드 블록 — [노션 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)의 두 번째 격차. `documentLink` atom 노드로 다른 문서를 아이콘(📄)+제목+화살표 카드로 삽입하고 클릭 시 이동한다. 슬래시 메뉴 "문서 링크" 항목이 기존 문서 검색 API를 재사용하는 피커 모달을 연다 — 제목은 삽입 시점 스냅샷 캐시, 아이콘은 고정, 링크 대상은 검색 피커로만 고른다). Phase 10(문서 링크 카드 블록)이 이로써 완료됐다. 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용). Phase 9(콜아웃 패널 아이콘 커스터마이징)가 이로써 완료됐다. 이전 갱신: **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
 
 
  
@@ -287,6 +287,12 @@
 - 진행 방식: Phase 5~9와 동일 — task/plan/result/test 4파일 + 개별 PR.
 - 범위 밖: 실시간 제목 갱신, pageId 직접 입력, 공유받은 문서 링크, 문서별 커스텀 아이콘, 카드 미리보기(본문 스니펫 등 — 노션의 "미리보기" 모드는 다루지 않는다).
 
+### Phase 11 — 사이드바 다듬기 (신규, 2026-09-11 계획)
+- 배경: 노션 재현 문서(Phase 10 검증용, 문서마다 태그 2개)를 실제로 만들어 넣고 사용자가 실사용 화면을 검토하다가 "태그가 문서 리스트에 너무 공간을 차지한다"고 지적했다 — 태그가 2개만 있어도 `flex-wrap`으로 대부분 2줄짜리 행이 되어, 문서가 많은 계정에서는 한 화면에 보이는 문서 수가 크게 줄어드는 것을 실측으로 확인했다.
+- 핵심 결정(2026-09-11, 사용자와의 대화로 확정): 1줄 고정+"+N" 축약, 태그 개수 제한 두 가지 대안을 제시했으나 사용자가 "일단 리스트에서는 제거하자"로 직접 결정했다 — 태그 필터(`ChipGroup`)·태그 검색(Ctrl+K)은 그대로 두고, 문서 목록 행의 태그 "표시"만 없앤다.
+- 진행 방식: Phase 5~10과 동일 — task/plan/result/test 4파일 + 개별 PR.
+- 범위 밖: Ctrl+K 검색 결과의 태그 표시, 태그 추가/제거/필터 기능 자체.
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -447,6 +453,9 @@
 
 ### Phase 10 — 문서 링크 카드 블록 (신규, 2026-09-11 계획)
 - [x] (완료, P10-1) `documentLink` 노드 + 검색 피커 + storage 직렬화 — 카드 NodeView(고정 아이콘 📄 + 제목 + 화살표, 클릭 시 `/editor/{pageId}` 이동), 슬래시 메뉴 "문서 링크" 항목(기존 `GET /api/editor/documents/search` 재사용한 피커 모달 `DocumentLinkPickerModal.tsx`, 현재 문서 자신은 결과에서 제외), Confluence storage에는 사람이 읽을 수 있는 텍스트로 직렬화(역방향 파싱 없음, `panel`과 동일한 이유). 슬래시 항목은 "이미지"와 같은 이유로 `pageId`가 있을 때만 노출된다. 산출물: `docs/superpowers/tasks/P10-1-document-link-card/{task,plan,result,test}.md`, src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx, src/components/editor/DocumentLinkPickerModal.tsx, src/components/editor/DocumentLinkPickerModal.test.tsx, src/lib/editor/tiptap-to-storage.ts, src/lib/editor/tiptap-to-storage.test.ts, src/app/globals.css
+
+### Phase 11 — 사이드바 다듬기 (신규, 2026-09-11 계획)
+- [x] (완료, P11-1) 사이드바 문서 목록 행에서 태그 표시 제거 — `EditorSidebar.tsx`의 문서 행 렌더러에서 태그 칩 나열 블록을 제거해, 모든 목록(미분류/폴더/공유받은 문서)에서 행이 항상 제목 한 줄로 고정된다. 태그 필터(`ChipGroup`)와 태그 검색(Ctrl+K, 태그 기준 매칭)은 그대로 유지된다. 산출물: `docs/superpowers/tasks/P11-1-sidebar-remove-inline-tags/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 
 ## 🗄️ 데이터 저장 여부
 - 있음 — 상세 설계는 [data-spec.md](./data-spec.md) 참고 (Confluence content property·라벨 기반, 별도 DB 없음)
