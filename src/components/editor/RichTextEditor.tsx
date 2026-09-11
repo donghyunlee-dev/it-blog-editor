@@ -2,7 +2,17 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor } from "@tiptap/core";
-import { EditorContent, ReactRenderer, useEditor, useEditorState, type JSONContent } from "@tiptap/react";
+import {
+  EditorContent,
+  NodeViewContent,
+  NodeViewWrapper,
+  ReactNodeViewRenderer,
+  ReactRenderer,
+  useEditor,
+  useEditorState,
+  type JSONContent,
+  type NodeViewProps,
+} from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import type { EditorView } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -19,7 +29,7 @@ import { Button, Modal, Popover, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
-import { resolvePanelIcon } from "@/lib/editor/panel-icons";
+import { CURATED_PANEL_ICONS, resolvePanelIcon } from "@/lib/editor/panel-icons";
 
 // TipTap v3에서도 `editorProps.handleDrop`/`handlePaste`는 @tiptap/core의
 // `EditorOptions.editorProps`가 그대로 감싸는 ProseMirror 자체 뷰 옵션이다
@@ -154,6 +164,50 @@ const AttachmentImage = TiptapImage.extend({
   },
 });
 
+/**
+ * 콜아웃 아이콘 트리거(P9-2) — 클릭하면 큐레이션된 이모지 그리드가 담긴 `Popover`가
+ * 열린다(글자색/하이라이트 스와치 팝오버와 같은 패턴, 아래 `SwatchGrid` 참고).
+ * `contentEditable={false}`로 감싸 ProseMirror가 이 버튼 자체를 텍스트로 취급하지
+ * 않게 한다(이미지 등 다른 커스텀 노드와 동일한 관례).
+ */
+function PanelIconPicker({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
+  const icon = resolvePanelIcon(node.attrs.panelType, node.attrs.icon);
+  return (
+    <span contentEditable={false} className="inline-flex">
+      <Popover
+        trigger={
+          <button type="button" className="panel-icon" aria-label="콜아웃 아이콘 바꾸기">
+            {icon}
+          </button>
+        }
+      >
+        <div className="grid grid-cols-6 gap-1">
+          {CURATED_PANEL_ICONS.map((candidate) => (
+            <button
+              key={candidate}
+              type="button"
+              aria-label={candidate}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-lg hover:bg-surface-subtle"
+              onClick={() => updateAttributes({ icon: candidate })}
+            >
+              {candidate}
+            </button>
+          ))}
+        </div>
+      </Popover>
+    </span>
+  );
+}
+
+function PanelView({ node, updateAttributes }: NodeViewProps) {
+  return (
+    <NodeViewWrapper className={`panel panel-${node.attrs.panelType}`} data-panel-type={node.attrs.panelType}>
+      <PanelIconPicker node={node} updateAttributes={updateAttributes} />
+      <NodeViewContent className="panel-content" />
+    </NodeViewWrapper>
+  );
+}
+
 const Panel = Node.create({
   name: "panel",
   group: "block",
@@ -185,6 +239,9 @@ const Panel = Node.create({
       ["span", { class: "panel-icon", "aria-hidden": "true" }, icon],
       ["div", { class: "panel-content" }, 0],
     ];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(PanelView);
   },
 });
 

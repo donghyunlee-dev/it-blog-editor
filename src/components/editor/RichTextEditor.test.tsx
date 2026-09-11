@@ -495,7 +495,7 @@ describe("RichTextEditor 패널 아이콘(P9-1)", () => {
     ["info", "ℹ️"],
     ["warning", "⚠️"],
     ["note", "📝"],
-  ])("icon attrs가 없는 패널(panelType: %s)은 타입 기본 아이콘(%s)으로 렌더링된다", (panelType, icon) => {
+  ])("icon attrs가 없는 패널(panelType: %s)은 타입 기본 아이콘(%s)으로 렌더링된다", async (panelType, icon) => {
     const { container } = render(
       <ToastProvider>
         <RichTextEditor
@@ -514,10 +514,10 @@ describe("RichTextEditor 패널 아이콘(P9-1)", () => {
       </ToastProvider>
     );
 
-    expect(container.querySelector(".panel-icon")?.textContent).toBe(icon);
+    await waitFor(() => expect(container.querySelector(".panel-icon")?.textContent).toBe(icon));
   });
 
-  it("icon attrs가 명시된 패널은 타입 기본값 대신 그 아이콘으로 렌더링된다", () => {
+  it("icon attrs가 명시된 패널은 타입 기본값 대신 그 아이콘으로 렌더링된다", async () => {
     const { container } = render(
       <ToastProvider>
         <RichTextEditor
@@ -536,8 +536,35 @@ describe("RichTextEditor 패널 아이콘(P9-1)", () => {
       </ToastProvider>
     );
 
-    expect(container.querySelector(".panel-icon")?.textContent).toBe("🔥");
+    await waitFor(() => expect(container.querySelector(".panel-icon")?.textContent).toBe("🔥"));
     expect(screen.getByText("커스텀 아이콘")).toBeInTheDocument();
+  });
+
+  it("아이콘을 클릭하면 큐레이션된 이모지 그리드가 열리고, 고르면 패널 아이콘이 바뀐다(P9-2)", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              {
+                type: "panel",
+                attrs: { panelType: "info", icon: "ℹ️" },
+                content: [{ type: "paragraph", content: [{ type: "text", text: "안내" }] }],
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    fireEvent.click(await screen.findByLabelText("콜아웃 아이콘 바꾸기"));
+    fireEvent.click(await screen.findByLabelText("🔥"));
+
+    await waitFor(() => expect(container.querySelector(".panel-icon")?.textContent).toBe("🔥"));
+    // 본문 편집 영역은 아이콘 변경 후에도 그대로 유지된다(NodeView 도입에 따른 회귀 없음).
+    expect(screen.getByText("안내")).toBeInTheDocument();
   });
 });
 

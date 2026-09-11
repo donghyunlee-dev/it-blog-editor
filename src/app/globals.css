@@ -150,6 +150,18 @@ body {
   flex-shrink: 0;
   font-size: 1.25rem;
   line-height: 1.5rem;
+  /* renderHTML은 <span>(정적 표시), NodeView는 <button>(P9-2, 아이콘 선택 트리거)로
+     같은 클래스를 쓴다 — 버튼 기본 테두리/배경을 지워 둘의 시각적 차이를 없앤다. */
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: var(--radius-card);
+}
+
+.panel-icon:hover,
+.panel-icon:focus-visible {
+  background: var(--color-surface-subtle);
 }
 
 .panel-content {
