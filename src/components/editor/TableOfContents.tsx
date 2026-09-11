@@ -32,32 +32,49 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // 본문이 바뀔 때마다(doc 참조 변경) 실제 렌더링된 h2/h3를 다시 훑는다. ProseMirror는
-  // 트랜잭션이 적용되는 시점에 자신의 DOM을 동기적으로 갱신하므로(TipTap의 onUpdate가
-  // 그 뒤에 불려 이 doc state를 갱신한다), 이 effect가 실행되는 시점에는 최신 DOM을
-  // 안전하게 읽을 수 있다. 헤딩 DOM에는 안정적인 id가 없어(TipTap 기본 heading
-  // 확장은 id를 붙이지 않는다) 여기서 직접 부여한다 — 스크롤 이동·활성 추적 둘 다
-  // 이 id로 대상을 찾는다.
+  // 본문이 바뀔 때마다 실제 렌더링된 h2/h3를 다시 훑는다. 헤딩 DOM에는 안정적인 id가
+  // 없어(TipTap 기본 heading 확장은 id를 붙이지 않는다) 여기서 직접 부여한다 — 스크롤
+  // 이동·활성 추적 둘 다 이 id로 대상을 찾는다.
+  //
+  // doc prop 변경만으로는 부족하다 — RichTextEditor.tsx는 `useEditor({ immediatelyRender:
+  // false })`(SSR/hydration 안전을 위한 TipTap 권장 설정)를 쓰는데, 이 옵션은 첫 렌더에서
+  // 아무 DOM도 그리지 않고 마운트 후 다음 커밋에서야 실제 ProseMirror DOM을 붙인다. 문서를
+  // 열기만 하고 아무것도 편집하지 않으면 onUpdate(=doc prop 변경)가 한 번도 안 불려서,
+  // doc에만 의존하는 effect는 그 "뒤늦게 나타나는" 헤딩을 영영 못 찾는다(실사용 중 발견 —
+  // 방금 만든 문서가 아니라 이미 저장된 문서를 열어서 읽기만 하면 목차가 안 보였다).
+  // MutationObserver로 컨테이너 자체의 DOM 변화를 직접 감시해, 편집 여부와 무관하게 실제
+  // 헤딩이 나타나거나 바뀔 때마다 다시 훑는다 — ProseMirror가 React 렌더 트리 밖에서
+  // 관리하는 DOM이므로, 그 DOM 자체를 감시하는 것이 유일하게 안전한 신호다.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) {
       setHeadings([]);
       return;
     }
-    const elements = Array.from(container.querySelectorAll<HTMLHeadingElement>("h2, h3"));
-    setHeadings(
-      elements.map((element, index) => {
-        const id = `toc-heading-${index}`;
-        element.id = id;
-        return {
-          id,
-          level: element.tagName === "H2" ? 2 : 3,
-          text: element.textContent?.trim() || "(제목 없음)",
-        };
-      })
-    );
+
+    function scan() {
+      const elements = Array.from(container!.querySelectorAll<HTMLHeadingElement>("h2, h3"));
+      setHeadings(
+        elements.map((element, index) => {
+          const id = `toc-heading-${index}`;
+          element.id = id;
+          return {
+            id,
+            level: element.tagName === "H2" ? 2 : 3,
+            text: element.textContent?.trim() || "(제목 없음)",
+          };
+        })
+      );
+    }
+
+    scan();
+    const observer = new MutationObserver(scan);
+    observer.observe(container, { childList: true, subtree: true, characterData: true });
+    return () => observer.disconnect();
     // containerRef는 안정된 ref 객체라 의존성에 넣을 필요가 없다 — doc이 바뀔 때마다
-    // 다시 훑는 것이 이 effect의 유일한 목적이다.
+    // observer를 새로 붙이는 것 자체는 불필요하지만(observer가 이미 모든 DOM 변화를
+    // 감시한다), 재구독 비용이 낮고 이전 동작(doc 변경 시 즉시 재훑기)과의 호환을 위해
+    // 그대로 의존성에 둔다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc]);
 
