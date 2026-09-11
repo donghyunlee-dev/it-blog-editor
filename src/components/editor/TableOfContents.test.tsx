@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { ToastProvider } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { TableOfContents } from "./TableOfContents";
+import { RichTextEditor } from "./RichTextEditor";
 
 const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
 
@@ -66,10 +68,10 @@ beforeEach(() => {
   );
 });
 
-function fireIntersections(entries: Array<{ id: string; isIntersecting: boolean }>) {
+function fireIntersections(entries: Array<{ element: Element; isIntersecting: boolean }>) {
   intersectionCallback?.(
     entries.map((entry) => ({
-      target: document.getElementById(entry.id) as Element,
+      target: entry.element,
       isIntersecting: entry.isIntersecting,
     })) as IntersectionObserverEntry[],
     {} as IntersectionObserver
@@ -125,12 +127,12 @@ describe("TableOfContents", () => {
     render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
     const linkA = screen.getByRole("link", { name: "섹션 A" });
     const linkB = screen.getByRole("link", { name: "섹션 B" });
-    const idA = linkA.getAttribute("href")?.slice(1) ?? "";
+    const [headingA] = document.querySelectorAll("h2");
 
     expect(linkA).not.toHaveAttribute("aria-current");
     expect(linkB).not.toHaveAttribute("aria-current");
 
-    fireIntersections([{ id: idA, isIntersecting: true }]);
+    fireIntersections([{ element: headingA, isIntersecting: true }]);
 
     await waitFor(() => expect(linkA).toHaveAttribute("aria-current", "true"));
     expect(linkB).not.toHaveAttribute("aria-current");
@@ -140,16 +142,23 @@ describe("TableOfContents", () => {
     render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
     const linkA = screen.getByRole("link", { name: "섹션 A" });
     const linkB = screen.getByRole("link", { name: "섹션 B" });
-    const idA = linkA.getAttribute("href")?.slice(1) ?? "";
-    const idB = linkB.getAttribute("href")?.slice(1) ?? "";
+    const [headingA, headingB] = document.querySelectorAll("h2");
 
     fireIntersections([
-      { id: idA, isIntersecting: true },
-      { id: idB, isIntersecting: true },
+      { element: headingA, isIntersecting: true },
+      { element: headingB, isIntersecting: true },
     ]);
 
     await waitFor(() => expect(linkB).toHaveAttribute("aria-current", "true"));
     expect(linkA).not.toHaveAttribute("aria-current");
+  });
+
+  it("헤딩 엘리먼트에 어떤 속성도 쓰지 않는다(ProseMirror가 관리하는 DOM을 건드리면 그 변화를 감지해 무한 재조정 루프를 만드는 실제 버그를 막기 위함, 2026-09-11 실사용 중 발견 — '## 중제목'을 입력하면 사이트가 멈췄다)", () => {
+    render(<Harness html="<h2>섹션</h2><h3>하위 섹션</h3>" />);
+
+    for (const heading of document.querySelectorAll("h2, h3")) {
+      expect(heading.attributes.length).toBe(0);
+    }
   });
 
   it("본문 DOM이 마운트 이후 비동기로 채워져도(TipTap의 immediatelyRender:false 타이밍 재현) 목차가 뒤늦게라도 나타난다", async () => {
@@ -181,6 +190,58 @@ describe("TableOfContents", () => {
     expect(screen.queryByRole("navigation", { name: "이 페이지" })).not.toBeInTheDocument();
 
     expect(await screen.findByRole("link", { name: "나중에 나타난 섹션" })).toBeInTheDocument();
+  });
+
+  describe("실제 TipTap/ProseMirror 에디터와의 통합(2026-09-11, 실사용 중 발견한 무한 루프 재현)", () => {
+    /**
+     * 합성 HTML 대신 실제 RichTextEditor(TipTap)를 마운트한다 — ProseMirror 자신의
+     * DOMObserver(node_modules/prosemirror-view/src/domobserver.ts)가 같은 컨테이너를
+     * 동시에 감시하는 실제 조건을 재현해야, "우리 쪽이 그 DOM에 아무것도 쓰지 않는다"는
+     * 게 진짜로 안전한지 확인할 수 있다.
+     */
+    function Integration({ content }: { content: JSONContent }) {
+      const containerRef = useRef<HTMLDivElement>(null);
+      return (
+        <ToastProvider>
+          <div ref={containerRef}>
+            <RichTextEditor content={content} onChange={() => {}} />
+          </div>
+          <TableOfContents containerRef={containerRef} doc={content} />
+        </ToastProvider>
+      );
+    }
+
+    it("실제 ProseMirror DOM에 헤딩이 새로 나타나도 목차가 갱신되고, 그 헤딩에는 아무 속성도 남기지 않는다(무한 재조정 루프 방지)", async () => {
+      const { container } = render(
+        <Integration
+          content={{
+            type: "doc",
+            content: [
+              { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "첫 섹션" }] },
+            ],
+          }}
+        />
+      );
+
+      // immediatelyRender:false라 마운트 후에야 실제 ProseMirror DOM이 붙는다 — 이 링크가
+      // 나타나는 것 자체가 이미 "문서를 열기만 해도 목차가 안 보이던" 원래 P8-5 버그가
+      // 고쳐졌다는 증거다.
+      expect(await screen.findByRole("link", { name: "첫 섹션" })).toBeInTheDocument();
+
+      const proseMirrorRoot = container.querySelector(".ProseMirror") as HTMLElement;
+      const newHeading = document.createElement("h2");
+      newHeading.textContent = "새로 생긴 섹션";
+      proseMirrorRoot.appendChild(newHeading);
+
+      // ProseMirror 자신의 DOMObserver도 이 삽입을 동시에 감지한다("## " 같은 마크다운
+      // 단축키로 헤딩이 생길 때와 같은 조건). 우리 컴포넌트가 이 헤딩에 아무것도
+      // 쓰지 않아야(예전엔 id를 썼다) ProseMirror의 재조정을 유발하지 않고, 무한 루프
+      // (2026-09-11 실제 버그 — "## 중제목"을 입력하면 사이트가 멈췄다) 없이 조용히
+      // 목차만 갱신된다. 이 테스트가 타임아웃 없이 끝나는 것 자체가 그 무한 루프가
+      // 재발하지 않았다는 증거다.
+      expect(await screen.findByRole("link", { name: "새로 생긴 섹션" })).toBeInTheDocument();
+      expect(newHeading.attributes.length).toBe(0);
+    });
   });
 
   it("doc이 바뀌면(본문 변경) 목차를 다시 훑어 새 헤딩을 반영한다", async () => {
