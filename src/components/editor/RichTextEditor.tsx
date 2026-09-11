@@ -262,6 +262,71 @@ const Panel = Node.create({
   },
 });
 
+/**
+ * 문서 링크 카드(P10-1) — 노션의 "하위 페이지 링크" 블록에 대응한다. `panel`과 달리
+ * 내부에 편집 가능한 콘텐츠가 없는 atom 노드다: 삽입 시점에 고른 문서의 `pageId`·제목을
+ * attrs로 캐시해 두고 그대로 보여준다(실시간 재조회 없음 — task.md "결정이 필요한 사항"
+ * 참고). 아이콘은 문서 데이터 모델에 아이콘 필드가 없어 모든 카드가 고정 이모지(📄)를 쓴다.
+ */
+function DocumentLinkView({ node }: Pick<NodeViewProps, "node">) {
+  const router = useRouter();
+  const pageId = String(node.attrs.pageId ?? "");
+  const title = String(node.attrs.title ?? "").trim() || "(제목 없음)";
+
+  return (
+    <NodeViewWrapper contentEditable={false}>
+      <button
+        type="button"
+        className="document-link-card"
+        onClick={() => {
+          if (pageId) router.push(`/editor/${pageId}`);
+        }}
+      >
+        <span aria-hidden="true">📄</span>
+        <span className="document-link-title">{title}</span>
+        <span aria-hidden="true">→</span>
+      </button>
+    </NodeViewWrapper>
+  );
+}
+
+const DocumentLink = Node.create({
+  name: "documentLink",
+  group: "block",
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { pageId: { default: null }, title: { default: "" } };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: "a[data-document-link]",
+        getAttrs: (el) => ({
+          pageId: (el as HTMLElement).getAttribute("data-page-id"),
+          title: (el as HTMLElement).getAttribute("data-title"),
+        }),
+      },
+    ];
+  },
+  renderHTML({ node }) {
+    return [
+      "a",
+      {
+        "data-document-link": "true",
+        "data-page-id": node.attrs.pageId,
+        "data-title": node.attrs.title,
+        href: `/editor/${node.attrs.pageId}`,
+        class: "document-link-card",
+      },
+      String(node.attrs.title ?? "") || "(제목 없음)",
+    ];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DocumentLinkView);
+  },
+});
+
 // 굵게/기울임/취소선 토글 버튼은 동시에 여러 개가 활성 상태일 수 있으므로
 // (예: 굵게+기울임 동시 선택), 활성 표시에 `variant="primary"`를 쓰지 않는다.
 // "한 화면에 Button variant=primary는 1개만 둔다"는 디자인 시스템 규칙과
