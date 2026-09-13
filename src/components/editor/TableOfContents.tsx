@@ -122,9 +122,17 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     // 붕괴 지점" 실측(레퍼런스가 1024~1280px 사이에서 TOC를 숨김)을 그대로 따른다.
     // sticky top-14(56px)로 본문 헤더 밑에 붙고, 뷰포트보다 목차가 길면 자기 영역
     // 안에서만 스크롤된다(본문 스크롤과 분리).
+    //
+    // self-start는 장식이 아니라 sticky가 실제로 동작하기 위한 필수 조건이다 — 이
+    // nav는 DocumentEditor.tsx의 `flex justify-center gap-12` 행의 아이템인데,
+    // align-items 기본값(stretch)을 그대로 두면 이 nav가 옆 본문 칼럼과 같은 높이
+    // (문서 전체 길이, 종종 수천 px)로 강제로 늘어난다. 그 늘어난 상태에서는
+    // sticky가 계산상 아무 효과를 못 내(스크롤해도 top-14에 붙지 않고 본문과 같이
+    // 흘러가 버림 — 실사용 중 발견: "스크롤하면 목차가 안 보인다") self-start로
+    // nav 자신의 콘텐츠 높이만큼만 박스를 갖게 해야 sticky가 실제로 붙는다.
     <nav
       aria-label="이 페이지"
-      className="sticky top-14 hidden w-60 shrink-0 pt-10 xl:block"
+      className="sticky top-14 hidden w-60 shrink-0 self-start pt-10 xl:block"
     >
       <div className="max-h-[calc(100vh-3.5rem)] overflow-y-auto pr-2">
         <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
