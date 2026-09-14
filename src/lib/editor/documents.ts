@@ -47,6 +47,16 @@ export interface DeletedDocumentEntry {
   pageId: string;
   title: string;
   deletedAt: string;
+  /**
+   * P16-1: 삭제 시점의 태그·게시 상태·소속 폴더 스냅샷 — "삭제된 문서" 화면에서 더 상세한
+   * 정보를 보여주기 위해 추가됐다. 이 필드들이 생기기 전에 기록된 옛 항목은 값이 없을 수
+   * 있으므로, 읽는 쪽(`deleted-documents.ts`의 `listDeletedDocuments`)에서 기본값으로
+   * 보정한다 — 이 인터페이스가 "항상 있다"고 선언해도 저장된 실제 JSON은 옛 형태일 수 있다.
+   */
+  tags: string[];
+  isPublished: boolean;
+  /** 삭제 시점에 속해 있던 폴더 — "미분류"였으면 `null`. */
+  folderId: string | null;
 }
 
 export interface DocumentSummary {
@@ -611,7 +621,13 @@ export async function updateDocument(input: UpdateDocumentInput) {
  * 삭제를 막지는 않는다 — 복구 기능이 못 쓰게 되는 것이지 삭제라는 원래 요청이 실패해서는
  * 안 되기 때문이다.
  */
-async function recordDeletedDocument(pageId: string, title: string): Promise<void> {
+async function recordDeletedDocument(
+  pageId: string,
+  title: string,
+  tags: string[],
+  isPublished: boolean,
+  folderId: string | null
+): Promise<void> {
   const authorProperty = await getPageProperty<{ actualAuthorEmail?: string }>(
     pageId,
     AUTHOR_PROPERTY_KEY
@@ -632,6 +648,9 @@ async function recordDeletedDocument(pageId: string, title: string): Promise<voi
     pageId,
     title,
     deletedAt: new Date().toISOString(),
+    tags,
+    isPublished,
+    folderId,
   };
   await upsertPageProperty(folder.accountFolderId, DELETED_DOCUMENTS_PROPERTY_KEY, [
     ...entries,
@@ -644,12 +663,22 @@ export async function deleteDocument(pageId: string): Promise<void> {
   const page = await getPageOrThrow(pageId);
   try {
     // page.title은 P0-7 이후 내부 고유키일 뿐이라 복구 목록에 보여줄 실제 제목은
-    // sourceDocument property에서 읽는다.
-    const sourceProperty = await getPageProperty<{ title?: string }>(
+    // sourceDocument property에서 읽는다. 태그·게시 상태·폴더는 P16-1에서 "삭제된 문서"
+    // 화면에 더 상세한 정보를 보여주기 위해 함께 스냅샷을 뜬다 — 페이지가 아직 실제로
+    // 삭제되기 전(deletePage 호출 전)이라 전부 정상 조회된다.
+    const [sourceProperty, tags, publishProperty, folderProperty] = await Promise.all([
+      getPageProperty<{ title?: string }>(pageId, SOURCE_DOCUMENT_PROPERTY_KEY),
+      getTags(pageId),
+      getPageProperty<PublishMetadata>(pageId, PUBLISH_PROPERTY_KEY),
+      getPageProperty<string | null>(pageId, FOLDER_PROPERTY_KEY),
+    ]);
+    await recordDeletedDocument(
       pageId,
-      SOURCE_DOCUMENT_PROPERTY_KEY
+      sourceProperty?.value?.title ?? page.title,
+      tags,
+      publishProperty?.value?.isPublished ?? false,
+      folderProperty?.value ?? null
     );
-    await recordDeletedDocument(pageId, sourceProperty?.value?.title ?? page.title);
   } catch (error) {
     logger.error("[deleteDocument] 삭제된 문서 레지스트리 기록 실패", {
       pageId,

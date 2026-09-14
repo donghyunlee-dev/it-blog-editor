@@ -1322,9 +1322,10 @@ describe("deleteDocument", () => {
     });
   }
 
-  it("작성자 계정 폴더의 deletedDocuments 속성에 삭제 항목을 추가하고 페이지를 삭제한다(P1-2b)", async () => {
+  it("작성자 계정 폴더의 deletedDocuments 속성에 삭제 항목(태그·게시 상태·폴더 스냅샷 포함, P16-1)을 추가하고 페이지를 삭제한다(P1-2b)", async () => {
     stubPage();
     stubPersonalFolder();
+    vi.spyOn(tags, "getTags").mockResolvedValue(["React"]);
     vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
       if (key === "authorMeta") {
         return {
@@ -1343,6 +1344,17 @@ describe("deleteDocument", () => {
           value: { title: "삭제될 문서", doc: {} },
           version: { number: 1 },
         };
+      }
+      if (key === "publishMetadata" && pageId === "doc-1") {
+        return {
+          id: "prop-publish",
+          key,
+          value: { isPublished: true },
+          version: { number: 1 },
+        };
+      }
+      if (key === "folderId" && pageId === "doc-1") {
+        return { id: "prop-folder", key, value: "f1", version: { number: 1 } };
       }
       if (key === "deletedDocuments" && pageId === "account-1") {
         return {
@@ -1369,10 +1381,48 @@ describe("deleteDocument", () => {
       "deletedDocuments",
       [
         { pageId: "old-doc", title: "예전 삭제 문서", deletedAt: "2026-08-01T00:00:00.000Z" },
-        expect.objectContaining({ pageId: "doc-1", title: "삭제될 문서" }),
+        expect.objectContaining({
+          pageId: "doc-1",
+          title: "삭제될 문서",
+          tags: ["React"],
+          isPublished: true,
+          folderId: "f1",
+        }),
       ]
     );
     expect(deletePageSpy).toHaveBeenCalledWith("doc-1");
+  });
+
+  it("태그·게시 상태·폴더가 없는(기본값) 문서를 삭제하면 그 기본값(빈 배열/false/null)으로 기록한다(P16-1)", async () => {
+    stubPage();
+    stubPersonalFolder();
+    vi.spyOn(tags, "getTags").mockResolvedValue([]);
+    vi.spyOn(client, "getPageProperty").mockImplementation(async (_pageId, key) => {
+      if (key === "authorMeta") {
+        return {
+          id: "prop-author",
+          key,
+          value: { actualAuthorEmail: "user@s-food.com" },
+          version: { number: 1 },
+        };
+      }
+      return null;
+    });
+    const upsertSpy = vi.spyOn(client, "upsertPageProperty").mockResolvedValue({
+      id: "prop-deleted",
+      key: "deletedDocuments",
+      value: [],
+      version: { number: 1 },
+    });
+    vi.spyOn(client, "deletePage").mockResolvedValue(undefined);
+
+    await deleteDocument("doc-1");
+
+    expect(upsertSpy).toHaveBeenCalledWith(
+      "account-1",
+      "deletedDocuments",
+      [expect.objectContaining({ tags: [], isPublished: false, folderId: null })]
+    );
   });
 
   it("작성자를 찾을 수 없어도(authorMeta 없음) 삭제 자체는 계속 진행한다", async () => {
