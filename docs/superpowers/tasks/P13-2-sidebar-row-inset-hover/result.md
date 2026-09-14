@@ -1,7 +1,7 @@
 # P13-2: 사이드바 행 왼쪽 여백 + 호버 하이라이트 복구 — 결과
 
 ## 커밋
-- (커밋 후 기록 예정)
+- `0cf5e9f` fix: 사이드바 행 왼쪽 여백 + 호버 하이라이트 복구 (P13-2)
 
 ## 변경 파일
 - `src/app/globals.css` — `.sidebar-row-active` 바로 아래에 `.sidebar-row-hover:hover`를
