@@ -46,6 +46,15 @@
   끊어져 보였다. `pl-12`를 spacer 밑 콘텐츠 div로만 옮겨, spacer는 레일 전체 폭으로
   그리고 "이 페이지" 텍스트는 그대로 48px 안쪽에서 시작하게 했다.
 
+- **클릭 활성 판정 기준선 수정(같은 대화 후속)**: 사용자가 "선택했을 때 컨텐츠 포커스는
+  이동되는데, TOC 제목이 클릭한 제목 위로 한 칸 올라가서 포커스가 변경된다"고 지적했다.
+  원인은 `globals.css`의 `.prose h2/h3 { scroll-margin-top: 4.5rem }`(72px — 클릭 시
+  `scrollIntoView`가 문서 헤더에 가리지 않도록 헤딩 위에 남기는 여백)와
+  `computeActiveHeading`의 활성 판정 기준선(`ACTIVATION_OFFSET`, 이전 값 64px)이 서로
+  달랐던 것이다 — 클릭해 도착한 헤딩의 실제 `top`이 72px인데 판정 기준선은 64px라, 그
+  헤딩이 "지나온 헤딩"으로 안 잡히고 바로 위 헤딩이 계속 활성으로 남았다.
+  `ACTIVATION_OFFSET`을 72로 맞춰 두 값을 일치시켰다.
+
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
 |------|---------|
@@ -58,6 +67,8 @@
 | `docs/product/prd.md` | P8-5 항목에 이번 수정 이력 추가 |
 | `src/app/globals.css` | `.scrollbar-hidden` 유틸리티 추가 |
 | `src/components/editor/TableOfContents.tsx`(추가 수정) | `pl-12`를 헤더 정렬 spacer에서 콘텐츠 div로 이동 |
+| `src/components/editor/TableOfContents.tsx`(추가 수정) | `ACTIVATION_OFFSET`을 64→72로 수정(`scroll-margin-top`과 일치) |
+| `src/components/editor/TableOfContents.test.tsx`(추가 수정) | 클릭 후 도착 헤딩(top=72px)이 자기 자신으로 활성 표시되는 회귀 테스트 추가 |
 
 ## 커밋 내역
 | SHA | 메시지 |
@@ -67,6 +78,7 @@
 | c6e5554 | fix: 본문 스크롤 영역의 스크롤바를 숨김 (P8-5 후속) |
 | caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
 | ef8f62e | fix: 본문↔TOC 거터가 헤더 정렬 spacer까지 밀어내던 문제 수정 (P8-5 후속) |
+| c49594f | fix: 클릭 활성 판정 기준선을 scroll-margin-top과 일치시킴 (P8-5 후속) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
@@ -84,10 +96,12 @@
   작성할 경우 `TocRailContext.Provider`로 감싸지 않으면 TOC가 조용히(에러 없이) 아무
   것도 하지 않는다(`setTocRail`이 `null`이라 effect 안 early return). 실제 프로덕션
   라우팅에서는 `app/editor/layout.tsx`가 항상 `EditorShell`로 감싸므로 문제가 되지 않는다.
-- `computeActiveHeading`의 "지금 섹션 기준선"(64px)은 문서 헤더 높이(56px)에 여유를
-  더한 값으로, 기존 `IntersectionObserver`의 `rootMargin` 상단값을 그대로 가져왔다 —
-  헤더 높이가 바뀌면 이 값도 같이 조정해야 한다(하드코딩된 매직 넘버, 주석에 근거는
-  남겨뒀다).
+- `computeActiveHeading`의 "지금 섹션 기준선"(`ACTIVATION_OFFSET`, 현재 72px)은
+  `globals.css`의 `.prose h2/h3 { scroll-margin-top: 4.5rem }`(72px)과 반드시 같은
+  값이어야 한다 — 처음엔 64px(기존 `IntersectionObserver`의 `rootMargin` 상단값을
+  그대로 가져온 값)로 뒀는데, 실제로는 `scroll-margin-top`과 어긋나 클릭 직후 활성
+  표시가 한 칸 위로 밀리는 버그가 났다(아래 "클릭 활성 판정 기준선 수정" 참고). 이
+  두 값 중 하나만 바꾸는 변경은 반드시 다른 쪽도 함께 맞춰야 한다.
 
 ### 우려사항
 - 로그인(MS SSO)이 필요한 실제 화면에서 최종 시각 확인을 할 수 없어, `DocumentEditor.tsx`/

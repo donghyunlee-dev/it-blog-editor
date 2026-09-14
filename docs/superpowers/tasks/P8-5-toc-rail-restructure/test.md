@@ -111,6 +111,29 @@ design.md 실측값이라 유지 — "이 페이지" 텍스트만 48px 안쪽에
 - `npx vitest run src/components/editor/TableOfContents.test.tsx` — 14개 전부 통과.
 - `npx eslint`, `npx tsc --noEmit`, `npm run build` — 통과.
 
+## 후속 수정(2026-09-14, 같은 대화 — 클릭 활성 판정 기준선)
+사용자가 "선택했을 때 컨텐츠 포커스는 이동되는데, TOC 제목이 클릭한 제목 위로 한 칸
+올라가서 포커스가 변경된다"고 지적했다. 원인 조사를 위해 `getBoundingClientRect()`/
+`scrollIntoView()`를 실제 브라우저(정적 페이지, `globals.css`의 실제
+`scroll-margin-top: 4.5rem` 규칙 포함)에서 실행해봤다 — 클릭 후 도착한 헤딩의
+`top`이 정확히 72px임을 확인했는데, `computeActiveHeading`의 판정 기준선
+(`ACTIVATION_OFFSET`)은 64px이었다. 72 > 64라 그 헤딩이 "지나온 헤딩" 조건을 만족
+못 해 바로 위 헤딩이 계속 활성으로 남아 있었다 — 정확히 사용자가 묘사한 증상과
+일치했다. `ACTIVATION_OFFSET`을 72로 맞췄다.
+
+- **수동 검증**: 문서 헤더·본문·헤딩(`scroll-margin-top: 4.5rem` 포함)을 넣은 정적
+  페이지에서 `heading.scrollIntoView({block:"start"})` 실행 후
+  `heading.getBoundingClientRect().top - scrollParent.getBoundingClientRect().top`을
+  측정 — 72px로 확인(스크롤 바닥 판정 여백 64px와 다름을 실측으로 확정).
+- **회귀 테스트로 재확인**: 헤딩 3개(A/B/C) 중 B를 "클릭 후 도착 지점"(top=72px)으로
+  모킹하는 테스트를 추가하고, 일부러 `ACTIVATION_OFFSET`을 64로 되돌려 테스트가
+  실제로 실패하는 것(B가 아니라 A가 활성으로 남음)을 먼저 확인한 뒤, 72로 복원해
+  통과함을 확인했다 — 이 과정에서 헤딩 2개로만 구성했던 첫 시도는 "마운트 직후(모킹
+  전) 기본값이 우연히 기대값과 같아서" 버그가 있어도 거짓으로 통과하는 결함이 있어,
+  헤딩 3개로 바꿔 그 위험을 없앴다(`TableOfContents.test.tsx` 참고).
+- `npx vitest run src/components/editor/TableOfContents.test.tsx` — 15개 전부 통과.
+- `npx eslint`, `npx tsc --noEmit`, `npm run build` — 통과.
+
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
