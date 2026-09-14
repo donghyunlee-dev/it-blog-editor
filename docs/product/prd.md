@@ -24,8 +24,9 @@
 | 화면 | 목적 | 주요 구성 요소 | 진입 경로 |
 |---|---|---|---|
 | 로그인 화면 | AX Auth(사내 SSO)로 로그인 | `@sfood/ui`의 `Card`/`Typography`/`Alert` 조합(`LoginSimple`은 email/password 폼 전용이라 SSO 리다이렉트 흐름에 맞지 않아 쓰지 않음 — [design.md](./design.md) "로그인 화면" 절 참고), "MS 계정으로 로그인" 버튼, 로그인 실패 안내 | `/login` |
-| 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지, 제목·태그 검색 입력, "새 문서" 버튼) — 태그 필터 칩은 P12-1로 제거(태그는 검색으로만 활용), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
-| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, 태그 칩 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·삭제(확인 모달)·게시 설정 여는 버튼 | `/editor/new`, `/editor/[pageId]` |
+| 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지 + 태그, 태그 필터, "새 문서" 버튼), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
+| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·삭제(확인 모달)·게시 설정 여는 버튼 | `/editor/new`, `/editor/[pageId]` |
+
 | 게시 설정 | 게시 여부·뷰어별 slug·메타 설명 설정 | 문서 전체 게시 토글, 뷰어별 카드(지금은 Tech Blog 1개, 카드마다 slug·메타 설명 입력) — 별도 화면이 아니라 문서 편집 화면(`DocumentEditor`) 안에서 열리는 `Modal` 오버레이다(2026-08-26 변경 — 기존 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal |
 | 환영 페이지(2026-09-03 추가, 같은 날 세 차례 재구성 — Modal→페이지→서비스 소개 보강→레퍼런스 기반 재설계) | 신규 가입자(또는 이름·팀 미입력 계정)가 로그인 직후 이름·팀을 입력하는 전용 화면. 로그인 화면과 같은 브랜드 셸(`AuthSplitShell`) 안에서, 따뜻한 인사말 한 단락으로 서비스를 소개하고("나만의 문서를 만들어 관리하고, 팀원과 공유") 로그인 계정 이메일을 함께 보여줌 | `AuthSplitShell`(좌측 `BrandPanelArt`, 우측 콘텐츠) + `Typography` 인사말 + `Avatar`로 계정 표시 + `FormField` 2개 + `Button`, 저장 성공 시 `/editor`로 이동 | `/welcome` — `/editor/layout.tsx`가 `needsOnboarding`이면 여기로 리다이렉트 |
 | 계정 정보 팝업(2026-09-03 추가) | 로그인한 계정의 이름·팀을 언제든 조회·수정 | `Modal` + `FormField`(이메일은 읽기전용, 이름·팀은 수정 가능), 저장 성공/실패는 `Toast` | 별도 라우트 없음 — 사이드바 계정 표시 클릭 시 여는 Modal |
@@ -101,21 +102,26 @@
 
 ### 기능 — 문서 태그 지정
 - 설명: 문서에 다중 태그를 붙여, 사이드바 검색·Ctrl+K 전역 검색에서 제목과 함께 매칭되는 검색
-  키워드로 쓴다. 편집 화면에서는 칩(chip) UI 영역에 입력하고(Enter/쉼표로 확정, placeholder
-  "예: React, Backend"), 문서함에서 이미 쓰인 태그를 자동완성 후보로 보여준다.
-- 2026-09-14 결정(태그 기능 재검토, P12): 태그는 폴더에 준하는 1급 분류 축이 아니라 "검색 시
+  키워드로 쓴다. 편집 화면에서는 본문(TipTap 에디터) 아래에 있는 테두리+배경으로 구획된 칩(chip)
+  UI 영역에 입력하고(Enter/쉼표로 확정, 태그가 없을 때만 placeholder "예: React, Backend" 노출),
+  문서함에서 이미 쓰인 태그를 자동완성 후보로 보여준다.
+- 2026-09-14 결정(태그 기능 재검토, Phase 12): 태그는 폴더에 준하는 1급 분류 축이 아니라 "검색 시
   매칭되는 가벼운 키워드"로 용도를 좁힌다 — 이름 변경/병합 같은 관리 기능이 없고 자동완성도
   작성자 본인 문서로만 한정되어, 정교한 분류 체계로 쓰기엔 관리 기능이 부실하다고 판단했다. 이에
-  따라 사이드바의 태그 필터 칩(`ChipGroup`, 상시 노출 UI)은 제거했다(P12-1) — 사이드바 검색이
-  이미 제목+태그를 매칭하므로 "태그로 찾기" 기능 자체는 유지된다. Ctrl+K 전역 검색
-  (`searchDocuments`)은 애초부터 태그를 매칭 대상에 포함하고 있어 별도 변경이 필요 없었다. 태그
-  이름 변경/병합 기능은 이 좁아진 용도 하에서는 필요성이 낮다고 보아 만들지 않는다.
+  따라 (1) 사이드바의 태그 필터 칩(`ChipGroup`, 상시 노출 UI)은 제거하고 사이드바 검색(제목+태그
+  매칭)으로 흡수했다(P12-1, 별도 PR). (2) 편집 화면의 태그 입력 영역은 제목 바로 아래(2줄 차지)
+  에서 본문 하단으로 옮기고 1줄에 가깝게 압축했으며, 태그가 있으면 placeholder를 더 이상
+  보여주지 않는다(P12-2). Ctrl+K 전역 검색(`searchDocuments`)은 애초부터 태그를 매칭 대상에
+  포함하고 있어 별도 변경이 필요 없었다. 태그 이름 변경/병합 기능은 이 좁아진 용도 하에서는
+  필요성이 낮다고 보아 만들지 않는다.
+
 - 입력: 태그 목록(자유 텍스트, 다중, 문서당 최대 20개·태그당 최대 50자)
 - 출력·동작: Confluence 네이티브 페이지 라벨로 저장/조회
 - 예외 상황: 개수(20개)·길이(50자) 초과, 빈 값, 금지 문자(`:`, `?`, `@`) 포함 시 400(`ValidationError`) — 2026-08-31(P1-6b) 추가. 그 외 Confluence가 형식 문제로 거부하면(우리가 사전에 걸러내지 못한 규칙) 502 대신 400으로 변환한다.
 - 데이터 저장 여부: 예 — Confluence 페이지 라벨
 - API 필요 여부: 예 — 신규 엔드포인트 필요(라벨 추가/조회)
-- 상태: 완료 — 산출물: src/lib/editor/tags.ts, src/lib/editor/tag-suggestions.ts, src/app/api/editor/documents/[pageId]/tags/route.ts, src/components/editor/TagInput.tsx, src/components/editor/EditorSidebar.tsx(P12-1, 태그 필터 제거)
+
+- 상태: 완료 — 산출물: src/lib/editor/tags.ts, src/lib/editor/tag-suggestions.ts, src/app/api/editor/documents/[pageId]/tags/route.ts, src/components/editor/TagInput.tsx, src/components/editor/DocumentEditor.tsx(P12-2, 태그 위치 이동)
 
 ### 기능 — 게시 메타데이터의 뷰어별 확장
 - 설명: 게시 시 slug·메타 설명을 뷰어(예: Tech Blog)별로 따로 관리할 수 있게 한다. 게시 설정 화면에는 뷰어마다 카드가 하나씩 있고, 뷰어가 늘어나도 화면 구조를 다시 설계하지 않아도 된다.
@@ -311,10 +317,12 @@
   이미 받아온 결과를 다시 좁히는 클라이언트 사이드 토글일 뿐, 기본 검색 범위가 아니다) 별도
   변경이 필요 없었다.
 - 핵심 결정(2026-09-14, 사용자와의 대화로 확정): (1) 사이드바의 상시 노출 태그 필터 칩
-  (`ChipGroup`)은 제거하고 사이드바 검색(제목+태그 매칭)으로 흡수한다(P12-1). (2) 편집 화면의
-  태그 입력 영역은 제목 바로 아래(상단, 2줄 차지)에서 본문 하단으로 옮기고 1줄에 가깝게
-  압축하며, 태그가 이미 있으면 placeholder 예시 문구를 보여주지 않는다(P12-2). (3) 태그 이름
-  변경/병합 같은 관리 기능은 신설하지 않는다(좁아진 용도에서는 필요성이 낮다고 판단).
+
+  (`ChipGroup`)은 제거하고 사이드바 검색(제목+태그 매칭)으로 흡수한다(P12-1, 별도 PR). (2) 편집
+  화면의 태그 입력 영역은 제목 바로 아래(상단, 2줄 차지)에서 본문 하단으로 옮기고 1줄에 가깝게
+  압축하며, 태그가 이미 있으면 placeholder 예시 문구를 보여주지 않는다(P12-2, 이 PR). (3) 태그
+  이름 변경/병합 같은 관리 기능은 신설하지 않는다(좁아진 용도에서는 필요성이 낮다고 판단).
+
 - 진행 방식: Phase 5~11과 동일 — task/plan/result/test 4파일 + 개별 PR.
 - 범위 밖: 태그 데이터 모델·API(`tags.ts`, `[pageId]/tags/route.ts`) 변경, 태그 이름 변경/병합
   기능 신설, Ctrl+K 검색 로직 변경(이미 태그를 포함하고 있어 대상 아님).
@@ -485,11 +493,18 @@
 - [x] (완료, P11-1) 사이드바 문서 목록 행에서 태그 표시 제거 — `EditorSidebar.tsx`의 문서 행 렌더러에서 태그 칩 나열 블록을 제거해, 모든 목록(미분류/폴더/공유받은 문서)에서 행이 항상 제목 한 줄로 고정된다. 태그 필터(`ChipGroup`)와 태그 검색(Ctrl+K, 태그 기준 매칭)은 그대로 유지된다. 산출물: `docs/superpowers/tasks/P11-1-sidebar-remove-inline-tags/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 
 ### Phase 12 — 태그 기능 재검토(검색 전용화) (신규, 2026-09-14 계획)
-- [x] (완료, P12-1) 사이드바 태그 필터(`ChipGroup`) 제거 — `activeTag` 상태·`allTags` 계산·
-  `ChipGroup` 렌더 블록을 제거하고, 사이드바 검색(제목+태그 매칭)만으로 "태그로 찾기"를
-  대체한다. 태그 데이터·입력·Ctrl+K 검색의 태그 매칭은 변경하지 않는다. 산출물:
-  `docs/superpowers/tasks/P12-1-sidebar-remove-tag-filter/{task,plan,result,test}.md`,
-  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
+- [x] (완료, P12-2) 태그 입력 영역을 본문 하단으로 이동 + 컴팩트화 + placeholder 조건부 숨김 —
+  `DocumentEditor.tsx`에서 제목 바로 아래 있던 `TagInput`을 본문(TipTap) 다음·풋터 앞으로
+  옮겨(모드와 무관하게 항상 렌더링) 상단 "문서 메타" 영역의 비중을 낮췄다. `TagInput.tsx`는
+  라벨(`태그`)·칩·입력을 한 행에 배치해 2줄이던 레이아웃을 1줄로 압축했고, 태그가 하나 이상
+  있으면 예시 placeholder("예: React, Backend")를 더 이상 보여주지 않는다. 태그 데이터·입력
+  동작(Enter/쉼표 확정, IME 조합, 자동완성, 삭제)은 변경하지 않았다. 산출물:
+  `docs/superpowers/tasks/P12-2-tag-input-bottom-compact/{task,plan,result,test}.md`,
+  src/components/editor/TagInput.tsx, src/components/editor/TagInput.test.tsx,
+  src/components/editor/DocumentEditor.tsx
+- [ ] (P12-1) 사이드바 태그 필터(`ChipGroup`) 제거 — 별도 PR([#122](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/122))로 진행 중, 산출물:
+  `docs/superpowers/tasks/P12-1-sidebar-remove-tag-filter/{task,plan,result,test}.md`
+
 
 
 ## 🗄️ 데이터 저장 여부

@@ -8,7 +8,7 @@ describe("TagInput", () => {
     const onChange = vi.fn();
     render(<TagInput value={[]} onChange={onChange} suggestions={[]} />);
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "React{Enter}");
 
     expect(onChange).toHaveBeenCalledWith(["React"]);
@@ -18,7 +18,7 @@ describe("TagInput", () => {
     const onChange = vi.fn();
     render(<TagInput value={["React"]} onChange={onChange} suggestions={[]} />);
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "Backend,");
 
     expect(onChange).toHaveBeenCalledWith(["React", "Backend"]);
@@ -28,7 +28,7 @@ describe("TagInput", () => {
     const onChange = vi.fn();
     render(<TagInput value={["React"]} onChange={onChange} suggestions={[]} />);
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "React{Enter}");
 
     expect(onChange).not.toHaveBeenCalled();
@@ -47,7 +47,7 @@ describe("TagInput", () => {
     const onChange = vi.fn();
     render(<TagInput value={[]} onChange={onChange} suggestions={[]} />);
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     fireEvent.change(input, { target: { value: "리액" } });
     // 한글 입력기가 마지막 음절을 조합하는 중에 Enter가 눌린 경우.
     fireEvent.keyDown(input, { key: "Enter", isComposing: true });
@@ -66,7 +66,7 @@ describe("TagInput", () => {
       <TagInput value={["React"]} onChange={vi.fn()} suggestions={["React", "Redux", "Backend"]} />
     );
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     // 드롭다운은 초안이 있을 때만(datalist와 달리 빈 입력에서는 뜨지 않음) 열린다.
     await userEvent.type(input, "e");
 
@@ -82,10 +82,22 @@ describe("TagInput", () => {
       <TagInput value={[]} onChange={onChange} suggestions={["Redux", "Backend"]} />
     );
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "red");
     await userEvent.click(screen.getByRole("option", { name: "Redux" }));
 
     expect(onChange).toHaveBeenCalledWith(["Redux"]);
+  });
+
+  it("태그가 없으면 예시 placeholder를 보여준다", () => {
+    render(<TagInput value={[]} onChange={vi.fn()} suggestions={[]} />);
+
+    expect(screen.getByPlaceholderText("예: React, Backend")).toBeInTheDocument();
+  });
+
+  it("태그가 이미 있으면 예시 placeholder를 보여주지 않는다(2026-09-14, P12-2)", () => {
+    render(<TagInput value={["React"]} onChange={vi.fn()} suggestions={[]} />);
+
+    expect(screen.queryByPlaceholderText("예: React, Backend")).not.toBeInTheDocument();
   });
 });
