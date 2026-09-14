@@ -243,7 +243,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
 | 로그인 화면 | 좌: 직접 마크업 브랜드 패널(`Typography` + 자체 제작 SVG `BrandPanelArt`) · 우: 카드 없이 `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>`만 배경 위에 배치 | `LoginSimple`/`LoginSplit` 둘 다 email/password 폼 전용이라 쓰지 않음(단, `LoginSplit`의 좌/우 레이아웃 구조는 재현) — 아래 "로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
-| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
+| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState` + `Button` 토큰 클래스, 문서 옵션 메뉴는 커스텀 구현 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨. 문서 행의 옵션(⋯) 메뉴는 `@sfood/ui`의 `DropdownMenu`로 시작했으나(P14-1/P14-2, "이동"→"이동·이력·삭제") 사이드바가 스크롤 컨테이너라 팝업이 잘리는 문제로 P14-3에서 커스텀 구현(`position: fixed`)으로 교체됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
 | 문서 태그 표시 | `Tag` | 편집 화면의 태그 입력 칩은 `Tag`(`onRemove` 포함). 사이드바의 태그 필터(`ChipGroup`)는 2026-09-14(P12-1)에 제거되었다 — 태그는 검색(사이드바 검색·Ctrl+K)의 매칭 대상으로만 쓰인다 |
 | 문서 목록 항목 | 직접 마크업(`<ul>`/`<li>`/`Link`) + `StatusBadge` + `Tag` | 기존 `<ul className="doc-list">`를 대체. `List`가 아니라 직접 만든 이유는 아래 "확인된 사항" 참고 |
@@ -283,10 +283,32 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   문서 목록 행도 `List` 대신 `<ul>`/`<li>`/`<Link>`로 직접 만들고, `List`가 쓰는 것과 같은 시각적
   규칙(행 패딩, 말줄임, `text-foreground`)만 맞췄다.
 - **최종적으로 실제 쓴 `@sfood/ui` 컴포넌트**: 문서 상태 뱃지는 `StatusBadge`, 문서별 읽기 전용 태그
-  표시는 `Tag`, 태그 필터는 `ChipGroup`, 문서가 없을 때는 `EmptyState`. "새 문서" 버튼은 실제 이동이
-  필요해 `<Link>`로 만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가
-  쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀
-  "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다.
+  표시는 `Tag`, 문서가 없을 때는 `EmptyState`. "새 문서" 버튼은 실제 이동이 필요해 `<Link>`로
+  만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가 쓰는 것과
+  같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀 "이
+  화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다. 태그 필터로 쓰던 `ChipGroup`은
+  2026-09-14(P12-1)에 제거됐다(태그는 검색 전용, 위 "사이드바" 절 참고).
+- **문서 옵션(⋯) 메뉴 — `DropdownMenu`(`@sfood/ui`)를 쓰다가 커스텀 구현으로 교체한 경위
+  (P14-1→P14-3, 2026-09-14)**: 처음엔 `DropdownMenu`(`trigger` + `DropdownItem[]`)를 그대로
+  썼다 — 같은 패키지의 `FileExplorer.itemActions`도 같은 패턴("항목별 우측 액션 메뉴")을 쓰고
+  있어 재사용이 자연스러웠다(P14-1, "이동" 단일 버튼을 이 메뉴로 대체). 이어서(P14-2) 에디터
+  헤더의 "이력"·"삭제" 버튼도 이 메뉴로 옮겨와 이동·이력·삭제 3개 항목이 됐다 — 헤더 쪽
+  버튼·모달·핸들러는 모두 제거됐다(`DocumentEditor.tsx`). 그런데 두 가지 위치 문제가 이어서
+  발견됐다: (1) `DropdownMenu`가 메뉴를 트리거 기준 `right-0`(왼쪽으로 펼쳐짐)으로 고정
+  배치해 문서 제목과 겹쳤고(P14-2에서 CSS로 `left-0` 덮어씀), (2) 그렇게 방향만 바꿔도 메뉴가
+  사이드바 밖으로는 안 나가고 "패널 안으로 들어가서 보이지 않는" 문제가 남아 있었다(P14-3,
+  사용자 지적 — "z-index를 완전히 밖으로 빼야 할 거 같아"). 원인은 문서 목록을 감싸는
+  `<nav overflow-y-auto>`다 — CSS 스펙상 `overflow-y`가 `visible`이 아니면 `overflow-x`도
+  `auto`로 강제 계산돼, 이 `<nav>`가 가로로 넘치는 자손(메뉴 팝업)까지 클리핑한다. z-index는
+  스태킹 순서만 바꿀 뿐 overflow 클리핑을 뚫지 못한다. `DropdownMenu`엔 팝업을 포탈이나
+  `position: fixed`로 그리는 prop이 없어(컴포넌트를 고칠 수도 없어) 결국 사용을 그만두고,
+  `EditorSidebar.tsx`에서 팝업을 `<nav>` 바깥 형제 위치에 `position: fixed` + 트리거의
+  `getBoundingClientRect()` 좌표로 직접 그리는 커스텀 구현(`openDocumentMenu` state,
+  `buildDocumentMenuItems`)으로 교체했다. `role="menu"`/`role="menuitem"` 접근성 역할과
+  바깥 클릭·Escape로 닫는 동작은 동일하게 유지했다(스크롤·리사이즈 시에는 앵커 좌표가
+  낡아지므로 다시 계산하는 대신 메뉴를 닫는다). 메뉴 항목 hover는 `.sidebar-row-hover`를
+  재사용해, `DropdownMenu`가 내부적으로 쓰던 `hover:bg-surface-raised`의 라이트 모드 무효
+  문제(P13-2 참고)를 이 팝업에서는 애초에 피해간다.
 
 ## 로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증, 2026-08-25 레이아웃 갱신)
 
@@ -398,8 +420,10 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
 <Button variant="primary">취소</Button>
 <Button variant="primary">삭제</Button>
 ```
-→ 편집 화면 헤더 버튼(저장/삭제/게시 설정 이동, 2026-08-25부터 상단 헤더에 위치)에도 같은
-원칙을 적용해 "저장"만 `primary`, "삭제"는 `danger`, "게시 설정"은 `secondary`로 구분한다.
+→ 편집 화면 헤더 버튼(저장/게시 설정, 2026-08-25부터 상단 헤더에 위치)에도 같은 원칙을
+적용해 "저장"만 `primary`, "게시 설정"은 `secondary`로 구분한다. "삭제"는 2026-09-14(P14-2)에
+헤더에서 사이드바 문서 옵션(⋯) 메뉴로 옮겨가 더 이상 `Button`이 아니라 `DropdownItem`의
+`danger` 스타일로 표시된다.
 
 **폼 구조**: 라벨/에러를 `FormField`로 감싼다.
 ```tsx

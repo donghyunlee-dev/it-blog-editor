@@ -98,15 +98,6 @@ vi.mock("./RichTextEditor", () => ({
   ),
 }));
 
-// VersionHistory 자체의 로딩/성공/실패 동작은 VersionHistory.test.tsx가 다룬다. 여기서는
-// "이력" 버튼이 Modal을 열고 올바른 pageId를 넘기는지만 확인하면 되므로 가벼운 대역으로
-// 바꿔 끼운다.
-vi.mock("./VersionHistory", () => ({
-  VersionHistory: ({ pageId }: { pageId: string }) => (
-    <div data-testid="version-history" data-page-id={pageId} />
-  ),
-}));
-
 /**
  * useToast()는 Provider 없이도 no-op 컨텍스트 기본값으로 동작하므로 렌더 자체는
  * 성공하지만, 토스트 메시지를 화면에서 조회하려면 실제 Provider가 필요하다.
@@ -263,50 +254,8 @@ describe("DocumentEditor", () => {
     expect(screen.getByText(/^김철수\(a@s-food\.com\)/)).toBeInTheDocument();
   });
 
-  it("삭제 성공 시 사이드바를 새로고침하고 문서 탐색기로 이동한다", async () => {
-    stubFetch(() => new Response(null, { status: 204 }));
-
-    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
-
-    await userEvent.click(screen.getByRole("button", { name: "삭제" }));
-    await userEvent.click(screen.getByRole("button", { name: "삭제 확인" }));
-
-    expect(refresh).toHaveBeenCalled();
-    expect(push).toHaveBeenCalledWith("/editor");
-  });
-
-  it("삭제 버튼을 누르면 확인 모달이 뜨고, 확인해야 실제 삭제 요청을 보낸다", async () => {
-    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
-
-    renderEditor(<DocumentEditor {...EDIT_PROPS} pageId="doc-1" />);
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "삭제" }));
-
-    // 모달만 열리고, 확인하기 전에는 어떤 요청도 나가지 않아야 한다.
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-
-    await userEvent.click(screen.getByRole("button", { name: "삭제 확인" }));
-
-    expect(fetchMock).toHaveBeenCalledWith("/api/editor/documents/doc-1", {
-      method: "DELETE",
-    });
-  });
-
-  it("삭제 확인 모달에서 취소하면 삭제 요청을 보내지 않는다", async () => {
-    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
-
-    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
-
-    await userEvent.click(screen.getByRole("button", { name: "삭제" }));
-    await userEvent.click(screen.getByRole("button", { name: "취소" }));
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
-  });
+  // P14-2: "삭제"·"이력" 버튼과 그 모달은 헤더에서 빠지고 사이드바 문서 옵션(⋯) 메뉴로
+  // 옮겨갔다 — 관련 테스트는 EditorSidebar.test.tsx로 이전했다.
 
   it("저장 요청에 markdown 문자열이 아닌 TipTap doc(JSONContent)을 담아 보낸다", async () => {
     const fetchMock = stubFetch(() =>
@@ -536,20 +485,6 @@ describe("DocumentEditor", () => {
     expect(
       within(screen.getByRole("dialog")).getByRole("switch", { name: "게시함" })
     ).toBeInTheDocument();
-  });
-
-  it("이력 버튼을 누르면 버전 이력 모달이 열리고 올바른 pageId를 넘긴다(P1-2a)", async () => {
-    renderEditor(<DocumentEditor {...EDIT_PROPS} />);
-
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "이력" }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("version-history")).toHaveAttribute(
-      "data-page-id",
-      "page-1"
-    );
   });
 
   it("태그 자동완성 후보를 TagInput에 전달한다", async () => {

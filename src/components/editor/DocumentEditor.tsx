@@ -9,7 +9,6 @@ import { RichTextEditor } from "./RichTextEditor";
 import { TableOfContents } from "./TableOfContents";
 import { TagInput } from "./TagInput";
 import { PublishForm, type PublishFormInitial } from "./PublishForm";
-import { VersionHistory } from "./VersionHistory";
 import { ShareForm } from "./ShareForm";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
 import {
@@ -74,20 +73,6 @@ function withAtLeastOneBlock(doc: JSONContent): JSONContent {
  * EditorSidebar.tsx의 DocumentIcon)과 같은 방식 — 획 기반의 작은 인라인 SVG를
  * 이 파일 안에 직접 둔다.
  */
-function TrashIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6M6 6l.7 10.5a1 1 0 0 0 1 .9h4.6a1 1 0 0 0 1-.9L14 6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /*
  * "게시 설정"은 지구본(GlobeIcon)이었는데 "언어/지역 설정"으로 읽히기 쉬웠고,
  * "저장"은 다운로드 화살표(SaveIcon)라 "다운로드"로 오해되기 쉬웠다(2026-08-26,
@@ -120,34 +105,6 @@ function SaveIcon() {
       />
       <path d="M7 13.5h6v3.5H7v-3.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
       <path d="M7 3.5v3.5h5v-3.5" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-/** 시계 반대 방향 화살표 + 시침 — "되돌아보기" 느낌을 주는, 버전 이력에 흔히 쓰이는 기호. */
-function HistoryIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-      <path
-        d="M4 6a7 7 0 1 1-1.5 6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M2 3.5V6.5H5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M10 6.5v4l3 2"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
     </svg>
   );
 }
@@ -272,10 +229,10 @@ export function DocumentEditor({
   const [tags, setTags] = useState<string[]>(initialTags);
   const [version, setVersion] = useState(initialVersion);
   const [lastEditedBy, setLastEditedBy] = useState(initialLastEditedBy);
-  const [status, setStatus] = useState<"idle" | "saving" | "deleting">("idle");
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  // P14-2: "삭제"·"이력"은 사이드바 문서 옵션(⋯) 메뉴로 옮겨가서 status는 더 이상
+  // "deleting"을 가질 필요가 없다 — 저장 중 여부만 추적한다.
+  const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [publishModalOpen, setPublishModalOpen] = useState(false);
-  const [versionHistoryModalOpen, setVersionHistoryModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<
     "idle" | "saving" | "saved" | "failed"
@@ -570,39 +527,6 @@ export function DocumentEditor({
     }
   }
 
-  async function handleDelete() {
-    if (!pageId) {
-      return;
-    }
-
-    setDeleteModalOpen(false);
-    setStatus("deleting");
-
-    try {
-      const response = await fetch(`/api/editor/documents/${pageId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        throw new Error(await errorMessageOf(response, "삭제에 실패했습니다."));
-      }
-      // 삭제 자체가 이 문서를 없애버리므로, 편집 중이던 내용의 "저장 안 됨" 상태는
-      // 더 이상 의미가 없다(P0-1a) — 방어적으로 정리한다.
-      setDirty(false);
-      // 삭제된 문서가 사이드바 목록에서 즉시 사라지도록 새로고침한다. refresh를 push보다
-      // 먼저 부르면 아직 떠나지 않은 현재 라우트(/editor/[pageId], 방금 삭제된 그 문서)를
-      // 다시 서버에서 조회하게 되어 NotFoundError로 이어진다 — 위 handleSave의 mode==="create"
-      // 분기와 같은 이유로 push를 먼저 완료시키고 그 다음에 refresh한다.
-      router.push("/editor");
-      router.refresh();
-    } catch (err) {
-      toast(
-        err instanceof Error ? err.message : "알 수 없는 오류가 발생했습니다.",
-        "danger"
-      );
-      setStatus("idle");
-    }
-  }
-
   return (
     /*
       박스(Card)로 감싸지 않고 페이지 전체가 에디터 캔버스처럼 보이도록 구성한다(2026-08-25,
@@ -691,10 +615,10 @@ export function DocumentEditor({
 
         {/*
           예전엔 버튼마다 글자가 있었는데, "아이콘만 봐도 알 수 있다"는 피드백으로
-          아이콘만 남겼다(2026-08-26). 순서도 설정→저장→삭제로 바꿨다 — 파괴적
-          동작(삭제)이 맨 끝이라 저장과는 여전히 붙어 있어서, 구분선으로 물리적으로
-          갈라둔다(오클릭 방지, 이전 지적과 같은 이유). 이력(P1-2a)은 읽기 전용
-          조회라 위험도가 낮아 설정과 저장 사이에 끼워 넣는다(설정→이력→저장→삭제).
+          아이콘만 남겼다(2026-08-26). 이력·삭제는 2026-09-14(P14-2)에 헤더에서 빠졌다 —
+          Notion·Confluence 등과 비교한 뒤, 사이드바 문서 행의 옵션(⋯) 메뉴로 옮겨
+          "기능이 늘어나도 헤더에 아이콘을 추가하지 않는" 방향으로 정리했다(기능 자체는
+          `EditorSidebar.tsx`에 그대로 남아 있다).
         */}
         <div className="flex items-center gap-2">
           {mode === "edit" && pageId && (
@@ -715,20 +639,6 @@ export function DocumentEditor({
               disabled={status !== "idle"}
             >
               <SettingsIcon />
-            </Button>
-          )}
-          {mode === "edit" && pageId && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              className="!px-2.5"
-              aria-label="이력"
-              title="이력"
-              onClick={() => setVersionHistoryModalOpen(true)}
-              disabled={status !== "idle"}
-            >
-              <HistoryIcon />
             </Button>
           )}
           {/* "공유" 버튼은 소유자에게만 보인다(재공유 방지, P6-2/P6-3) — 공유받은
@@ -763,23 +673,6 @@ export function DocumentEditor({
           >
             <SaveIcon />
           </Button>
-          {mode === "edit" && pageId && (
-            <>
-              <span className="h-6 w-px bg-border" aria-hidden="true" />
-              <Button
-                type="button"
-                variant="danger"
-                size="md"
-                className="!px-2.5"
-                aria-label={status === "deleting" ? "삭제 중" : "삭제"}
-                title={status === "deleting" ? "삭제 중" : "삭제"}
-                onClick={() => setDeleteModalOpen(true)}
-                disabled={status !== "idle"}
-              >
-                <TrashIcon />
-              </Button>
-            </>
-          )}
         </div>
       </header>
 
@@ -873,31 +766,6 @@ export function DocumentEditor({
           자신을 밀어 넣는 역할만 한다(TableOfContents.tsx 상단 주석 참고). */}
       <TableOfContents containerRef={richTextContainerRef} doc={doc} />
 
-      <Modal
-        open={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="문서 삭제"
-        footer={
-          <>
-            {/* Button은 type을 지정하지 않으면 form 안에서 submit으로 동작하므로,
-                모달 버튼에는 반드시 type="button"을 명시한다. */}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-            >
-              취소
-            </Button>
-            <Button type="button" variant="danger" onClick={handleDelete}>
-              삭제 확인
-            </Button>
-          </>
-        }
-      >
-        이 문서를 삭제하시겠습니까? 삭제된 문서는 사이드바의 &quot;삭제된 문서&quot;에서
-        복구할 수 있습니다.
-      </Modal>
-
       {/*
         P0-1b — 이 문서를 마지막으로 불러온 뒤(initialUpdatedAt 기준) 자동 저장이
         Confluence에는 반영하지 못했지만 이 브라우저의 localStorage에는 남아있는
@@ -940,18 +808,6 @@ export function DocumentEditor({
           size="lg"
         >
           <PublishForm pageId={pageId} initial={initialPublishState} />
-        </Modal>
-      )}
-
-      {mode === "edit" && pageId && (
-        // 읽기 전용 조회라 별도 footer(취소/확인 버튼)가 필요 없다 — 위쪽 ✕
-        // 버튼(Modal 기본 제공)으로만 닫는다.
-        <Modal
-          open={versionHistoryModalOpen}
-          onClose={() => setVersionHistoryModalOpen(false)}
-          title="이력"
-        >
-          <VersionHistory pageId={pageId} />
         </Modal>
       )}
 
