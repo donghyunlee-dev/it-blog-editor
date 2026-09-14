@@ -784,11 +784,18 @@ export function DocumentEditor({
       </header>
 
       {/*
-        예전엔 제목·태그·본문·풋터 사이가 전부 gap-4(16px)로 균일해서 이 넷이 서로
-        어떤 관계인지(어디까지가 "문서 헤더"이고 어디부터 "쓰는 영역"인지) 시각적
-        위계가 안 느껴졌다(2026-08-26, 사용자 피드백 — "간격이 균일해서 위계가 안
-        느껴짐"). 제목→태그는 좁게(같은 "문서 메타" 묶음), 태그→본문은 넓게(여기부터
-        진짜 쓰는 영역이라는 전환), 본문→풋터는 그 중간으로 차등을 준다.
+        예전엔 제목·본문·풋터 사이가 전부 gap-4(16px)로 균일해서 이 셋이 서로 어떤
+        관계인지(어디까지가 "문서 헤더"이고 어디부터 "쓰는 영역"인지) 시각적 위계가 안
+        느껴졌다(2026-08-26, 사용자 피드백 — "간격이 균일해서 위계가 안 느껴짐"). 제목→
+        본문은 넓게(여기부터 진짜 쓰는 영역이라는 전환), 본문→태그·풋터는 그보다 좁게
+        차등을 준다.
+
+        태그 입력은 2026-09-14(P12-2)부터 제목 아래가 아니라 본문 다음(풋터 바로 위)에
+        온다 — 태그의 역할이 "검색용 가벼운 키워드"로 좁혀지면서(P12) 상단 "문서 메타"
+        묶음만큼의 비중을 둘 이유가 없어졌고, 라벨+입력 2줄 구성이 상단 공간을 많이
+        차지한다는 지적(사용자 피드백)에도 대응한다. 새 문서 작성(`mode === "create"`)도
+        태그를 붙일 수 있어야 하므로, 풋터(`mode === "edit"` 전용)와 달리 모드와 무관하게
+        항상 렌더링한다.
       */}
       {/*
         P8-8: 우측 목차(TOC)는 더 이상 이 줄에 없다 — EditorShell의 우측 레일 슬롯으로
@@ -817,10 +824,6 @@ export function DocumentEditor({
               아니라 "제목 입력 끝"으로 취급해 막는다(제목은 개념적으로 한 줄이다). */}
           <TitleTextarea value={title} onChange={handleTitleChange} />
 
-          <div className="mt-2">
-            <TagInput value={tags} onChange={handleTagsChange} suggestions={tagSuggestions} />
-          </div>
-
           {/*
             예전엔 새 문서를 열면 곧바로 "문서를 저장한 뒤에 이미지를 끌어다 놓거나
             붙여넣을 수 있습니다"라는 안내문이 떴는데, 화면 어디에도 이미지 관련 UI가
@@ -832,6 +835,10 @@ export function DocumentEditor({
           */}
           <div className="mt-6" ref={richTextContainerRef}>
             <RichTextEditor content={doc} onChange={handleDocChange} pageId={pageId} />
+          </div>
+
+          <div className="mt-4">
+            <TagInput value={tags} onChange={handleTagsChange} suggestions={tagSuggestions} />
           </div>
 
           {/*
