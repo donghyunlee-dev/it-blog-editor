@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { createContext, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { EditorSidebar, SearchTriggerIcon } from "./EditorSidebar";
 import { GlobalSearchModal } from "./GlobalSearchModal";
 import { UnsavedChangesProvider } from "./UnsavedChangesContext";
@@ -31,6 +31,17 @@ const COLLAPSED_STORAGE_KEY = "sfood-editor-sidebar-collapsed";
 function clampWidth(width: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, width));
 }
+
+/**
+ * 우측 목차(TOC) 레일 슬롯(P8-8) — 왼쪽 사이드바처럼 스크롤 영역(`flex-1 overflow-y-auto`)
+ * 밖에 있는 독립된 형제 컬럼이라 본문 스크롤에 전혀 영향받지 않는다. `EditorShell`은
+ * `/editor` 아래 모든 라우트(문서 목록 포함)를 감싸는 공용 레이아웃이라 TOC 데이터를
+ * 모르고, TOC 데이터를 아는 쪽(TableOfContents, 문서 편집 화면에서만 마운트됨)이 이
+ * Context로 받은 setter를 통해 자신을 렌더링할 노드를 이 레일에 직접 밀어 넣는다 —
+ * 문서 목록 화면 등 TOC가 없는 라우트에서는 setter가 한 번도 호출되지 않아 레일 자체가
+ * 렌더링되지 않는다(TableOfContents.tsx 참고).
+ */
+export const TocRailContext = createContext<((node: ReactNode) => void) | null>(null);
 
 function HamburgerIcon() {
   return (
@@ -74,6 +85,7 @@ export function EditorShell({
   onLogout,
 }: EditorShellProps) {
   const [open, setOpen] = useState(false);
+  const [tocRail, setTocRail] = useState<ReactNode>(null);
   // Tailwind의 `translate-x-0`/`-translate-x-full` 조합을 이 프로젝트의 Tailwind v4 설정
   // (v3 프리셋을 `@config`로 불러오는 호환 모드, design.md의 C1 참고)에서 토글해 보니
   // 클래스는 바뀌어도 실제 계산된 `translate` 값이 갱신되지 않는 현상이 있었다
@@ -252,6 +264,7 @@ export function EditorShell({
   // 하나에만 둔다 — "다른 문서로 이동" 가드가 사이드바 링크와 편집 화면의 뒤로가기
   // 링크 모두에 적용되려면 두 쪽이 같은 Context를 공유해야 한다.
   return (
+    <TocRailContext.Provider value={setTocRail}>
     <UnsavedChangesProvider>
     <GlobalSearchModal openSignal={searchOpenSignal} folders={folders} />
     <div className="flex h-screen flex-col md:flex-row">
@@ -383,7 +396,14 @@ export function EditorShell({
       </div>
 
       <div className="flex-1 overflow-y-auto">{children}</div>
+
+      {/* ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형 조건을
+          그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을 아무리 스크롤해도
+          움직이지 않는다(TocRailContext 주석 참고 — 예전엔 이 컬럼이 본문과 같은 flex
+          그룹 안에 있어 `sticky`로 흉내 내야 했고, 그 방식이 반복적으로 버그를 냈다). */}
+      {tocRail && <div className="hidden w-60 shrink-0 xl:block">{tocRail}</div>}
     </div>
     </UnsavedChangesProvider>
+    </TocRailContext.Provider>
   );
 }

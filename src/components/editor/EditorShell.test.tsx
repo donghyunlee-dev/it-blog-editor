@@ -1,7 +1,8 @@
+import { useContext, useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { EditorShell } from "./EditorShell";
+import { EditorShell, TocRailContext } from "./EditorShell";
 import type { DocumentSummary } from "@/lib/editor/documents";
 
 // EditorShell이 UnsavedChangesProvider(P0-1a)를 통해 useRouter()를 호출하게 됐다 — 실제
@@ -51,6 +52,45 @@ describe("EditorShell", () => {
 
     expect(screen.getByText("문서A")).toBeInTheDocument();
     expect(screen.getByText("본문 영역")).toBeInTheDocument();
+  });
+
+  /**
+   * P8-8: 우측 목차(TOC)는 EditorShell이 소유한 이 레일 슬롯으로 자신을 밀어 넣는다
+   * (TableOfContents.tsx 참고) — EditorShell 자신은 목차 데이터를 몰라도 되고, 슬롯이
+   * 비어 있으면(문서 목록 화면 등 TOC가 없는 라우트) 레일 자체가 렌더링되지 않아야
+   * 다른 라우트의 레이아웃 폭에 영향을 주지 않는다.
+   */
+  function TocRailSetter({ text }: { text: string }) {
+    const setTocRail = useContext(TocRailContext);
+    useEffect(() => {
+      setTocRail?.(<span>{text}</span>);
+      return () => setTocRail?.(null);
+    }, [setTocRail, text]);
+    return null;
+  }
+
+  it("children이 TocRailContext로 노드를 밀어 넣으면 우측 레일에 렌더링한다", () => {
+    mockMatchMedia(false);
+
+    render(
+      <EditorShell documents={DOCS}>
+        <TocRailSetter text="목차 자리표시자" />
+      </EditorShell>
+    );
+
+    expect(screen.getByText("목차 자리표시자")).toBeInTheDocument();
+  });
+
+  it("아무도 TocRailContext를 쓰지 않으면 우측 레일을 렌더링하지 않는다", () => {
+    mockMatchMedia(false);
+
+    render(
+      <EditorShell documents={DOCS}>
+        <p>본문 영역</p>
+      </EditorShell>
+    );
+
+    expect(screen.queryByText("목차 자리표시자")).not.toBeInTheDocument();
   });
 
   it("모바일 뷰포트에서는 토글 버튼을 눌러야 배경 오버레이가 열린다", async () => {

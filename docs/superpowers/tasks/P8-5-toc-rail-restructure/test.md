@@ -1,0 +1,50 @@
+# P8-5-toc-rail-restructure — 검증 기록
+
+## 자동화 테스트
+변경 파일과 직접 연관된 테스트만 실행했다(전체 `npm test`는 돌리지 않음 — 회귀 위험이
+낮다고 판단한 이유는 아래 "전체 스위트를 안 돌린 이유" 참고). 코드 변경이 있어 전체
+빌드는 실행했다.
+
+| 커맨드 | 결과 |
+|---|---|
+| `npx vitest run src/components/editor/TableOfContents.test.tsx src/components/editor/EditorShell.test.tsx src/components/editor/DocumentEditor.test.tsx` | 3 파일, 71개 테스트 전부 통과 |
+| `npx eslint src/components/editor/TableOfContents.tsx src/components/editor/TableOfContents.test.tsx src/components/editor/EditorShell.tsx src/components/editor/EditorShell.test.tsx src/components/editor/DocumentEditor.tsx` | 통과(출력 없음) |
+| `npx tsc --noEmit -p tsconfig.json` | 통과(출력 없음) |
+| `npm run build` | 성공(`Compiled successfully`, 19개 라우트 정상 생성) |
+
+### 전체 스위트를 안 돌린 이유
+`TocRailContext`를 새로 쓰는 곳은 `EditorShell.tsx`(정의)·`TableOfContents.tsx`(소비)뿐이고,
+둘 다 위 커맨드에 포함된다. `DocumentEditor.tsx`의 변경은 JSX 구조 단순화(그룹 해제)뿐이라
+`DocumentEditor.test.tsx`로 충분히 커버된다. 다른 화면(문서 목록 등)은 `EditorShell`을
+그대로 쓰지만 `TocRailContext`를 소비하지 않으므로(`tocRail` 기본값 `null`) 영향이 없다 —
+이 경계는 `EditorShell.test.tsx`의 "레일이 비어있음" 테스트로 확인했다.
+
+## 수동 검증
+**로그인(MS SSO)이 필요한 실제 화면은 이 세션에서 접근할 수 없어**, `DocumentEditor.tsx`/
+`EditorShell.tsx`의 실제 Tailwind 클래스를 그대로 복제한 정적 페이지를 프로젝트
+`public/`에 임시로 올려(`next dev`로 서빙 후 검증 완료 즉시 삭제) 브라우저로 확인했다.
+
+- **구조 검증**: 본문 스크롤 컨테이너의 `scrollTop`을 0 → 1400px로 바꿔가며 우측 레일
+  컬럼의 `getBoundingClientRect().top`을 읽었다 — 스크롤 전/후 모두 `top: 0`으로 동일해,
+  본문을 아무리 스크롤해도 레일이 전혀 움직이지 않음을 확인했다(이전 `sticky` 구조에서는
+  같은 방식으로 재현했을 때 `top`이 스크롤한 만큼 그대로 밀려났었다 — PR #112 test.md 참고).
+- 좌측 사이드바(자리표시자)도 함께 렌더링해, 새 우측 레일이 사이드바와 동급(스크롤
+  영역 밖 형제 컬럼)으로 앉는 구조인지 시각적으로도 확인했다.
+
+## 발견된 문제와 조치
+- **원인**: 첫 구현에서 `EditorShell.tsx`의 우측 레일을 `{tocRail && <div>...}`로만 조건부
+  렌더링하면, `DocumentEditor`가 항상 `<TableOfContents/>`(리액트 엘리먼트, `null`이 아님)를
+  렌더 트리에 두는 이상 `setTocRail`이 호출될 수 있어 헤딩이 없는 문서에서도 빈 레일이
+  뜰 위험이 있었다.
+- **조치**: 레일을 채우고 비우는 책임을 `EditorShell`이 아니라 헤딩 유무를 실제로 아는
+  `TableOfContents` 쪽으로 옮겼다 — `headings.length === 0`이면 `setTocRail(null)`을 직접
+  호출하도록 구현(최종 코드에 반영, 첫 시도의 흔적은 없음).
+- **재검증 결과**: `TableOfContents.test.tsx`의 "h2/h3가 하나도 없으면 아무것도 렌더링하지
+  않는다" 테스트와 `EditorShell.test.tsx`의 "아무도 TocRailContext를 쓰지 않으면 우측
+  레일을 렌더링하지 않는다" 테스트로 이 경계를 확인했다 — 둘 다 통과.
+
+## 검증 중 새로 발견한 결정 사항
+없음.
+
+## 최종 판정
+- [x] 수용 기준(`task.md`)을 모두 만족함 — PRD 갱신 가능

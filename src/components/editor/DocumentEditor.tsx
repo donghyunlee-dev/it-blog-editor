@@ -791,14 +791,12 @@ export function DocumentEditor({
         진짜 쓰는 영역이라는 전환), 본문→풋터는 그 중간으로 차등을 준다.
       */}
       {/*
-        P8-5: 우측 목차(TOC)를 본문 옆에 나란히 둔다. `justify-center`로 [본문+TOC]를
-        하나의 묶음처럼 가운데 정렬한다 — 본문에 `flex-1`+`mx-auto`를 함께 주면 TOC가
-        차지한 고정 폭(240px)만큼 자동 여백(margin: auto)이 먼저 다 소진돼 버려
-        가운데 정렬이 깨진다(flex 아이템의 auto margin과 flex-grow가 같은 여유 공간을
-        두고 경쟁하기 때문). TOC가 없는 상태(헤딩이 없는 문서, xl 미만 화면)에서는
-        본문 하나만 남아 기존과 완전히 같은 가운데 정렬로 보인다.
+        P8-8: 우측 목차(TOC)는 더 이상 이 줄에 없다 — EditorShell의 우측 레일 슬롯으로
+        옮겼다(TableOfContents.tsx, EditorShell.tsx의 TocRailContext 주석 참고). 예전엔
+        여기서 본문+TOC를 `justify-center gap-12`로 한 묶음처럼 가운데 정렬했는데, TOC가
+        스크롤 영역 밖 독립된 컬럼이 되면서 본문 하나만 가운데 정렬하면 된다.
       */}
-      <div className="flex justify-center gap-12">
+      <div className="flex justify-center">
         <div className="flex w-full max-w-[830px] flex-col px-6 py-10">
           {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
               sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
@@ -854,8 +852,10 @@ export function DocumentEditor({
             </footer>
           )}
         </div>
-        <TableOfContents containerRef={richTextContainerRef} doc={doc} />
       </div>
+      {/* 화면에는 아무것도 그리지 않는다(항상 null 반환) — EditorShell 우측 레일로
+          자신을 밀어 넣는 역할만 한다(TableOfContents.tsx 상단 주석 참고). */}
+      <TableOfContents containerRef={richTextContainerRef} doc={doc} />
 
       <Modal
         open={deleteModalOpen}
