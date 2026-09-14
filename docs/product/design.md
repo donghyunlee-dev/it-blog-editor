@@ -44,7 +44,8 @@
   `--color-brand-hover`(`#b02929`), 아주 옅은 배경엔 `--color-brand-subtle`/`--color-brand-light`.
 - **브랜드색을 배경에 옅게 섞을 때**는 하드코딩 대신
   `color-mix(in srgb, var(--color-brand) N%, var(--color-surface))` 패턴을 쓴다. 기존 예:
-  `.sidebar-row-active`(10%, 활성 행), `.spotlight-card`(6%, 소개 화면 대표 기능 카드),
+  `.sidebar-row-active`(10%, 활성 행), `.sidebar-row-hover`(5%, 활성 행보다 옅은 호버,
+  2026-09-14 P13-2), `.spotlight-card`(6%, 소개 화면 대표 기능 카드),
   `.spotlight-icon-chip`(15%, transparent와 믹스).
 - **작은 텍스트에 브랜드색을 직접 쓸 때는 라이트/다크 각각 대비를 실측한다.**
   `--color-brand`를 그대로 쓰면 밝은 배경 위에서 대비가 미달(예: 3.8:1, 기준 4.5:1)일 수
@@ -99,11 +100,23 @@
   브랜드색으로 드러남)와 햄버거 아이콘 접기/펼치기를 지원한다. 모바일은 별개 상태(오프캔버스
   드로어)로만 여닫는다 — 둘을 섞지 않는다.
 - 브랜딩 행(로고+제품명)은 `/editor`(메인 화면)로 이동하는 링크다.
-- 문서 목록 행: `rounded-card py-1.5 pr-2`(왼쪽 여백은 `<li>`의 들여쓰기 inline style이
+- 문서 목록 행: `rounded-card py-1.5 pl-2 pr-2`(추가 왼쪽 들여쓰기는 `<li>`의 inline style이
   담당). 2026-09-14(P13-1) — P8-2 때 `py-1.5`(6px)에서 `py-2`(8px)로 올렸다가, 문서가
   적어도 목록이 화면 상당 부분을 차지한다는 지적으로 다시 `py-1.5`로 되돌렸다(폴더 행도
   같은 높이로 함께 조정). 게시 상태는 텍스트가 아니라 아이콘(게시됨=속이 찬 체크 원,
   초안=점선 원)+색으로만 표시하고, `role="img"`+`aria-label`로 의미를 남긴다.
+- **행 왼쪽 안쪽 여백 + 호버 배경(2026-09-14, P13-2)**: `pl-2`가 없어 상태 아이콘이 선택/호버
+  배경 박스 왼쪽 끝에 바로 붙어 보인다는 지적으로 문서 행에 `pl-2`(폴더 행은 `pl-1`)를
+  추가했다. 별개로, 폴더·문서 행의 `hover:bg-surface-raised`가 라이트 모드에서 아무 효과가
+  없다는 것도 발견했다 — `node_modules/@sfood/ui/tokens/semantic.css`를 보면 라이트 모드
+  `:root`에서 `--color-surface-raised`가 `--color-surface`와 같은 값(`var(--white)`)이다.
+  위 "브랜드색을 배경에 옅게 섞을 때" 절의 `.sidebar-row-active`가 이미 같은 문제를 겪어 `color-mix()`로 직접
+  배경을 만드는 방식을 썼는데, 호버에는 그 처리가 없었다. 같은 방식으로
+  `.sidebar-row-hover:hover { color-mix(in srgb, var(--color-brand) 5%, var(--color-surface)) }`
+  를 `globals.css`에 추가하고, 폴더 행·문서 행(내 문서·공유받은 문서)의 `hover:bg-surface-raised`를
+  이 클래스로 교체했다(선택 상태의 10% 믹스보다 옅은 5%). 사이드바의 다른
+  `hover:bg-surface-raised` 사용처(아이콘 버튼 등)는 같은 문제가 있을 수 있으나 이번 범위에서는
+  다루지 않았다 — 별도 조사 필요.
 
 **문서 편집 캔버스 (`DocumentEditor` + `RichTextEditor`)**
 - `Card`로 감싸지 않는다 — 페이지 전체가 에디터 캔버스처럼 보이게 한다(로그인 화면도 같은
