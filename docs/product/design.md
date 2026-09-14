@@ -227,9 +227,9 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
 | 로그인 화면 | 좌: 직접 마크업 브랜드 패널(`Typography` + 자체 제작 SVG `BrandPanelArt`) · 우: 카드 없이 `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>`만 배경 위에 배치 | `LoginSimple`/`LoginSplit` 둘 다 email/password 폼 전용이라 쓰지 않음(단, `LoginSplit`의 좌/우 레이아웃 구조는 재현) — 아래 "로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
-| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`ChipGroup`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·필터·빈 상태)만 컴포넌트를 쓴다. 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
+| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
-| 문서 태그 표시·필터 | `Tag`, `ChipGroup` | 목록 화면의 읽기 전용 태그는 `Tag`(`onRemove` 생략), 태그 필터는 `ChipGroup`(단일 선택 — 같은 칩을 다시 클릭하면 해제되도록 `onChange` 쪽에서 토글 처리) |
+| 문서 태그 표시 | `Tag` | 편집 화면의 태그 입력 칩은 `Tag`(`onRemove` 포함). 사이드바의 태그 필터(`ChipGroup`)는 2026-09-14(P12-1)에 제거되었다 — 태그는 검색(사이드바 검색·Ctrl+K)의 매칭 대상으로만 쓰인다 |
 | 문서 목록 항목 | 직접 마크업(`<ul>`/`<li>`/`Link`) + `StatusBadge` + `Tag` | 기존 `<ul className="doc-list">`를 대체. `List`가 아니라 직접 만든 이유는 아래 "확인된 사항" 참고 |
 | 문서함 빈 상태 | `EmptyState` | 기존 `.empty-state` 카드를 대체 |
 | 버튼 전체 | `Button` (`variant="primary"/"secondary"/"danger"`) | 한 화면에 `primary`는 1개만 쓰는 원칙(Do/Don't 참고) |
@@ -448,6 +448,10 @@ toast('오류가 발생했습니다.', 'danger')
   (`src/components/editor/TagInput.tsx`)로 구현했고, 태그로 "필터링"하는 화면(이 문서의 사이드바 앱
   셸, Task 14)은 그 정해진-목록 선택 특성이 정확히 맞아 `ChipGroup`을 그대로 썼다(선택된 칩을 다시
   클릭하면 필터가 풀리는 토글 동작은 `value`/`onChange`를 감싸는 쪽에서 구현).
+  > **2026-09-14 갱신(P12-1)**: 이 `ChipGroup` 필터 UI 자체를 제거했다 — 태그의 역할을 "폴더에
+  > 준하는 분류 축"이 아니라 "검색 매칭 키워드"로 좁히기로 하면서, 상시 노출되던 필터 칩 대신
+  > 이미 태그를 매칭하고 있던 사이드바 검색으로 흡수했다. 위 기록은 `ChipGroup`을 필터에 썼던
+  > 이유(자유 입력 미지원, 정해진 목록 선택에 적합)를 남기기 위해 그대로 둔다.
 
 ## 게시 설정 — "slug" 대신 "공개 주소 키워드" (2026-09-03)
 

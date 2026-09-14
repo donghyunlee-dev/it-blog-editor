@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Button, ChipGroup, EmptyState, Modal, useToast } from "@sfood/ui";
+import { Button, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
@@ -279,10 +279,6 @@ export function EditorSidebar({
   // 달리 강제 흐름이 아니라 사용자가 원할 때만 여는 것이라 Modal로 유지한다.
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
 
-  const [activeTag, setActiveTag] = useState<string | null>(null);
-  // 문서가 많아지면 태그 필터만으로는 원하는 문서를 찾기 어렵다(2026-08-26, 사용자
-  // 피드백 — "탐색기에 문서가 많을 경우에 보기 안좋은 문제"). 제목 기준 클라이언트
-  // 필터를 추가한다.
   const [query, setQuery] = useState("");
   // P1-1b: 정렬 옵션. 기본값은 최신순 — listDocuments()가 반환하는 순서(초안 뒤에
   // 게시 문서를 이어붙인, Confluence API가 준 순서)는 최신순도 제목순도 아니라서
@@ -428,13 +424,7 @@ export function EditorSidebar({
     return options;
   }, [childrenByParent]);
 
-  const allTags = useMemo(
-    () => Array.from(new Set(documents.flatMap((document) => document.tags))),
-    [documents]
-  );
-
   const filteredDocuments = documents
-    .filter((document) => !activeTag || document.tags.includes(activeTag))
     .filter((document) => {
       const q = query.trim().toLowerCase();
       if (!q) {
@@ -471,7 +461,7 @@ export function EditorSidebar({
   }
   const unclassifiedDocuments = filteredDocuments.filter((document) => document.folderId === null);
 
-  // P7-8: 빈 폴더 안내는 검색어/태그 필터로 "지금 안 보일 뿐"인 폴더까지 "문서가 없다"고
+  // P7-8: 빈 폴더 안내는 검색어로 "지금 안 보일 뿐"인 폴더까지 "문서가 없다"고
   // 잘못 알리면 안 되므로, 필터링 전 원본 documents로 "이 폴더가 한 번이라도 문서를
   // 가진 적 있는지"를 따로 판단한다(documentsByFolder는 filteredDocuments 기준이라 이
   // 판단에는 쓸 수 없다).
@@ -481,14 +471,14 @@ export function EditorSidebar({
       .filter((folderId): folderId is string => folderId !== null)
   );
 
-  // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/태그/정렬이
-  // 바뀌면 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서
-  // 늘려둔 "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번
-  // 더 오래된 개수로 그렸다가 다시 그리는 깜빡임이 생기므로, React 공식 문서가 권장하는
-  // "렌더링 중 상태 조정" 패턴을 쓴다(https://react.dev/learn/you-might-not-need-an-effect
+  // P1-1c: 필터링·정렬된 결과 중 처음 PAGE_SIZE개만 먼저 그린다. 검색어/정렬이 바뀌면
+  // 다시 PAGE_SIZE로 되돌린다 — 그렇지 않으면 필터를 바꿨을 때 이전 조건에서 늘려둔
+  // "더 보기" 상태가 새 조건에 엉뚱하게 이어진다. useEffect로 리셋하면 한 번 더 오래된
+  // 개수로 그렸다가 다시 그리는 깜빡임이 생기므로, React 공식 문서가 권장하는 "렌더링 중
+  // 상태 조정" 패턴을 쓴다(https://react.dev/learn/you-might-not-need-an-effect
   // "Adjusting some state when a prop changes"). 폴더 안 문서는 페이지네이션하지 않는다
   // (P7-4 범위 밖 — task.md 참고) — 이 페이지네이션은 미분류 문서에만 적용된다.
-  const filterKey = `${activeTag ?? ""} ${query} ${sortBy}`;
+  const filterKey = `${query} ${sortBy}`;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
@@ -674,8 +664,8 @@ export function EditorSidebar({
     const childFolders = childrenByParent.get(folder.id) ?? [];
     const childDocuments = documentsByFolder.get(folder.id) ?? [];
     // P7-8: 하위 폴더도, (필터와 무관하게) 문서를 가진 적도 없는 진짜 빈 폴더에만 안내를
-    // 보여준다 — 검색/태그 필터로 지금 안 보일 뿐인 폴더까지 "비어 있다"고 잘못 알리지
-    // 않기 위해 filteredDocuments가 아니라 folderIdsWithDocuments(원본 기준)로 판단한다.
+    // 보여준다 — 검색으로 지금 안 보일 뿐인 폴더까지 "비어 있다"고 잘못 알리지 않기
+    // 위해 filteredDocuments가 아니라 folderIdsWithDocuments(원본 기준)로 판단한다.
     const isReallyEmpty = childFolders.length === 0 && !folderIdsWithDocuments.has(folder.id);
     const treeNode: TreeNode = { type: "folder", id: folder.id, depth };
     return (
@@ -918,18 +908,6 @@ export function EditorSidebar({
               );
             })}
           </ul>
-        </div>
-      )}
-
-      {allTags.length > 0 && (
-        <div className="border-b border-border p-3">
-          <ChipGroup
-            items={allTags.map((tag) => ({ id: tag, label: tag }))}
-            value={activeTag ?? ""}
-            onChange={(id) =>
-              setActiveTag((current) => (current === id ? null : id))
-            }
-          />
         </div>
       )}
 
