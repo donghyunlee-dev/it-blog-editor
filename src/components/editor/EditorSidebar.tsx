@@ -152,8 +152,8 @@ function MoveToFolderIcon() {
  * 대신, 이 트리거 하나로 옵션 메뉴를 열어 항목을 늘리는 방식으로 바꾼다(2026-09-14, 사용자가
  * Notion/Confluence/Google Drive 등과 비교 후 결정). 메뉴 자체는 처음엔 `@sfood/ui`의
  * `DropdownMenu`를 썼지만, 사이드바가 스크롤 컨테이너라 팝업이 잘려 보이는 문제로 P14-3에서
- * 직접 그리는 방식으로 바뀌었다(아래 `openDocumentMenu` 관련 코드 참고) — 트리거 아이콘
- * 자체는 그대로다.
+ * 직접 그리는 방식으로 바뀌었다(아래 `openMenu` 관련 코드 참고, P15-1에서 폴더 옵션 메뉴와
+ * 상태를 공유하도록 일반화됨) — 트리거 아이콘 자체는 그대로다.
  */
 function MoreIcon() {
   return (
@@ -433,45 +433,49 @@ export function EditorSidebar({
   const [deleteDocumentTarget, setDeleteDocumentTarget] = useState<DocumentSummary | null>(null);
   const [deletingDocument, setDeletingDocument] = useState(false);
 
-  // P14-3: 문서 옵션(⋯) 메뉴 팝업을 <nav> 바깥에 fixed로 직접 그리기 위해, "어떤 문서의
-  // 메뉴가 열려 있는지"와 "그 트리거가 화면 어디에 있었는지"를 여기서 들고 있는다 —
-  // renderDocumentRow는 이제 트리거만 그리고, 실제 팝업은 이 state를 보고 컴포넌트 하단
-  // (아래 "문서 옵션 메뉴 팝업" 렌더 부분)에서 그린다.
-  const [openDocumentMenu, setOpenDocumentMenu] = useState<{
-    document: DocumentSummary;
+  // P15-1: 문서 옵션(⋯) 메뉴(P14-3)와 폴더 옵션(...) 메뉴가 같은 문제(사이드바
+  // `<nav overflow-y-auto>` 안에서 팝업이 잘림)와 같은 해결책(팝업을 <nav> 바깥에 fixed로
+  // 그림)을 공유하므로, "어떤 대상의 메뉴가 열려 있는지"를 kind로 구분하는 공통 상태
+  // 하나(`openMenu`)로 합친다 — 문서/폴더용 state·effect를 따로 두면 거의 같은 코드가
+  // 두 번 반복된다.
+  type MenuTarget =
+    | { kind: "document"; document: DocumentSummary }
+    | { kind: "folder"; folder: FolderNode };
+  const [openMenu, setOpenMenu] = useState<{
+    target: MenuTarget;
     anchorRect: DOMRect;
     triggerEl: HTMLButtonElement;
   } | null>(null);
-  const documentMenuPopupRef = useRef<HTMLDivElement>(null);
+  const menuPopupRef = useRef<HTMLDivElement>(null);
 
   // P14-3: @sfood/ui의 DropdownMenu가 내부적으로 하던 것(바깥 클릭·Escape로 닫기)을
   // 여기서 직접 구현한다 — 팝업이 트리거와 다른 DOM 위치(<nav> 바깥)에 있어 트리거 하나만
   // 감싸는 ref로는 "바깥 클릭"을 판단할 수 없다(트리거와 팝업 둘 다 확인해야 한다).
   // 스크롤·리사이즈 시에는 앵커 좌표가 낡아지므로 다시 계산하는 대신 그냥 닫는다.
   useEffect(() => {
-    if (!openDocumentMenu) return;
+    if (!openMenu) return;
     function handlePointerDown(event: MouseEvent) {
       const target = event.target as Node;
       if (
-        !openDocumentMenu ||
-        openDocumentMenu.triggerEl.contains(target) ||
-        documentMenuPopupRef.current?.contains(target)
+        !openMenu ||
+        openMenu.triggerEl.contains(target) ||
+        menuPopupRef.current?.contains(target)
       ) {
         return;
       }
-      setOpenDocumentMenu(null);
+      setOpenMenu(null);
     }
     // `KeyboardEvent`는 이 파일 상단에서 React의 합성 이벤트 타입으로 import돼 있어(다른
     // 키보드 핸들러들이 그걸 쓴다), 여기서는 DOM 네이티브 리스너용으로 `globalThis.`를 붙여
     // 구분한다.
     function handleKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key === "Escape") {
-        openDocumentMenu?.triggerEl.focus();
-        setOpenDocumentMenu(null);
+        openMenu?.triggerEl.focus();
+        setOpenMenu(null);
       }
     }
     function handleScrollOrResize() {
-      setOpenDocumentMenu(null);
+      setOpenMenu(null);
     }
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
@@ -483,7 +487,7 @@ export function EditorSidebar({
       window.removeEventListener("scroll", handleScrollOrResize, true);
       window.removeEventListener("resize", handleScrollOrResize);
     };
-  }, [openDocumentMenu]);
+  }, [openMenu]);
 
   // P14-2: DocumentEditor.tsx의 handleDelete와 같은 API 호출이지만, 지금 열려 있는 문서가
   // 아니라 사이드바 목록의 임의 행에서 삭제할 수 있다는 점이 다르다 — 지금 보고 있는
@@ -791,22 +795,29 @@ export function EditorSidebar({
           (2026-09-14, 사용자 지적 — "컨텍스트 메뉴가 문서함 패널 안으로 들어가서 보이지
           않아. z-index를 완전히 밖으로 빼야 할 거 같아" — z-index는 스태킹 순서만 바꿀 뿐
           overflow 클리핑을 뚫지 못한다). `DropdownMenu`에 위치를 바꾸거나 포탈로 그리는
-          prop이 없어 이 자리에는 트리거만 남기고, 실제 팝업은 `openDocumentMenu` state로
+          prop이 없어 이 자리에는 트리거만 남기고, 실제 팝업은 `openMenu` state로
           끌어올려 `<nav>` 바깥(이 컴포넌트 트리 하단)에 `position: fixed`로 직접 그린다 —
-          스크롤 컨테이너의 overflow 영향을 받지 않는다.
+          스크롤 컨테이너의 overflow 영향을 받지 않는다(P15-1: 폴더 옵션 메뉴와 상태를
+          공유한다).
         */}
         <button
           type="button"
           aria-haspopup="menu"
-          aria-expanded={openDocumentMenu?.document.pageId === document.pageId}
+          aria-expanded={
+            openMenu?.target.kind === "document" && openMenu.target.document.pageId === document.pageId
+          }
           aria-label="문서 옵션"
           title="옵션"
           onClick={(event) => {
             const triggerEl = event.currentTarget;
-            setOpenDocumentMenu((current) =>
-              current?.document.pageId === document.pageId
+            setOpenMenu((current) =>
+              current?.target.kind === "document" && current.target.document.pageId === document.pageId
                 ? null
-                : { document, anchorRect: triggerEl.getBoundingClientRect(), triggerEl }
+                : {
+                    target: { kind: "document", document },
+                    anchorRect: triggerEl.getBoundingClientRect(),
+                    triggerEl,
+                  }
             );
           }}
           // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
@@ -818,19 +829,20 @@ export function EditorSidebar({
     );
   }
 
+  type MenuItem = {
+    label: string;
+    icon: ReactNode;
+    danger?: boolean;
+    divider?: boolean;
+    onClick: () => void;
+  };
+
   /**
-   * P14-3: `openDocumentMenu`(현재 열린 문서 옵션 메뉴)가 있을 때 그 문서 기준으로 메뉴
-   * 항목을 조립한다. "이동"만 폴더가 하나도 없는 계정에서는 의미가 없어(옮길 곳이 없음)
-   * 조건부로 뺀다 — 이력·삭제는 폴더 유무와 무관하게 항상 유효하다.
+   * P14-3: 문서 옵션 메뉴 항목 조립. "이동"만 폴더가 하나도 없는 계정에서는 의미가 없어
+   * (옮길 곳이 없음) 조건부로 뺀다 — 이력·삭제는 폴더 유무와 무관하게 항상 유효하다.
    */
-  function buildDocumentMenuItems(document: DocumentSummary) {
-    const items: {
-      label: string;
-      icon: ReactNode;
-      danger?: boolean;
-      divider?: boolean;
-      onClick: () => void;
-    }[] = [];
+  function buildDocumentMenuItems(document: DocumentSummary): MenuItem[] {
+    const items: MenuItem[] = [];
     if (flatFolderOptions.length > 0) {
       items.push({
         label: "다른 폴더로 이동",
@@ -851,6 +863,42 @@ export function EditorSidebar({
       onClick: () => setDeleteDocumentTarget(document),
     });
     return items;
+  }
+
+  /**
+   * P15-1: 폴더 옵션(...) 메뉴 항목 조립 — 기존에 폴더 행에 나란히 있던 "하위 폴더
+   * 추가"·"이름 변경"·"삭제" 아이콘 버튼 3개를 메뉴 하나로 모은다("+"는 "새 문서"로
+   * 의미가 바뀌어 메뉴 밖, 트리거 옆에 그대로 남는다 — 아래 renderFolderNode 참고).
+   * 실행 로직(모달을 여는 것) 자체는 그대로다.
+   */
+  function buildFolderMenuItems(folder: FolderNode): MenuItem[] {
+    return [
+      {
+        label: "하위 폴더 추가",
+        icon: <PlusIcon />,
+        onClick: () => setFolderFormState({ type: "create", parentId: folder.id }),
+      },
+      {
+        label: "이름 변경",
+        icon: <PencilIcon />,
+        onClick: () =>
+          setFolderFormState({ type: "rename", folderId: folder.id, currentName: folder.name }),
+      },
+      {
+        label: "삭제",
+        icon: <TrashIcon />,
+        danger: true,
+        divider: true,
+        onClick: () => setDeleteFolderTarget(folder),
+      },
+    ];
+  }
+
+  /** P15-1: `openMenu.target`의 kind에 따라 알맞은 메뉴 항목 조립 함수로 위임한다. */
+  function buildMenuItems(target: MenuTarget): MenuItem[] {
+    return target.kind === "document"
+      ? buildDocumentMenuItems(target.document)
+      : buildFolderMenuItems(target.folder);
   }
 
   /**
@@ -879,12 +927,15 @@ export function EditorSidebar({
         aria-selected={false}
       >
         {/*
-          P7-5: 토글(펼침/접힘)과 액션 버튼(하위 폴더 추가·이름변경·삭제)은 서로 다른
-          <button>이라 하나의 바깥 <div>로 나란히 둔다(버튼 중첩은 유효한 HTML이 아님).
-          액션 버튼은 평소엔 숨겨져 있다가 행에 마우스를 올리거나(hover) 키보드로
-          포커스가 들어오면(focus-within) 나타난다 — 항상 노출하면 폴더가 많을 때
-          시각적으로 번잡해진다는 판단(사이드바 폭 조절 핸들의 "평소엔 거의 안 보이다가"
-          패턴과 같은 원칙).
+          P7-5: 토글(펼침/접힘)과 액션 버튼은 서로 다른 <button>/<Link>라 하나의 바깥
+          <div>로 나란히 둔다(버튼 중첩은 유효한 HTML이 아님). 액션 버튼은 평소엔 숨겨져
+          있다가 행에 마우스를 올리거나(hover) 키보드로 포커스가 들어오면(focus-within)
+          나타난다 — 항상 노출하면 폴더가 많을 때 시각적으로 번잡해진다는 판단(사이드바
+          폭 조절 핸들의 "평소엔 거의 안 보이다가" 패턴과 같은 원칙).
+          P15-1: 액션이 "+"(새 문서)·"..."(옵션: 하위 폴더 추가/이름 변경/삭제) 두 개로
+          줄었다 — 폴더 안에 문서를 바로 만들 방법이 없다는 지적(2026-09-14, "폴더에서
+          새문서를 시작할 방법이 없어")으로 "+"의 의미를 "하위 폴더 추가"에서 "새 문서"로
+          바꾸고, 원래 "+"가 하던 일과 이름변경·삭제는 "..." 메뉴로 옮긴다.
         */}
         <div
           id={`sidebar-folder-${folder.id}`}
@@ -916,34 +967,39 @@ export function EditorSidebar({
             <span className="min-w-0 flex-1 truncate">{folder.name}</span>
           </button>
           <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-default group-hover:opacity-100 group-focus-within:opacity-100">
-            <button
-              type="button"
-              aria-label="하위 폴더 추가"
-              title="하위 폴더 추가"
-              onClick={() => setFolderFormState({ type: "create", parentId: folder.id })}
+            <Link
+              href={`/editor/new?folder=${folder.id}`}
+              onClick={onNavigate}
+              onNavigate={(event) => guardNavigate(event, `/editor/new?folder=${folder.id}`)}
+              // 사이드바 맨 아래(미분류)의 "새 문서" 버튼과 접근성 이름이 겹치면 테스트·
+              // 스크린리더 모두에서 어느 쪽인지 구별할 수 없다 — 폴더 이름을 넣어 구분한다.
+              aria-label={`"${folder.name}"에 새 문서`}
+              title="이 폴더에 새 문서"
               className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
             >
               <PlusIcon />
-            </button>
+            </Link>
             <button
               type="button"
-              aria-label="폴더 이름 변경"
-              title="이름 변경"
-              onClick={() =>
-                setFolderFormState({ type: "rename", folderId: folder.id, currentName: folder.name })
-              }
+              aria-haspopup="menu"
+              aria-expanded={openMenu?.target.kind === "folder" && openMenu.target.folder.id === folder.id}
+              aria-label="폴더 옵션"
+              title="옵션"
+              onClick={(event) => {
+                const triggerEl = event.currentTarget;
+                setOpenMenu((current) =>
+                  current?.target.kind === "folder" && current.target.folder.id === folder.id
+                    ? null
+                    : {
+                        target: { kind: "folder", folder },
+                        anchorRect: triggerEl.getBoundingClientRect(),
+                        triggerEl,
+                      }
+                );
+              }}
               className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
             >
-              <PencilIcon />
-            </button>
-            <button
-              type="button"
-              aria-label="폴더 삭제"
-              title="삭제"
-              onClick={() => setDeleteFolderTarget(folder)}
-              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface hover:text-foreground"
-            >
-              <TrashIcon />
+              <MoreIcon />
             </button>
           </div>
         </div>
@@ -1118,32 +1174,6 @@ export function EditorSidebar({
         </div>
       )}
 
-      {/*
-        "새 문서"를 폴더 생성 바로 위로 옮겼다(2026-09-11, 사용자 요청) — 문서를 새로
-        만드는 시점은 대개 "지금 보고 있는 폴더 맥락에 문서를 추가한다"는 흐름이라, 폴더
-        영역 바로 위에 두는 것이 아래로 스크롤해야 있던 예전 위치보다 더 자연스럽다.
-        border-b로 "컨트롤 영역 ↔ 문서 목록"의 경계를 표시한다(예전엔 검색 입력 쪽이
-        이 경계를 맡았다).
-      */}
-      <div className="border-b border-border p-2.5">
-        {/*
-          @sfood/ui의 Button은 <button>만 지원해 href를 받을 수 없다(ButtonHTMLAttributes 기반).
-          실제 페이지 이동이 필요하므로 Link를 쓰되, 이 사이드바의 유일한 1차 액션이라는 의미를
-          살리기 위해 Button variant="primary"와 동일한 토큰 클래스를 그대로 재사용한다.
-        */}
-        <Link
-          href="/editor/new"
-          onClick={onNavigate}
-          onNavigate={(event) => guardNavigate(event, "/editor/new")}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
-        >
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          새 문서
-        </Link>
-      </div>
-
       <nav className="flex-1 overflow-y-auto p-2.5" aria-label="문서 목록">
         {/*
           P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
@@ -1221,25 +1251,48 @@ export function EditorSidebar({
             더 보기
           </Button>
         )}
+
+        {/*
+          P15-1: 예전엔 이 버튼이 사이드바 맨 위, "폴더" 섹션 바로 앞에 있었다(2026-09-11).
+          폴더 행 자체에 "이 폴더에 새 문서"("+")가 생기면서, 여기 남은 이 버튼은 그
+          대응 짝인 "미분류에 새 문서"가 된다 — 미분류 문서 목록이 항상 이 트리의 맨
+          마지막에 오므로, 위치 자체가 "여기서 만들면 미분류로 들어간다"는 것을 자연스럽게
+          알려준다(사용자 지적 — "미분류가 항상 리스트에 밑에 떨어진다면, 새문서 버튼을
+          하단으로 이동해서 미분류 문서 만드는 걸로 연결지어 볼까?"). 폴더가 하나도 없는
+          계정(대부분의 현재 사용자)은 이 버튼이 유일한 사이드바 내 생성 진입점이라 기존과
+          동작이 같다 — 위치만 위→아래로 바뀐다. `/editor` 홈 화면의 "새 문서 작성" CTA도
+          같은 동작(미분류 생성)의 또 다른 진입점으로 그대로 남아 있다.
+        */}
+        <Link
+          href="/editor/new"
+          onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, "/editor/new")}
+          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
+        >
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          새 문서
+        </Link>
       </nav>
 
       {/*
-        P14-3: 문서 옵션(⋯) 메뉴 팝업 — `<nav>`(스크롤 컨테이너) 바깥의 형제 위치에 그려서
-        overflow 클리핑을 받지 않는다. `position: fixed` + 트리거의 `getBoundingClientRect()`
-        좌표로 뷰포트 기준에 직접 배치한다(위 `openDocumentMenu` state·`renderDocumentRow`
-        주석 참고).
+        P14-3/P15-1: 문서 옵션(⋯)·폴더 옵션(...) 메뉴가 공유하는 팝업 — `<nav>`(스크롤
+        컨테이너) 바깥의 형제 위치에 그려서 overflow 클리핑을 받지 않는다. `position:
+        fixed` + 트리거의 `getBoundingClientRect()` 좌표로 뷰포트 기준에 직접 배치한다
+        (위 `openMenu` state·`renderDocumentRow`/`renderFolderNode` 주석 참고).
       */}
-      {openDocumentMenu && (
+      {openMenu && (
         <div
-          ref={documentMenuPopupRef}
+          ref={menuPopupRef}
           role="menu"
           className="fixed z-50 min-w-[160px] rounded-card border border-border bg-surface py-1 shadow-lg"
           style={{
-            top: openDocumentMenu.anchorRect.bottom + 4,
-            left: openDocumentMenu.anchorRect.left,
+            top: openMenu.anchorRect.bottom + 4,
+            left: openMenu.anchorRect.left,
           }}
         >
-          {buildDocumentMenuItems(openDocumentMenu.document).map((item) => (
+          {buildMenuItems(openMenu.target).map((item) => (
             <div key={item.label}>
               {item.divider && <div className="my-1 border-t border-border" aria-hidden="true" />}
               <button
@@ -1251,7 +1304,7 @@ export function EditorSidebar({
                 }
                 onClick={() => {
                   item.onClick();
-                  setOpenDocumentMenu(null);
+                  setOpenMenu(null);
                 }}
               >
                 {item.icon}

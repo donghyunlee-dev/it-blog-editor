@@ -25,7 +25,7 @@
 |---|---|---|---|
 | 로그인 화면 | AX Auth(사내 SSO)로 로그인 | `@sfood/ui`의 `Card`/`Typography`/`Alert` 조합(`LoginSimple`은 email/password 폼 전용이라 SSO 리다이렉트 흐름에 맞지 않아 쓰지 않음 — [design.md](./design.md) "로그인 화면" 절 참고), "MS 계정으로 로그인" 버튼, 로그인 실패 안내 | `/login` |
 | 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지 + 태그, 태그 필터, "새 문서" 버튼), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
-| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·게시 설정 여는 버튼(삭제·이력은 2026-09-14 P14-2로 헤더에서 빠지고 사이드바 문서 옵션 메뉴로 이동) | `/editor/new`, `/editor/[pageId]` |
+| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·게시 설정 여는 버튼(삭제·이력은 2026-09-14 P14-2로 헤더에서 빠지고 사이드바 문서 옵션 메뉴로 이동). 사이드바 폴더 행의 "+"로 들어오면 `?folder={id}` 쿼리로 그 폴더에 바로 배정되고 헤더에 폴더 경로 브레드크럼이 보인다(2026-09-14, P15-1) | `/editor/new`, `/editor/new?folder={id}`, `/editor/[pageId]` |
 
 | 게시 설정 | 게시 여부·뷰어별 slug·메타 설명 설정 | 문서 전체 게시 토글, 뷰어별 카드(지금은 Tech Blog 1개, 카드마다 slug·메타 설명 입력) — 별도 화면이 아니라 문서 편집 화면(`DocumentEditor`) 안에서 열리는 `Modal` 오버레이다(2026-08-26 변경 — 기존 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal |
 | 환영 페이지(2026-09-03 추가, 같은 날 세 차례 재구성 — Modal→페이지→서비스 소개 보강→레퍼런스 기반 재설계) | 신규 가입자(또는 이름·팀 미입력 계정)가 로그인 직후 이름·팀을 입력하는 전용 화면. 로그인 화면과 같은 브랜드 셸(`AuthSplitShell`) 안에서, 따뜻한 인사말 한 단락으로 서비스를 소개하고("나만의 문서를 만들어 관리하고, 팀원과 공유") 로그인 계정 이메일을 함께 보여줌 | `AuthSplitShell`(좌측 `BrandPanelArt`, 우측 콘텐츠) + `Typography` 인사말 + `Avatar`로 계정 표시 + `FormField` 2개 + `Button`, 저장 성공 시 `/editor`로 이동 | `/welcome` — `/editor/layout.tsx`가 `needsOnboarding`이면 여기로 리다이렉트 |
@@ -626,6 +626,25 @@
   통과했다. `.sidebar-row-menu-right` CSS 규칙은 더 이상 필요 없어 제거했다. 산출물:
   `docs/superpowers/tasks/P14-3-sidebar-menu-portal-fix/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/app/globals.css
+
+### Phase 15 — 새 문서 생성 진입점 개편 (신규, 2026-09-14 계획)
+- [x] (완료, P15-1) 폴더별 "+"·사이드바 "새 문서" 버튼 재배치 — 폴더 트리(P7-4/P7-5)가 있어도
+  폴더 안에 문서를 바로 만들 방법이 없다는 지적("폴더에서 새문서를 시작할 방법이 없어")에
+  대응한다. 백엔드(`POST /api/editor/documents`)는 이미 `folderId`를 받았지만(P7-3) 프론트에서
+  쓰인 적이 없었다 — 이번 작업은 그 배선만 완성한다. (1) 폴더 행의 "+"를 "하위 폴더
+  추가"에서 "이 폴더에 새 문서"(`/editor/new?folder={id}`)로 바꾸고, 원래 "+"가 하던 일과
+  이름변경·삭제는 문서 옵션 메뉴(P14)와 같은 패턴의 "..."(폴더 옵션) 메뉴로 옮겼다 —
+  두 메뉴는 `openDocumentMenu` state를 `MenuTarget` 기반 `openMenu`로 일반화해 열기/닫기·
+  `<nav>` 바깥 `position: fixed` 렌더 로직을 공유한다. (2) 사이드바 상단의 "새 문서" 버튼은
+  삭제 대신 문서/폴더 목록 맨 아래(미분류 문서 다음)로 옮겼다 — 처음엔 완전히 없애고 `/editor`
+  홈 화면 CTA만 남기려 했으나, 폴더가 없는 계정(대부분)은 사이드바 안에서 문서를 만들 방법이
+  사라지는 퇴보라는 지적으로 정정했다. (3) `/editor/new?folder={id}`로 들어가면 헤더에 폴더
+  경로 브레드크럼(P7-7 메커니즘을 create 모드에도 연결)이 보이고, 저장 시 그 폴더로 배정된
+  문서가 만들어진다. 산출물:
+  `docs/superpowers/tasks/P15-1-new-document-entry-points/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
+  src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
+  src/app/editor/new/page.tsx
 
 
 ## 🗄️ 데이터 저장 여부
