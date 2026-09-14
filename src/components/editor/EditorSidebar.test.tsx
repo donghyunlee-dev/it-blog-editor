@@ -163,34 +163,12 @@ describe("EditorSidebar", () => {
   it("문서 목록 행에는 태그를 표시하지 않는다(2026-09-11, 태그가 많으면 행이 늘어나 밀도가 떨어진다는 피드백으로 제거)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
-    // 태그 필터 칩(상단 ChipGroup, role="tab")에는 "React"/"Backend"가 여전히 남아 있지만,
-    // 문서 목록 행(aria-label="문서 목록") 안에는 더 이상 태그가 렌더링되지 않는다.
+    // 문서 목록 행(aria-label="문서 목록") 안에는 태그가 렌더링되지 않는다. 태그 필터
+    // 칩(ChipGroup) 자체도 P12-1로 제거되어(태그는 검색으로만 활용) role="tab"이 없다.
     const list = screen.getByRole("navigation", { name: "문서 목록" });
     expect(within(list).queryByText("React")).not.toBeInTheDocument();
     expect(within(list).queryByText("Backend")).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "React" })).toBeInTheDocument();
-  });
-
-  it("태그를 클릭하면 그 태그가 붙은 문서만 보여준다", async () => {
-    render(<EditorSidebar documents={DOCS} />);
-
-    // 태그 필터 칩은 문서 목록에도 같은 텍스트("React")가 나오므로,
-    // ChipGroup이 렌더링하는 role="tab" 칩으로 좁혀서 클릭한다.
-    await userEvent.click(screen.getByRole("tab", { name: "React" }));
-
-    expect(screen.getByText("문서A")).toBeInTheDocument();
-    expect(screen.queryByText("문서B")).not.toBeInTheDocument();
-  });
-
-  it("같은 태그를 다시 클릭하면 필터가 해제된다", async () => {
-    render(<EditorSidebar documents={DOCS} />);
-
-    const reactTab = screen.getByRole("tab", { name: "React" });
-    await userEvent.click(reactTab);
-    await userEvent.click(reactTab);
-
-    expect(screen.getByText("문서A")).toBeInTheDocument();
-    expect(screen.getByText("문서B")).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "React" })).not.toBeInTheDocument();
   });
 
   it("문서가 없으면 빈 상태를 보여준다", () => {
@@ -372,17 +350,6 @@ describe("EditorSidebar", () => {
     const nav = screen.getByRole("navigation", { name: "문서 목록" });
     expect(within(nav).getAllByRole("listitem")).toHaveLength(30);
     expect(screen.getByRole("button", { name: "더 보기" })).toBeInTheDocument();
-  });
-
-  it("태그 필터와 검색어가 함께(AND) 적용된다(P1-1a)", async () => {
-    render(<EditorSidebar documents={DOCS} />);
-
-    await userEvent.click(screen.getByRole("tab", { name: "React" }));
-    await userEvent.type(screen.getByPlaceholderText("문서 검색"), "문서B");
-
-    // 태그 필터(React)만으로는 문서A가 남고, 검색어(문서B)만으로는 문서B가 남는다 —
-    // 둘 다 만족하는 문서가 없으므로 빈 상태여야 한다.
-    expect(screen.getByText("조건에 맞는 문서가 없습니다.")).toBeInTheDocument();
   });
 
   it("편집 중인 문서에 저장하지 않은 변경사항이 있으면 다른 문서 클릭 시 확인을 받는다(P0-1a)", async () => {
