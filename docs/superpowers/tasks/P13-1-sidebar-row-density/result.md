@@ -1,7 +1,7 @@
 # P13-1: 사이드바 문서함 행 밀도·들여쓰기 조정 — 결과
 
 ## 커밋
-- (커밋 후 기록 예정)
+- `c949f0a` fix: 사이드바 문서함 행 밀도·들여쓰기 조정 (P13-1)
 
 ## 변경 파일
 - `src/components/editor/EditorSidebar.tsx`
