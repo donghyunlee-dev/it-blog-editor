@@ -78,7 +78,7 @@
 | c6e5554 | fix: 본문 스크롤 영역의 스크롤바를 숨김 (P8-5 후속) |
 | caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
 | ef8f62e | fix: 본문↔TOC 거터가 헤더 정렬 spacer까지 밀어내던 문제 수정 (P8-5 후속) |
-| (커밋 후 기록) | fix: 클릭 활성 판정 기준선을 scroll-margin-top과 일치시킴 (P8-5 후속) |
+| c49594f | fix: 클릭 활성 판정 기준선을 scroll-margin-top과 일치시킴 (P8-5 후속) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
