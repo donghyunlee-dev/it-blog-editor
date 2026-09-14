@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useState, type RefObject } from "react";
+import { useContext, useEffect, useRef, useState, type RefObject } from "react";
 import type { JSONContent } from "@tiptap/react";
 import { TocRailContext } from "./EditorShell";
 
@@ -59,10 +59,20 @@ const BOTTOM_EPSILON = 2; // 스크롤이 바닥에 닿았는지 판정할 때 �
  * 그래서 "화면에 걸쳐있는지"가 아니라 스크롤이 실제로 어디까지 왔는지를 직접 읽는다 —
  * 아직 첫 헤딩도 지나지 않았으면 첫 헤딩을 기본값으로, 스크롤이 바닥에 닿았으면(더
  * 내려갈 데가 없으면) 위치 계산과 무관하게 무조건 마지막 헤딩을 활성으로 본다.
+ *
+ * `pinnedByClick`(2026-09-14 후속): 위 "바닥에 닿았으면 무조건 마지막 헤딩" 규칙은
+ * 화면에 헤딩 2개 이상이 한 번에 들어올 만큼 문서(또는 마지막 구간)가 짧으면 거의 항상
+ * 참이 된다 — 그 상태에서 마지막이 아닌 다른 항목을 클릭하면, `scrollIntoView`의 smooth
+ * 스크롤이 안착하는 동안 매 `scroll` 이벤트마다 이 함수가 다시 불려서 그때마다 "바닥이니까
+ * 마지막"으로 되돌아가 버렸다("컨텐츠는 이동하는데 TOC는 클릭한 제목에 포커스가 안 된다"
+ * 는 제보로 발견 — 무한 루프는 아니지만, 클릭 의도와 스크롤 위치 기반 계산이 매 스크롤
+ * 이벤트마다 서로 덮어써 사실상 클릭이 무효화되는 상태였다). 방금 클릭한 헤딩이 있으면
+ * (사용자가 실제로 휠/터치로 스크롤하기 전까지) 바닥 판정보다 그 클릭을 우선한다.
  */
 function computeActiveHeading(
   headings: HeadingItem[],
-  scrollParent: HTMLElement
+  scrollParent: HTMLElement,
+  pinnedByClick: HTMLHeadingElement | null
 ): HTMLHeadingElement | null {
   if (headings.length === 0) {
     return null;
@@ -71,6 +81,9 @@ function computeActiveHeading(
   const atBottom =
     scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight <= BOTTOM_EPSILON;
   if (atBottom) {
+    if (pinnedByClick && headings.some((heading) => heading.element === pinnedByClick)) {
+      return pinnedByClick;
+    }
     return headings[headings.length - 1].element;
   }
 
@@ -117,6 +130,11 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
   const setTocRail = useContext(TocRailContext);
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [activeElement, setActiveElement] = useState<HTMLHeadingElement | null>(null);
+  // 방금 목차를 클릭해 이동 중인 헤딩(computeActiveHeading의 pinnedByClick 주석 참고).
+  // ref로 두는 이유: 이 값 자체가 화면에 그려지는 상태가 아니라(activeElement가 그
+  // 역할이다) "다음 scroll 이벤트가 바닥 판정을 클릭보다 우선할지" 판단하는 내부
+  // 신호일 뿐이라, 바뀔 때마다 리렌더를 일으킬 필요가 없다.
+  const pinnedByClickRef = useRef<HTMLHeadingElement | null>(null);
 
   // 본문이 바뀔 때마다 실제 렌더링된 h2/h3를 다시 훑는다.
   //
@@ -178,14 +196,26 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     const scrollParent = getScrollParent(container);
 
     function update() {
-      setActiveElement(computeActiveHeading(headings, scrollParent));
+      setActiveElement(computeActiveHeading(headings, scrollParent, pinnedByClickRef.current));
+    }
+
+    // 실제로 사용자가 손으로 스크롤했다는 신호(휠·트랙패드·터치)가 오면, 클릭으로 고정해
+    // 둔 헤딩을 놓아준다 — 그래야 진짜로 바닥까지 스크롤했을 때는 원래 의도(마지막 헤딩
+    // 활성화)대로 동작한다. `scrollIntoView`가 만드는 프로그램적 스크롤은 이 이벤트들을
+    // 발생시키지 않으므로, 클릭 직후 그 스크롤이 안착하는 동안에는 계속 고정된 채 남는다.
+    function releasePin() {
+      pinnedByClickRef.current = null;
     }
 
     update();
     scrollParent.addEventListener("scroll", update, { passive: true });
+    scrollParent.addEventListener("wheel", releasePin, { passive: true });
+    scrollParent.addEventListener("touchmove", releasePin, { passive: true });
     window.addEventListener("resize", update);
     return () => {
       scrollParent.removeEventListener("scroll", update);
+      scrollParent.removeEventListener("wheel", releasePin);
+      scrollParent.removeEventListener("touchmove", releasePin);
       window.removeEventListener("resize", update);
     };
     // containerRef는 안정된 ref 객체라 의존성에 넣을 필요가 없다.
@@ -240,15 +270,18 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
                     aria-current={isActive ? "true" : undefined}
                     onClick={(event) => {
                       event.preventDefault();
+                      // 이 클릭으로 이동 중인 헤딩을 "고정"해 둔다 — computeActiveHeading의
+                      // pinnedByClick 주석 참고. 문서(또는 마지막 구간)가 짧아 화면에 헤딩이
+                      // 2개 이상 한 번에 보일 정도면 "바닥" 판정이 거의 항상 참이 되는데,
+                      // 이 고정이 없으면 smooth 스크롤이 안착하는 동안의 매 scroll 이벤트가
+                      // 그때마다 "바닥이니까 마지막 헤딩"으로 되돌려서 클릭이 사실상
+                      // 무효화됐다(2026-09-14 실사용 중 발견). 사용자가 실제로 휠/터치로
+                      // 스크롤하면(releasePin) 이 고정을 풀어 원래 동작으로 돌아간다.
+                      pinnedByClickRef.current = heading.element;
                       heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
                       // 클릭한 항목을 즉시 활성으로 본다(낙관적 갱신) — 그러지 않으면
-                      // 스크롤이 바닥 근처에 있는 동안, "바닥에 닿았으면 마지막 헤딩을
-                      // 무조건 활성으로 본다"는 아래 computeActiveHeading의 바닥-고정
-                      // 규칙이 클릭 직후의 다음 scroll 이벤트에서 이 선택을 곧바로
-                      // 덮어써버려, 마지막 항목보다 위에 있는 항목은 클릭해도 활성
-                      // 표시가 안 바뀌는 것처럼 보였다(2026-09-14 실사용 중 발견). smooth
-                      // 스크롤이 끝나 실제 위치가 안정되면 이후 scroll 이벤트가 이 값을
-                      // 다시 계산해 확정한다 — 그 사이 잠깐 보여주는 낙관적 표시일 뿐이다.
+                      // smooth 스크롤이 안착하기 전까지 화면에는 예전 활성 항목이 그대로
+                      // 남아 있어, 클릭이 반영되기까지 잠깐 아무 반응이 없는 것처럼 보인다.
                       setActiveElement(heading.element);
                     }}
                     className={
