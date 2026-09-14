@@ -24,5 +24,27 @@
 - **우려사항**: AX Auth 로그인 제약으로 이 세션에서는 실제 브라우저로 픽셀 단위 렌더링
   폭을 확인하지 못했다(P7-7·P8-1·P8-4와 동일한 한계) — 클래스 적용 여부로 대신 검증했다.
 
+## 후속 수정(2026-09-14) — 패딩이 830px 안에서 깎여나가던 문제
+사용자가 실제 화면을 레퍼런스와 다시 비교하며 "본문 WIDTH가 참고 사이트와 다르다 —
+830px로 읽었는데 우리는 여백 포함해서 830이다"라고 지적했다. 확인해보니 이 태스크가
+바꾼 `max-w-[830px]`가 `px-6`(좌우 24px)과 **같은 엘리먼트**에 있었다 — Tailwind
+기본 box-sizing(border-box)에서는 padding이 그 요소의 `max-width` 안에서 깎여나가므로,
+실제 본문(읽기 영역) 폭은 830px가 아니라 830-48=782px였다. 레퍼런스가 실측한 830px는
+본문 텍스트 자체의 순수 폭이라(design.md "1. 전체 그리드" 절 "패딩 겹침 정정" 참고),
+782px는 그보다 48px 좁았던 것이다.
+
+- **커밋**: `src/components/editor/DocumentEditor.tsx`의 `px-6`을 `max-w-[830px]`가
+  있는 엘리먼트에서 그 바깥(`flex justify-center`) 줄로 옮겼다 — 830px는 이제 본문
+  자신만의 순수 폭이고, `px-6`은 그 830px 박스 전체를 감싸는 여유 공간(좁은 화면에서만
+  실제로 줄어드는 가장자리 여백)이다.
+- **검증**: 로그인 화면에 접근할 수 없어, 같은 클래스만 떼어낸 정적 페이지에서
+  `getBoundingClientRect()`로 직접 측정 — 수정 전에는(재현 목적으로 `px-6`을 안쪽에
+  둔 버전도 함께 측정) 782px, 수정 후에는 830px 그대로 나옴을 확인했다.
+  `npx vitest run src/components/editor/DocumentEditor.test.tsx` — 40개 전부 통과
+  (기존 "max-w-[830px] 클래스 존재" 테스트는 클래스가 여전히 같은 값이라 그대로 통과 —
+  이 회귀는 클래스 문자열이 아니라 실제 렌더링 폭에서만 드러나는 종류라, 테스트가
+  이번 문제를 원래는 잡아내지 못했다는 뜻이다). `npx eslint`, `npx tsc --noEmit`,
+  `npm run build` — 전부 통과.
+
 ## 산출물
 - `docs/superpowers/tasks/P8-6-body-max-width/{task,plan,result,test}.md`

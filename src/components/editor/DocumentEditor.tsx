@@ -796,8 +796,17 @@ export function DocumentEditor({
         여기서 본문+TOC를 `justify-center gap-12`로 한 묶음처럼 가운데 정렬했는데, TOC가
         스크롤 영역 밖 독립된 컬럼이 되면서 본문 하나만 가운데 정렬하면 된다.
       */}
-      <div className="flex justify-center">
-        <div className="flex w-full max-w-[830px] flex-col px-6 py-10">
+      {/*
+        P8-6 후속(2026-09-14): `px-6`(좌우 24px)을 본문 폭 상한(`max-w-[830px]`)과 같은
+        엘리먼트에 두면 Tailwind 기본 box-sizing(border-box)상 그 패딩이 830px 안에서
+        깎여나가, 실제 읽기 영역이 830-48=782px로 레퍼런스(순수 830px 텍스트 폭)보다
+        좁아진다("문서 컨텐츠의 WIDTH가 참고 사이트와 달라 — 830px로 읽은 거 같은데,
+        우리 컨텐츠는 여백 포함해서 830"이라는 지적으로 발견). 이 바깥 줄로 `px-6`을
+        옮기면 830px는 본문 자신만의 순수 폭이 되고, `px-6`은 그 830px 박스 전체를
+        감싸는 여유 공간(좁은 화면에서만 실제로 줄어드는 가장자리 여백)이 된다.
+      */}
+      <div className="flex justify-center px-6">
+        <div className="flex w-full max-w-[830px] flex-col py-10">
           {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
               sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
               실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).
