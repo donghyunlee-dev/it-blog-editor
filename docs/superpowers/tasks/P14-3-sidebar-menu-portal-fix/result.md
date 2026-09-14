@@ -1,7 +1,7 @@
 # P14-3: 문서 옵션 메뉴 클리핑 수정 — 결과
 
 ## 커밋
-- (커밋 후 기록 예정)
+- `edc49fa` fix: 문서 옵션 메뉴가 사이드바 스크롤 영역에 잘리는 문제 수정 (P14-3)
 
 ## 변경 파일
 - `src/components/editor/EditorSidebar.tsx`
