@@ -8,13 +8,12 @@ import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/docume
 import type { FolderNode } from "@/lib/editor/folders";
 
 // P0-1a 가드 테스트만 useRouter()를 실제로 거치는 UnsavedChangesProvider로 감싸므로,
-// 여기서만 next/navigation을 모킹한다(usePathname은 라우터 프로바이더 없이도 null을
-// 반환할 뿐 던지지 않는 실제 동작을 그대로 쓴다 — 다른 기존 테스트들이 이에 의존한다).
-// useRouter()가 실제 Next.js에서는 항상 같은 객체 참조를 돌려주는 것과 달리, 매번 새
-// 객체 리터럴을 반환하면 그 객체를 의존성 배열에 넣는 effect(P7-7, 아래 focusFolderId
-// 처리)가 렌더마다 재실행돼 setState → 리렌더 → 재실행으로 이어지는 무한 루프가 생긴다
-// (실제로 겪은 문제 — 이 파일의 P7-7 테스트가 타임아웃났다). 그래서 push/replace/refresh를
-// 감싸는 router 객체 자체를 한 번만 만들어 매 호출에 같은 참조를 돌려준다.
+// 여기서만 next/navigation을 모킹한다. useRouter()가 실제 Next.js에서는 항상 같은 객체
+// 참조를 돌려주는 것과 달리, 매번 새 객체 리터럴을 반환하면 그 객체를 의존성 배열에 넣는
+// effect(P7-7, 아래 focusFolderId 처리)가 렌더마다 재실행돼 setState → 리렌더 → 재실행으로
+// 이어지는 무한 루프가 생긴다(실제로 겪은 문제 — 이 파일의 P7-7 테스트가 타임아웃났다).
+// 그래서 push/replace/refresh를 감싸는 router 객체 자체를 한 번만 만들어 매 호출에 같은
+// 참조를 돌려준다.
 const { push, replace, refresh, router } = vi.hoisted(() => {
   const push = vi.fn();
   const replace = vi.fn();
@@ -26,17 +25,26 @@ const { push, replace, refresh, router } = vi.hoisted(() => {
 // 라우터 컨텍스트 없이는 항상 null만 반환해 재현할 방법이 없다. router.replace는 그 폴더에
 // 도착한 뒤 쿼리를 지우는 데 쓴다(EditorSidebar.tsx).
 const mockSearchParams = vi.hoisted(() => ({ current: new URLSearchParams() }));
+// 2026-09-15 버그 수정: 위 focusFolderId 처리는 pathname이 정확히 "/editor"일 때만
+// searchParams를 읽는다(다른 화면의 "folder" 쿼리와 이름이 겹쳐도 간섭하지 않기 위해 —
+// 아래 "폴더 새 문서 링크와 쿼리 이름이 겹쳐도" describe 블록 참고). 실제 usePathname은
+// 라우터 컨텍스트 없이 null만 돌려줘 이 분기를 테스트에서 제어할 수 없으므로 직접 모킹한다.
+// 대부분의 기존 테스트는 "/editor"(사이드바가 실제로 가장 많이 보이는 화면)를 기본값으로
+// 둬 기존 동작을 그대로 유지한다.
+const mockPathname = vi.hoisted(() => ({ current: "/editor" }));
 vi.mock("next/navigation", async (importOriginal) => {
   const actual = await importOriginal<typeof import("next/navigation")>();
   return {
     ...actual,
     useRouter: () => router,
     useSearchParams: () => mockSearchParams.current,
+    usePathname: () => mockPathname.current,
   };
 });
 
 beforeEach(() => {
   mockSearchParams.current = new URLSearchParams();
+  mockPathname.current = "/editor";
   push.mockClear();
   replace.mockClear();
 });
@@ -609,6 +617,15 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
       "href",
       "/editor/new?folder=f1"
     );
+  });
+
+  it("'/editor/new?folder=f1'에 있을 때는 P7-7의 폴더 도착 처리(router.replace('/editor'))가 반응하지 않는다(2026-09-15 버그 수정 — 폴더 '+'가 같은 이름의 'folder' 쿼리를 써서 메인 화면으로 튕겨나가던 문제)", () => {
+    mockPathname.current = "/editor/new";
+    mockSearchParams.current = new URLSearchParams("folder=f1");
+
+    renderSidebar();
+
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("폴더 옵션 메뉴의 '하위 폴더 추가'를 누르면 그 폴더를 parentId로 하는 생성 모달이 뜬다(P15-1)", async () => {
