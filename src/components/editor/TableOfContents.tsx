@@ -36,12 +36,10 @@ function getScrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
-// globals.css의 `.prose h2, .prose h3 { scroll-margin-top: 4.5rem }`(72px)과 반드시
-// 같은 값이어야 한다 — 클릭 시 scrollIntoView()가 그 scroll-margin-top만큼 헤딩 위에
-// 여백을 두고 정렬하는데(문서 헤더에 가리지 않기 위함), 이 기준선이 그보다 낮으면
-// (예전엔 64였다) 방금 스크롤해 도착한 헤딩의 top이 기준선을 살짝 넘어버려 그 헤딩이
-// "지나온" 것으로 안 잡히고, 바로 위 헤딩이 활성으로 남는 버그가 있었다(2026-09-14
-// 실사용 중 발견 — "클릭하면 컨텐츠는 이동하는데 TOC는 한 칸 위 제목에 포커스된다").
+// globals.css의 `.prose h2, .prose h3 { scroll-margin-top: 4.5rem }`(72px)과 맞춘 값 —
+// 스크롤로 헤딩을 "지나왔는지" 판정하는 일반적인 기준선이다(클릭 직후는 아래
+// `pinnedByClick`가 이 기준선 자체를 우회하므로 이 값과의 정확한 일치 여부에 기대지
+// 않는다, 2026-09-14 후속 참고).
 const ACTIVATION_OFFSET = 72;
 const BOTTOM_EPSILON = 2; // 스크롤이 바닥에 닿았는지 판정할 때 허용하는 서브픽셀 오차
 
@@ -60,14 +58,27 @@ const BOTTOM_EPSILON = 2; // 스크롤이 바닥에 닿았는지 판정할 때 �
  * 아직 첫 헤딩도 지나지 않았으면 첫 헤딩을 기본값으로, 스크롤이 바닥에 닿았으면(더
  * 내려갈 데가 없으면) 위치 계산과 무관하게 무조건 마지막 헤딩을 활성으로 본다.
  *
- * `pinnedByClick`(2026-09-14 후속): 위 "바닥에 닿았으면 무조건 마지막 헤딩" 규칙은
- * 화면에 헤딩 2개 이상이 한 번에 들어올 만큼 문서(또는 마지막 구간)가 짧으면 거의 항상
- * 참이 된다 — 그 상태에서 마지막이 아닌 다른 항목을 클릭하면, `scrollIntoView`의 smooth
- * 스크롤이 안착하는 동안 매 `scroll` 이벤트마다 이 함수가 다시 불려서 그때마다 "바닥이니까
- * 마지막"으로 되돌아가 버렸다("컨텐츠는 이동하는데 TOC는 클릭한 제목에 포커스가 안 된다"
- * 는 제보로 발견 — 무한 루프는 아니지만, 클릭 의도와 스크롤 위치 기반 계산이 매 스크롤
- * 이벤트마다 서로 덮어써 사실상 클릭이 무효화되는 상태였다). 방금 클릭한 헤딩이 있으면
- * (사용자가 실제로 휠/터치로 스크롤하기 전까지) 바닥 판정보다 그 클릭을 우선한다.
+ * `pinnedByClick`(2026-09-14 후속, 두 차례 수정): 방금 클릭해 이동 중인 헤딩이 있으면
+ * — 바닥 판정 여부와 무관하게 — 항상 그 헤딩을 최우선으로 돌려준다.
+ *
+ * 1차 시도는 "바닥 판정일 때만" 클릭을 우선시켰다(헤딩 2개 이상이 화면에 한 번에
+ * 들어올 만큼 문서/마지막 구간이 짧으면 바닥 판정이 거의 항상 참이 되고, 그 상태에서
+ * 마지막이 아닌 항목을 클릭하면 smooth 스크롤이 안착하는 동안의 매 scroll 이벤트가
+ * "바닥이니까 마지막 헤딩"으로 클릭 선택을 계속 덮어쓰는 문제 때문이었다). 그런데
+ * "바닥이 아닐 때"도 같은 증상이 실제 브라우저에서 재현됐다 — `ACTIVATION_OFFSET`을
+ * `scroll-margin-top`과 똑같이 맞춰뒀더니(72px) 클릭 직후 도착 지점이 그 경계값과
+ * 거의 정확히 같아져서(실측 71.96~72.78px 사이로 흔들림 — 폰트 로딩으로 인한 미세한
+ * 리플로우, 서브픽셀 반올림 등), 아주 조금만 기준선을 넘어도 방금 도착한 헤딩이
+ * "지나온 헤딩"으로 안 잡히고 바로 위 헤딩이 계속 활성으로 남았다(실제 React 컴포넌트를
+ * 진짜 브라우저에 올려 여러 헤딩을 연속 클릭해보며 재현 — happy-dom 기반 자동화
+ * 테스트는 실제 레이아웃을 계산하지 않아 이 종류의 버그를 애초에 잡을 수 없었다).
+ *
+ * 결국 "스크롤 위치와 기준선의 정확한 일치"에 기대는 방식 자체가 클릭 시나리오에는
+ * 맞지 않는다 — 클릭은 이미 "어디로 갈지"가 명확한 사용자 의도이므로, 도착 위치를
+ * 굳이 다시 계산해 확인하지 않고 그 의도를 그대로 신뢰한다. 위치 기반 계산(아래)은
+ * 사용자가 직접 스크롤하며 "지금 읽고 있는 곳"을 추적할 때만 쓴다 — 사용자가 실제로
+ * 휠/터치로 스크롤하면(TableOfContents 컴포넌트의 wheel/touchmove 리스너) 이 고정이
+ * 풀린다.
  */
 function computeActiveHeading(
   headings: HeadingItem[],
@@ -78,12 +89,13 @@ function computeActiveHeading(
     return null;
   }
 
+  if (pinnedByClick && headings.some((heading) => heading.element === pinnedByClick)) {
+    return pinnedByClick;
+  }
+
   const atBottom =
     scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight <= BOTTOM_EPSILON;
   if (atBottom) {
-    if (pinnedByClick && headings.some((heading) => heading.element === pinnedByClick)) {
-      return pinnedByClick;
-    }
     return headings[headings.length - 1].element;
   }
 
