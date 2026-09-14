@@ -224,6 +224,29 @@ describe("TableOfContents", () => {
     expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
   });
 
+  it("스크롤이 바닥에 닿아 마지막 헤딩이 강제로 활성인 상태에서도, 다른 항목을 클릭하면 그 항목이 즉시 활성으로 바뀐다(2026-09-14 실사용 중 발견 — 클릭 직후 scroll 이벤트가 바닥-고정 규칙으로 다시 덮어써서, 마지막 항목보다 위는 클릭해도 선택되지 않았다)", async () => {
+    const user = userEvent.setup();
+    render(<Harness html="<h2>섹션 A</h2><h2>마지막 섹션</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingLast] = document.querySelectorAll("h2");
+    Element.prototype.scrollIntoView = vi.fn();
+    mockScrollGeometry(scrollParent, { scrollTop: 1200, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -300);
+    mockRect(headingLast, 500);
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "마지막 섹션" })).toHaveAttribute("aria-current", "true")
+    );
+
+    await user.click(screen.getByRole("link", { name: "섹션 A" }));
+
+    // 클릭 직후에는 아직 scroll 이벤트가 다시 안 왔으니(스크롤 위치는 여전히 바닥
+    // 근처인 채) 그 사이에도 방금 클릭한 항목이 활성으로 보여야 한다.
+    expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "마지막 섹션" })).not.toHaveAttribute("aria-current");
+  });
+
   it("헤딩 엘리먼트에 어떤 속성도 쓰지 않는다(ProseMirror가 관리하는 DOM을 건드리면 그 변화를 감지해 무한 재조정 루프를 만드는 실제 버그를 막기 위함, 2026-09-11 실사용 중 발견 — '## 중제목'을 입력하면 사이트가 멈췄다)", () => {
     render(<Harness html="<h2>섹션</h2><h3>하위 섹션</h3>" />);
 
