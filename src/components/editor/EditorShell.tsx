@@ -395,7 +395,7 @@ export function EditorShell({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto">{children}</div>
+      <div className="scrollbar-hidden flex-1 overflow-y-auto">{children}</div>
 
       {/* ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형 조건을
           그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을 아무리 스크롤해도

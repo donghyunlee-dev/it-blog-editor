@@ -20,11 +20,18 @@
   - `scroll`(스크롤 조상 요소)·`resize`(윈도우) 이벤트로 재계산한다.
 - `DocumentEditor.tsx`의 `<div className="flex justify-center gap-12">`(본문+TOC 묶음
   정렬)를 `<div className="flex justify-center">`(본문 단독 정렬)로 단순화했다.
+
 - **헤더 정렬 수정(같은 대화 후속)**: 독립 레일로 뺀 부작용으로, 문서 헤더(본문 스크롤
   영역 안에만 있음)와 레일(그 밖의 독립 컬럼)의 높이가 안 맞아 TOC가 화면 맨 위부터
   시작하는 것처럼 보였다. 왼쪽 사이드바(`EditorSidebar.tsx`)가 이미 쓰는 패턴(자기만의
   `h-14` 자리표시 행으로 헤더와 높이를 맞춤)을 `TableOfContents.tsx`의 레일 최상단에도
   그대로 적용했다(`h-14 shrink-0 border-b border-border` spacer).
+
+- **본문 스크롤바 숨김(같은 대화 후속)**: 사용자가 벤치마킹한 참고 사이트(페이지 전체
+  스크롤이라 브라우저 자체 스크롤바만 보임)와 비교해 이 프로젝트의 본문 스크롤 영역에
+  보이는 OS 기본 스크롤바가 이질적이라고 지적했다. `globals.css`에 `.scrollbar-hidden`
+  유틸리티를 추가해 `EditorShell.tsx`의 `flex-1 overflow-y-auto`에 적용했다 —
+  `overflow-y: auto`는 그대로 둬 스크롤 기능(휠·트랙패드·키보드·TOC 클릭)은 그대로다.
 
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
@@ -36,12 +43,18 @@
 | `src/components/editor/EditorShell.test.tsx` | 레일 슬롯 채워짐/비어있음 테스트 추가 |
 | `docs/product/design.md` | "7. 우측 목차(TOC)" 절에 구조 변경 배경 기록 |
 | `docs/product/prd.md` | P8-5 항목에 이번 수정 이력 추가 |
+| `src/app/globals.css` | `.scrollbar-hidden` 유틸리티 추가 |
 
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
 | d52c82e | feat: 우측 목차(TOC)를 독립된 레일 구조로 재구성, 활성 항목 버그 2건 수정 (P8-5) |
+
 | caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
+
+| c6e5554 | fix: 본문 스크롤 영역의 스크롤바를 숨김 (P8-5 후속) |
+| c7ecd48 | fix: 바닥 스크롤 중 클릭한 목차 항목이 즉시 활성 표시되도록 수정 (P8-5 후속) |
+
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항

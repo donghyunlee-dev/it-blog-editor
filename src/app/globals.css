@@ -115,6 +115,23 @@ body {
 }
 
 /*
+ * P8-5 후속(2026-09-14): 본문 스크롤 영역(EditorShell.tsx의 `flex-1 overflow-y-auto`)의
+ * 네이티브 스크롤바를 숨긴다 — 사용자가 벤치마킹한 참고 사이트(페이지 전체 스크롤)에는
+ * 두꺼운 브라우저 스크롤바가 보이지 않았는데, 이 프로젝트는 내부 div가 스크롤되는 구조라
+ * OS 기본 스크롤바가 그대로 노출되어 시각적으로 이질적이었다. `overflow-y: auto`는 그대로
+ * 둬 마우스 휠·트랙패드·키보드·TOC 클릭(scrollIntoView)으로 스크롤하는 기능은 전혀 바뀌지
+ * 않고, 스크롤바 트랙/썸(그리는 UI)만 숨긴다.
+ */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* 레거시 Edge/IE */
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/최신 Edge(Blink/WebKit) */
+}
+
+/*
  * WYSIWYG 편집 화면 전용 스타일. `@sfood/ui`에는 대응 컴포넌트가 없는
  * TipTap 커스텀 노드(Panel)와 ProseMirror가 직접 렌더링하는 표에 대한
  * 시각적 스타일을 제공한다. 색상은 이 프로젝트의 CSS Variable 토큰
