@@ -243,7 +243,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
 | 로그인 화면 | 좌: 직접 마크업 브랜드 패널(`Typography` + 자체 제작 SVG `BrandPanelArt`) · 우: 카드 없이 `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>`만 배경 위에 배치 | `LoginSimple`/`LoginSplit` 둘 다 email/password 폼 전용이라 쓰지 않음(단, `LoginSplit`의 좌/우 레이아웃 구조는 재현) — 아래 "로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
-| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
+| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState`/`DropdownMenu` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태·행 옵션 메뉴)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨, 문서 행의 "이동" 버튼은 같은 날(P14-1) `DropdownMenu` 기반 옵션(⋯) 메뉴로 대체됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
 | 문서 태그 표시 | `Tag` | 편집 화면의 태그 입력 칩은 `Tag`(`onRemove` 포함). 사이드바의 태그 필터(`ChipGroup`)는 2026-09-14(P12-1)에 제거되었다 — 태그는 검색(사이드바 검색·Ctrl+K)의 매칭 대상으로만 쓰인다 |
 | 문서 목록 항목 | 직접 마크업(`<ul>`/`<li>`/`Link`) + `StatusBadge` + `Tag` | 기존 `<ul className="doc-list">`를 대체. `List`가 아니라 직접 만든 이유는 아래 "확인된 사항" 참고 |
@@ -283,10 +283,15 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   문서 목록 행도 `List` 대신 `<ul>`/`<li>`/`<Link>`로 직접 만들고, `List`가 쓰는 것과 같은 시각적
   규칙(행 패딩, 말줄임, `text-foreground`)만 맞췄다.
 - **최종적으로 실제 쓴 `@sfood/ui` 컴포넌트**: 문서 상태 뱃지는 `StatusBadge`, 문서별 읽기 전용 태그
-  표시는 `Tag`, 태그 필터는 `ChipGroup`, 문서가 없을 때는 `EmptyState`. "새 문서" 버튼은 실제 이동이
-  필요해 `<Link>`로 만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가
-  쓰는 것과 같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀
-  "이 화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다.
+  표시는 `Tag`, 문서가 없을 때는 `EmptyState`. "새 문서" 버튼은 실제 이동이 필요해 `<Link>`로
+  만들되, `Button`은 `<button>`만 지원해(href 없음) 대신 `Button variant="primary"`가 쓰는 것과
+  같은 토큰 클래스(`bg-brand`, `text-on-brand`, `hover:bg-brand-hover` 등)를 그대로 입혀 "이
+  화면의 유일한 1차 액션"이라는 시각적 의미를 유지했다. 태그 필터로 쓰던 `ChipGroup`은
+  2026-09-14(P12-1)에 제거됐다(태그는 검색 전용, 위 "사이드바" 절 참고). 문서 행의
+  "옵션"(⋯) 메뉴는 `DropdownMenu`(`trigger` + `DropdownItem[]`)를 쓴다 — 같은 패키지의
+  `FileExplorer.itemActions`가 이미 같은 패턴("항목별 우측 액션 메뉴")을 쓰고 있어 그대로
+  재사용했다(2026-09-14, P14-1 — "이동" 단일 버튼을 이 메뉴로 대체, 기능이 늘어날 때 항목만
+  추가하는 구조).
 
 ## 로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증, 2026-08-25 레이아웃 갱신)
 

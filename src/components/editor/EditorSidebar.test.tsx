@@ -730,23 +730,30 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     window.localStorage.clear();
   });
 
-  it("폴더가 있는 계정의 문서 행에는 '다른 폴더로 이동' 버튼이 보인다", () => {
+  // P14-1: "다른 폴더로 이동"은 더 이상 독립 버튼이 아니라 "문서 옵션"(⋯) 트리거를 눌러야
+  // 나오는 메뉴 항목(role="menuitem")이다 — 이 헬퍼로 두 단계 클릭을 한 번에 묶는다.
+  async function openMoveMenuItem(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "문서 옵션" }));
+    await user.click(screen.getByRole("menuitem", { name: "다른 폴더로 이동" }));
+  }
+
+  it("폴더가 있는 계정의 문서 행에는 '문서 옵션'(⋯) 트리거가 보인다", () => {
     renderSidebar([DOC_UNCLASSIFIED]);
 
-    expect(screen.getByRole("button", { name: "다른 폴더로 이동" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "문서 옵션" })).toBeInTheDocument();
   });
 
-  it("폴더가 하나도 없는 계정에서는 이동 버튼을 숨긴다(옮길 곳이 없음)", () => {
+  it("폴더가 하나도 없는 계정에서는 옵션 트리거를 숨긴다(옮길 곳이 없음)", () => {
     renderSidebar([DOC_UNCLASSIFIED], []);
 
-    expect(screen.queryByRole("button", { name: "다른 폴더로 이동" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "문서 옵션" })).not.toBeInTheDocument();
   });
 
-  it("이동 버튼을 누르면 대상 폴더를 고르는 모달이 뜨고, 하위 폴더는 들여쓴 이름으로 보인다", async () => {
+  it("옵션 메뉴에서 '다른 폴더로 이동'을 누르면 대상 폴더를 고르는 모달이 뜨고, 하위 폴더는 들여쓴 이름으로 보인다", async () => {
     const user = userEvent.setup();
     renderSidebar([DOC_UNCLASSIFIED]);
 
-    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await openMoveMenuItem(user);
 
     expect(screen.getByText('"문서A" 이동')).toBeInTheDocument();
     const dialog = screen.getByRole("dialog");
@@ -765,7 +772,7 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
     renderSidebar([DOC_UNCLASSIFIED]);
 
-    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await openMoveMenuItem(user);
     const select = within(screen.getByRole("dialog")).getByRole("combobox");
     await user.selectOptions(select, "f1");
     await user.click(screen.getByRole("button", { name: "이동" }));
@@ -788,7 +795,7 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
     renderSidebar([DOC_IN_FOLDER]);
 
-    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await openMoveMenuItem(user);
     const select = within(screen.getByRole("dialog")).getByRole("combobox");
     await user.selectOptions(select, "");
     await user.click(screen.getByRole("button", { name: "이동" }));
@@ -809,7 +816,7 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     stubFetch(() => jsonResponse({ error: { message: "개인 폴더가 없습니다." } }, 404));
     renderSidebar([DOC_UNCLASSIFIED]);
 
-    await user.click(screen.getByRole("button", { name: "다른 폴더로 이동" }));
+    await openMoveMenuItem(user);
     await user.click(screen.getByRole("button", { name: "이동" }));
 
     expect(await screen.findByText("개인 폴더가 없습니다.")).toBeInTheDocument();

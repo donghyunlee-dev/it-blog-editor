@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
-import { Button, EmptyState, Modal, useToast } from "@sfood/ui";
+import { Button, DropdownMenu, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
@@ -142,6 +142,21 @@ function MoveToFolderIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+/**
+ * P14-1: 문서 행의 액션 트리거 아이콘(⋯). 기능이 늘어날 때마다 행에 아이콘을 새로 추가하는
+ * 대신, 이 트리거 하나로 `DropdownMenu`(`@sfood/ui`)를 열어 항목을 늘리는 방식으로
+ * 바꾼다(2026-09-14, 사용자가 Notion/Confluence/Google Drive 등과 비교 후 결정).
+ */
+function MoreIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <circle cx="10" cy="4.5" r="1.6" />
+      <circle cx="10" cy="10" r="1.6" />
+      <circle cx="10" cy="15.5" r="1.6" />
     </svg>
   );
 }
@@ -637,8 +652,9 @@ export function EditorSidebar({
     const treeItemAttrs = treeItem
       ? { role: "treeitem" as const, "aria-level": depth + 1, "aria-selected": isActive }
       : {};
-    // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) "이동" 버튼
-    // 자체를 숨긴다 — 눌러도 미분류(현재 상태)로만 되돌릴 수 있어 의미가 없다.
+    // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) 옵션(⋯) 메뉴
+    // 자체를 숨긴다 — 지금 메뉴엔 "다른 폴더로 이동"뿐이라, 눌러도 미분류(현재 상태)로만
+    // 되돌릴 수 있어 의미가 없다.
     if (flatFolderOptions.length === 0) {
       return (
         <li key={document.pageId} style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }} {...treeItemAttrs}>
@@ -654,16 +670,32 @@ export function EditorSidebar({
         {...treeItemAttrs}
       >
         {row}
-        <button
-          type="button"
-          aria-label="다른 폴더로 이동"
-          title="이동"
-          onClick={() => setMoveDocumentTarget(document)}
-          // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
-          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
-        >
-          <MoveToFolderIcon />
-        </button>
+        {/*
+          P14-1: "다른 폴더로 이동" 단일 버튼 대신 ⋯ 트리거로 DropdownMenu(@sfood/ui)를 연다
+          — 기능이 늘어날 때마다 행에 아이콘을 새로 추가하지 않고 이 메뉴에 항목만 추가하는
+          구조로 바꾼다. 트리거 자체에는 onClick을 달지 않는다 — DropdownMenu가 클릭 핸들러를
+          주입해 토글한다(node_modules/@sfood/ui/dist/index.js의 DropdownMenu 구현 확인).
+        */}
+        <DropdownMenu
+          trigger={
+            <button
+              type="button"
+              aria-label="문서 옵션"
+              title="옵션"
+              // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
+              className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              <MoreIcon />
+            </button>
+          }
+          items={[
+            {
+              label: "다른 폴더로 이동",
+              icon: <MoveToFolderIcon />,
+              onClick: () => setMoveDocumentTarget(document),
+            },
+          ]}
+        />
       </li>
     );
   }

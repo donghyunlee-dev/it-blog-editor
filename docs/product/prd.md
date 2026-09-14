@@ -354,6 +354,25 @@
   새로 만들어 교체했다(P13-2). "간격이 큰 변화가 없는 듯하다"는 언급도 있었으나 추가 축소를
   명시적으로 요청한 것은 아니라 이번 범위에는 포함하지 않았다.
 
+### Phase 14 — 사이드바 문서 행 컨텍스트 메뉴 전환 (신규, 2026-09-14 계획)
+- 배경: 사이드바 문서 행마다 "다른 폴더로 이동" 아이콘이 상시(호버 시) 노출되는데, 사용자가
+  Notion·Confluence·Google Drive 등을 비교한 뒤 "기능이 늘어날 때마다 헤더나 행에 아이콘을
+  새로 추가하지 말고, `⋯`(더보기) 하나로 모아 컨텍스트 메뉴에서 확장하자"고 결정했다. 확인
+  결과 `@sfood/ui`에 정확히 이 용도의 `DropdownMenu`(`trigger` + `DropdownItem[]`,
+  `label`/`onClick`/`icon`/`danger`/`divider` 지원)가 이미 있고, 같은 패키지의
+  `FileExplorer.itemActions`도 동일 패턴("항목별 우측 액션 메뉴")을 이미 쓰고 있어 새로
+  만들지 않고 그대로 재사용한다.
+- 핵심 결정(2026-09-14, 사용자와의 대화로 확정): 이번 범위는 **사이드바 "내 문서" 목록의
+  문서 행만**이다. 사용자가 명시적으로 범위를 좁혔다 — 에디터 헤더의 "삭제"·"이력" 버튼은
+  이번엔 건드리지 않고("헤더에 ⋯을 추가하는 건 안 해도 돼"), 폴더 행의 액션 아이콘(하위
+  폴더 추가/이름변경/삭제)도 "폴더가 아직 많지 않다"는 이유로 보류한다. 문서 행의 기존
+  "다른 폴더로 이동" 단일 버튼을 `⋯` 트리거 + `DropdownMenu`(현재 항목 1개)로 교체한다 —
+  향후 기능이 늘어나면 이 메뉴에 항목만 추가하는 구조로 만든다.
+- 진행 방식: Phase 5~13과 동일 — task/plan/result/test 4파일 + 개별 PR.
+- 범위 밖: 에디터 헤더 컨텍스트 메뉴화(향후 헤더 버튼을 실제로 제거하게 되면 남는 버튼들의
+  정렬을 다시 조정해야 한다는 점을 사용자가 미리 언급함), 폴더 행 액션 아이콘 통합, 메뉴
+  항목 추가(지금은 "다른 폴더로 이동" 1개만).
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -489,7 +508,7 @@
 - [x] (완료, P7-3) 문서-폴더 배정 API — `documents.ts`에 `folderId`(없으면 `null`, 미분류) property를 추가했다. `POST /api/editor/documents`가 선택적 `folderId`를 받아 존재 검증 후 생성 시 배정하고, 새 라우트 `PUT /api/editor/documents/{pageId}/folder`(소유자 전용 — P6-6과 같은 판단)로 기존 문서를 다른 폴더로 옮기거나(`folderId: null`로 미분류 복귀) 할 수 있다. `folders.ts`의 `deleteFolder`가 삭제된 노드를 반환하도록 바꾸고, `DELETE /api/editor/folders/{folderId}`가 그 `parentId`로 `documents.ts`의 새 함수 `reassignDocumentsFolder`를 이어 호출해 P7-2에서 미뤄뒀던 "폴더 삭제 시 문서도 상위로 승격" 정책을 완성했다(`folders.ts`는 여전히 문서를 몰라야 하므로 오케스트레이션은 API 라우트 계층에서 조립). **실사용 확인 중 발견한 버그**: Confluence content property API가 `value: null`을 `400 Bad Request`로 거부해, "미분류로 되돌리기" 경로가 실제 환경에서 전부 실패하고 있었다(단위 테스트는 property API를 모킹해 놓쳤다) — `client.ts`에 `deletePageProperty`(property 자체를 DELETE)를 새로 만들어 "값을 null로 쓰기" 대신 "property를 지우기"로 미분류를 표현하도록 고쳤다. 실제 Confluence 인스턴스로 폴더 지정 생성→미분류 이동→재배정→폴더 삭제 시 문서 승격→전체 정리까지 end-to-end 검증했다(1차 시도에서 위 버그로 중단됐고, 수정 후 2차 시도에서 전체 통과). 산출물: `docs/superpowers/tasks/P7-3-document-folder-assignment/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts, src/lib/editor/folders.ts, src/app/api/editor/documents/route.ts, src/app/api/editor/documents/[pageId]/folder/route.ts, src/app/api/editor/folders/[folderId]/route.ts, docs/product/data-spec.md, docs/product/api-spec.md
 - [x] (완료, P7-4) 사이드바 폴더 트리 UI — `editor/layout.tsx`가 `listFolders`를 함께 조회해 `EditorShell` → `EditorSidebar`로 내려주고, 폴더가 없는 계정(대부분의 현재 사용자 — 폴더 생성 UI 자체가 아직 없음, P7-5)은 기존과 완전히 동일하게 렌더링된다(회귀 테스트로 고정). 폴더가 있으면 `parentId` 관계를 그대로 반영한 재귀 트리로 그려지고, 각 폴더는 펼침/접힘이 가능하며 상태를 `localStorage`에 유지한다(`EditorShell.tsx`의 사이드바 폭 조절 기능과 같은 `try/catch`+2-pass 마운트 패턴 재사용). `folderId: null`(미분류) 문서는 트리와 분리된 "미분류" 섹션에 모이고, 이 레이블은 폴더가 하나라도 있을 때만 보인다. 기존 태그 필터·검색·정렬(P1-1a/b)은 트리 전체에 그대로 적용되며, 페이지네이션(P1-1c, "더 보기")은 미분류 섹션에만 적용된다(폴더 안 문서는 이번 범위에서 전부 보여줌 — 과설계 방지). 빈 폴더 전용 안내 문구(P7-8)와 키보드 방향키 트리 탐색·WAI-ARIA `tree`/`treeitem` 패턴(P7-10)은 의도적으로 범위 밖에 남겼다(P2-1a~c 선례와 같은 순서 — 기능 먼저, 접근성 보강은 나중에). 산출물: `docs/superpowers/tasks/P7-4-sidebar-folder-tree/{task,plan,result,test}.md`, src/app/editor/layout.tsx, src/components/editor/EditorShell.tsx, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 - [x] (완료, P7-5) 새 폴더 만들기·이름 변경·삭제 UI — `EditorSidebar.tsx`의 폴더 트리(P7-4) 위에 "새 폴더 만들기" 진입점을 추가했다(폴더가 하나도 없어도 보인다 — 그렇지 않으면 첫 폴더를 만들 방법이 없다). 각 폴더 행에는 평소엔 숨겨져 있다가 hover·키보드 포커스 시 나타나는 "하위 폴더 추가"·"이름 변경"·"삭제" 액션을 추가했다. 생성/이름변경은 새 컴포넌트 `FolderFormModal.tsx`(`Modal`+`FormField`, `AccountInfoModal.tsx`와 같은 패턴)로, 삭제는 `window.confirm()` 대신 `Modal` 확인 절차를 거친다(`DocumentEditor.tsx`의 "문서 삭제" Modal과 동일한 패턴) — 삭제 안내 문구는 하위 폴더·문서가 삭제되는 게 아니라 상위 위치로 승격된다는 실제 동작을 정확히 전달한다. 저장/삭제 성공·실패는 모두 `Toast`로 안내한다. 폴더 목록 갱신은 `router.refresh()`(`DeletedDocumentsModal.tsx`의 `onRestored` 선례와 같은 패턴)로 처리해 별도 클라이언트 캐시 계층을 만들지 않았다. 폴더 중첩 깊이 제한(5단계)은 클라이언트에서 미리 막지 않고 서버 검증 실패 시 Toast로 안내한다(이중 검증 로직 없음). 산출물: `docs/superpowers/tasks/P7-5-folder-management-ui/{task,plan,result,test}.md`, src/components/editor/FolderFormModal.tsx, src/components/editor/FolderFormModal.test.tsx, src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
-- [x] (완료, P7-6) 문서를 폴더로 이동하는 UI — "이동" 메뉴/모달(대상 폴더 선택)로 구현했다. 사이드바 문서 행에 hover-reveal "이동" 버튼(폴더가 하나도 없는 계정은 옮길 곳이 없어 숨김)을 추가하고, 새 `MoveDocumentModal.tsx`(Modal+FormField+Select, P7-5의 `FolderFormModal.tsx`와 같은 골격)에서 대상 폴더를 고르면 P7-3에서 이미 만든 `PUT /api/editor/documents/{pageId}/folder`를 호출한다. 대상 폴더 `<select>` 옵션은 폴더 트리를 부모→자식 순서로 평평하게 펴 깊이만큼 전각 공백으로 들여쓴다. 드래그앤드롭은 범위 밖(위 핵심 결정 참고, 후속 Phase 후보). 산출물: `docs/superpowers/tasks/P7-6-move-document-to-folder/{task,plan,result,test}.md`.
+- [x] (완료, P7-6) 문서를 폴더로 이동하는 UI — "이동" 메뉴/모달(대상 폴더 선택)로 구현했다. 사이드바 문서 행에 hover-reveal "이동" 버튼(폴더가 하나도 없는 계정은 옮길 곳이 없어 숨김)을 추가하고, 새 `MoveDocumentModal.tsx`(Modal+FormField+Select, P7-5의 `FolderFormModal.tsx`와 같은 골격)에서 대상 폴더를 고르면 P7-3에서 이미 만든 `PUT /api/editor/documents/{pageId}/folder`를 호출한다. 대상 폴더 `<select>` 옵션은 폴더 트리를 부모→자식 순서로 평평하게 펴 깊이만큼 전각 공백으로 들여쓴다. 드래그앤드롭은 범위 밖(위 핵심 결정 참고, 후속 Phase 후보). 산출물: `docs/superpowers/tasks/P7-6-move-document-to-folder/{task,plan,result,test}.md`. 2026-09-14(P14-1) 갱신: 독립 "이동" 버튼은 옵션(⋯) 메뉴 안의 항목으로 옮겨졌다 — 아래 Phase 14 참고.
 - [x] (완료, P7-7) 문서 편집 화면 브레드크럼 — 문서가 폴더에 속해 있으면 헤더에 루트부터의 폴더 경로를 보여준다(폴더 없는 문서는 추가 조회 없이 기존과 동일). 폴더 전용 상세 화면이 없어(P7-4의 사이드바 트리 하나로 탐색을 통일한 기존 설계), 각 폴더를 누르면 `/editor?folder={id}`로 이동하고 `EditorSidebar.tsx`가 이 쿼리를 읽어 그 폴더까지 조상 체인을 펼치고 스크롤·잠깐 강조한 뒤 쿼리를 지운다. 경로는 항상 문서 소유자의 폴더 트리 기준이다(공유받은 사람이 봐도 소유자의 경로가 보인다 — P7-3이 폴더를 소유자 개인의 조직 체계로 설계했으므로 일관된 동작). 산출물: `docs/superpowers/tasks/P7-7-editor-breadcrumb/{task,plan,result,test}.md`.
 - [x] (완료, P7-8) 빈 폴더 상태 UI — 하위 폴더도 문서도 전혀 없는 폴더를 펼치면 `EmptyState`로 "이 폴더에는 아직 문서가 없습니다"를 안내한다(문서함 미선택 상태의 기존 `EmptyState` 패턴 재사용). 검색·태그 필터로 그 폴더의 문서가 지금 안 보일 뿐인 경우(원본 `documents` 기준으로는 실제 배정 이력이 있음)에는 이 안내를 보여주지 않는다 — 필터로 가려진 것과 진짜 비어 있는 것을 구분한다. 산출물: `docs/superpowers/tasks/P7-8-empty-folder-state/{task,plan,result,test}.md`.
 - [x] (완료, P7-9) 검색·삭제된 문서·공유 문서와의 통합 정합성 — Ctrl+K 전역 검색(`GlobalSearchModal.tsx`) 결과 목록·미리보기에 소속 폴더 경로를 함께 표시한다. 삭제된 문서 복구(`restoreDocument`) 시 폴더 소속 정책을 명시했다: 폴더가 그대로 있으면 원래 폴더로 돌아가고, 휴지통에 있는 동안 그 폴더가 삭제됐으면(`reassignDocumentsFolder`가 활성 문서만 훑어 휴지통 문서는 재배정에서 빠지는 실제 갭) 미분류로 되돌린다(`reconcileFolderAfterRestore`). 공유받은 문서는 `folderId`가 있어도 폴더 트리에 편입되지 않고 항상 "공유받은 문서" 별도 영역에만 있음을 회귀 테스트로 고정했다. 산출물: `docs/superpowers/tasks/P7-9-search-trash-share-consistency/{task,plan,result,test}.md`.
@@ -554,6 +573,16 @@
   밖으로 남겼다. 산출물:
   `docs/superpowers/tasks/P13-2-sidebar-row-inset-hover/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/app/globals.css
+
+### Phase 14 — 사이드바 문서 행 컨텍스트 메뉴 전환 (신규, 2026-09-14 계획)
+- [x] (완료, P14-1) 사이드바 문서 행 "이동" 버튼을 컨텍스트 메뉴(⋯)로 전환 — 기존 "다른
+  폴더로 이동" 단일 아이콘 버튼을 `⋯`(`MoreIcon`) 트리거 + `@sfood/ui`의 `DropdownMenu`로
+  교체했다. 메뉴 항목은 지금은 "다른 폴더로 이동" 1개뿐이며, 향후 기능이 늘어나면 이 메뉴에
+  항목만 추가하는 구조다. 호버/포커스 시에만 트리거가 나타나는 기존 동작과 이동 가능한
+  폴더가 없을 때 트리거 자체를 숨기는 동작은 그대로 유지했다. 에디터 헤더(삭제·이력 버튼)와
+  폴더 행 액션 아이콘은 사용자가 명시적으로 범위에서 제외해 이번엔 변경하지 않았다. 산출물:
+  `docs/superpowers/tasks/P14-1-sidebar-document-context-menu/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 
 
 ## 🗄️ 데이터 저장 여부
