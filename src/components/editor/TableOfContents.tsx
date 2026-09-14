@@ -220,6 +220,15 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
                     onClick={(event) => {
                       event.preventDefault();
                       heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
+                      // 클릭한 항목을 즉시 활성으로 본다(낙관적 갱신) — 그러지 않으면
+                      // 스크롤이 바닥 근처에 있는 동안, "바닥에 닿았으면 마지막 헤딩을
+                      // 무조건 활성으로 본다"는 아래 computeActiveHeading의 바닥-고정
+                      // 규칙이 클릭 직후의 다음 scroll 이벤트에서 이 선택을 곧바로
+                      // 덮어써버려, 마지막 항목보다 위에 있는 항목은 클릭해도 활성
+                      // 표시가 안 바뀌는 것처럼 보였다(2026-09-14 실사용 중 발견). smooth
+                      // 스크롤이 끝나 실제 위치가 안정되면 이후 scroll 이벤트가 이 값을
+                      // 다시 계산해 확정한다 — 그 사이 잠깐 보여주는 낙관적 표시일 뿐이다.
+                      setActiveElement(heading.element);
                     }}
                     className={
                       "block truncate border-l-2 py-0.5 pl-2 text-xs transition-colors duration-default " +
