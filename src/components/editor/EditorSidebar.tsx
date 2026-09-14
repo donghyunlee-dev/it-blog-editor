@@ -19,6 +19,15 @@ import type { FolderNode } from "@/lib/editor/folders";
 const PAGE_SIZE = 30;
 
 /**
+ * P13-1: 폴더 트리 들여쓰기 공식(`INDENT_BASE_PX + depth * INDENT_STEP_PX`)이 파일 안에 여러
+ * 곳에서 반복돼 상수로 뽑았다. `INDENT_STEP_PX`는 14px→20px로 늘렸다(2026-09-14, 사용자
+ * 피드백 — "폴더 안의 페이지 리스트라는 느낌이 안 난다") — 폴더 아이콘 폭에 비해 들여쓰기가
+ * 작아 하위 문서가 폴더 안에 담긴 것처럼 보이지 않는 문제였다.
+ */
+const INDENT_BASE_PX = 8;
+const INDENT_STEP_PX = 20;
+
+/**
  * P7-4: 폴더 펼침/접힘 상태를 계정별이 아니라 브라우저별로 유지한다 — `EditorShell.tsx`의
  * 사이드바 폭/접힘 상태(`WIDTH_STORAGE_KEY`/`COLLAPSED_STORAGE_KEY`)와 같은 이유·같은
  * try/catch 패턴이다(프라이빗 브라우징 등 저장이 막힌 환경에서도 기능은 그대로 동작).
@@ -598,13 +607,15 @@ export function EditorSidebar({
         onKeyDown={treeItem ? (event) => handleTreeKeyDown(event, treeNode) : undefined}
         aria-current={isActive ? "page" : undefined}
         className={
-          // P8-2: support.claude.com/ko 벤치마킹 실측값(design.md "4. 좌측 사이드바")
-          // — 레퍼런스는 목록 항목 패딩이 `8px` 전방향, radius는 12px(이 프로젝트의
-          // `--radius-card` 토큰과 같은 값)이다. 기존 `rounded-btn`(8px)·비대칭 패딩
-          // (py-1.5/pr-3 = 6px/12px)을 이 값에 맞춘다 — 왼쪽 패딩은 폴더 트리 들여쓰기를
-          // 감당하는 `<li>`의 inline style(`8 + depth * 14`)이 이미 depth 0에서 8px와
-          // 일치해 따로 바꿀 필요가 없다.
-          "block min-w-0 flex-1 rounded-card py-2 pr-2 transition-colors duration-default " +
+          // P8-2: support.claude.com/ko 벤치마킹 실측값(design.md "4. 좌측 사이드바")을
+          // 근거로 radius는 12px(`rounded-card`, 이 프로젝트의 `--radius-card` 토큰과 같은
+          // 값)를 그대로 쓴다. 상하 padding은 P8-2 당시 `py-1.5`(6px)에서 `py-2`(8px)로
+          // 올렸었는데, 문서가 적어도 목록이 화면의 상당 부분을 차지한다는 지적(2026-09-14,
+          // P13-1)으로 다시 `py-1.5`로 되돌린다 — 폴더 행과 높이를 맞추는 것은 유지한다.
+          // 왼쪽 패딩은 폴더 트리 들여쓰기를 감당하는 `<li>`의 inline style
+          // (`INDENT_BASE_PX + depth * INDENT_STEP_PX`)이 depth 0에서 8px와 일치해 따로
+          // 바꿀 필요가 없다.
+          "block min-w-0 flex-1 rounded-card py-1.5 pr-2 transition-colors duration-default " +
           (isActive
             ? "sidebar-row-active text-foreground"
             : "text-foreground hover:bg-surface-raised")
@@ -627,7 +638,7 @@ export function EditorSidebar({
     // 자체를 숨긴다 — 눌러도 미분류(현재 상태)로만 되돌릴 수 있어 의미가 없다.
     if (flatFolderOptions.length === 0) {
       return (
-        <li key={document.pageId} style={{ paddingLeft: 8 + depth * 14 }} {...treeItemAttrs}>
+        <li key={document.pageId} style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }} {...treeItemAttrs}>
           {row}
         </li>
       );
@@ -636,7 +647,7 @@ export function EditorSidebar({
       <li
         key={document.pageId}
         className="group flex items-start gap-0.5 rounded-btn"
-        style={{ paddingLeft: 8 + depth * 14 }}
+        style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }}
         {...treeItemAttrs}
       >
         {row}
@@ -645,8 +656,8 @@ export function EditorSidebar({
           aria-label="다른 폴더로 이동"
           title="이동"
           onClick={() => setMoveDocumentTarget(document)}
-          // mt-2는 위 Link의 상단 패딩(py-2, P8-2)과 맞춰 첫 줄과 나란히 보이게 한다.
-          className="mt-2 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+          // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
+          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <MoveToFolderIcon />
         </button>
@@ -696,7 +707,7 @@ export function EditorSidebar({
             "group flex items-center gap-0.5 rounded-card pr-1 transition-colors duration-default hover:bg-surface-raised " +
             (highlightedFolderId === folder.id ? "bg-brand/10" : "")
           }
-          style={{ paddingLeft: 8 + depth * 14 }}
+          style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }}
         >
           <button
             type="button"
@@ -705,8 +716,9 @@ export function EditorSidebar({
             onKeyDown={(event) => handleTreeKeyDown(event, treeNode)}
             aria-expanded={isExpanded}
             title={folder.name}
-            // P8-2: 문서 행과 같은 높이가 되도록 py-1.5(6px) → py-2(8px)로 맞춘다.
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left text-sm font-medium text-foreground"
+            // P8-2 때 문서 행과 높이를 맞추려 py-1.5→py-2로 올렸었는데, 문서 행이 다시
+            // py-1.5로 돌아가면서(P13-1) 같은 높이를 유지하려 이 값도 함께 되돌린다.
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
           >
             <ChevronIcon expanded={isExpanded} />
             <FolderIcon />
@@ -751,7 +763,7 @@ export function EditorSidebar({
           </ul>
         )}
         {isExpanded && isReallyEmpty && (
-          <div style={{ paddingLeft: 8 + (depth + 1) * 14 }}>
+          <div style={{ paddingLeft: INDENT_BASE_PX + (depth + 1) * INDENT_STEP_PX }}>
             <EmptyState title="이 폴더에는 아직 문서가 없습니다." />
           </div>
         )}
@@ -853,7 +865,9 @@ export function EditorSidebar({
         피드백).
       */}
       {documents.length > 0 && (
-        <div className="border-b border-border p-3">
+        // P13-1: 문서가 적어도 리스트가 화면 상당 부분을 차지한다는 지적(2026-09-14)으로
+        // 트리 진입 전 고정 영역들의 여백을 전반적으로 줄인다(p-3→p-2.5, 12px→10px).
+        <div className="border-b border-border p-2.5">
           <label className="sr-only" htmlFor="sidebar-doc-search">
             문서 제목·태그 검색
           </label>
@@ -874,7 +888,7 @@ export function EditorSidebar({
         사용자에게는 평생 안 보일 영역이라, 있지도 않은 걸 "없다"고 설명할 필요가 없다).
       */}
       {sharedDocuments.length > 0 && (
-        <div className="flex flex-col gap-1 border-b border-border p-3">
+        <div className="flex flex-col gap-1 border-b border-border p-2.5">
           <p className="px-1 text-xs font-medium text-muted">공유받은 문서</p>
           <ul className="flex flex-col gap-0.5">
             {sharedDocuments.map((document) => {
@@ -888,9 +902,9 @@ export function EditorSidebar({
                     onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
                     aria-current={isActive ? "page" : undefined}
                     title={`공유자: ${ownerLabel}`}
-                    // P8-2: 문서 목록 행과 같은 이유로 8px 전방향 패딩·12px radius로 맞춘다.
+                    // P13-1: 문서 목록 행과 같은 이유로 py-1.5(6px)·12px radius로 맞춘다.
                     className={
-                      "block rounded-card py-2 pl-2 pr-2 transition-colors duration-default " +
+                      "block rounded-card py-1.5 pl-2 pr-2 transition-colors duration-default " +
                       (isActive
                         ? "sidebar-row-active text-foreground"
                         : "text-foreground hover:bg-surface-raised")
@@ -918,7 +932,7 @@ export function EditorSidebar({
         border-b로 "컨트롤 영역 ↔ 문서 목록"의 경계를 표시한다(예전엔 검색 입력 쪽이
         이 경계를 맡았다).
       */}
-      <div className="border-b border-border p-3">
+      <div className="border-b border-border p-2.5">
         {/*
           @sfood/ui의 Button은 <button>만 지원해 href를 받을 수 없다(ButtonHTMLAttributes 기반).
           실제 페이지 이동이 필요하므로 Link를 쓰되, 이 사이드바의 유일한 1차 액션이라는 의미를
@@ -937,13 +951,13 @@ export function EditorSidebar({
         </Link>
       </div>
 
-      <nav className="flex-1 overflow-y-auto p-3" aria-label="문서 목록">
+      <nav className="flex-1 overflow-y-auto p-2.5" aria-label="문서 목록">
         {/*
           P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
           (그 전까지는 폴더 기능 자체를 발견할 방법이 없었다), 문서 유무와 무관하게
           항상 보인다 — 아래 문서 목록/빈 상태 분기와 별개다.
         */}
-        <div className="mb-2 flex items-center justify-between px-1">
+        <div className="mb-1.5 flex items-center justify-between px-1">
           <p className="text-xs font-medium text-muted">폴더</p>
           <div className="flex items-center gap-0.5">
             {documents.length > 0 && (
@@ -988,7 +1002,7 @@ export function EditorSidebar({
           // 렌더링되지 않음).
           <>
             {topLevelFolders.length > 0 && (
-              <ul className="mb-2 flex flex-col gap-0.5" role="tree" aria-label="폴더">
+              <ul className="mb-1.5 flex flex-col gap-0.5" role="tree" aria-label="폴더">
                 {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
               </ul>
             )}
