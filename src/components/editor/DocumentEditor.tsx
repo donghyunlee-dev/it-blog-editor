@@ -44,11 +44,17 @@ interface DocumentEditorProps {
   /** 현재 공유된 대상 목록(P6-2/P6-3). mode="edit"일 때만 서버에서 내려준다. */
   initialSharedWith?: SharedAccount[];
   /**
-   * 이 문서가 속한 폴더 경로(P7-7 브레드크럼), 루트가 먼저 오는 순서. 폴더가 없거나
-   * mode="create"(아직 폴더 배정 UI가 없다, P7-6 범위 밖)면 빈 배열/undefined다 —
-   * 그 경우 헤더에 브레드크럼 자체를 렌더링하지 않는다.
+   * 이 문서가 속한(또는, mode="create"에서 P15-1부터 이 문서가 만들어질) 폴더 경로(P7-7
+   * 브레드크럼), 루트가 먼저 오는 순서. 폴더가 없으면 빈 배열/undefined다 — 그 경우
+   * 헤더에 브레드크럼 자체를 렌더링하지 않는다.
    */
   folderPath?: FolderNode[];
+  /**
+   * P15-1: mode="create"에서 저장 시 이 폴더로 바로 배정한다(사이드바 폴더 행의 "+" →
+   * `/editor/new?folder={id}`로 들어온 경우). mode="edit"에서는 쓰이지 않는다 — 폴더를
+   * 옮기는 것은 사이드바의 "다른 폴더로 이동" 메뉴가 맡는다(P7-6).
+   */
+  initialFolderId?: string | null;
 }
 
 const EMPTY_DOC: JSONContent = {
@@ -220,6 +226,7 @@ export function DocumentEditor({
   isOwner = false,
   initialSharedWith = [],
   folderPath = [],
+  initialFolderId = null,
 }: DocumentEditorProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -463,7 +470,7 @@ export function DocumentEditor({
         const response = await fetch("/api/editor/documents", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, doc }),
+          body: JSON.stringify({ title, doc, folderId: initialFolderId }),
         });
         if (!response.ok) {
           throw new Error(await errorMessageOf(response, "저장에 실패했습니다."));
