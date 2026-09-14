@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
@@ -105,8 +105,16 @@ function mockScrollGeometry(
   mockRect(el, 0);
 }
 
+/**
+ * `act()`로 감싼다 — 이 dispatch는 React가 관리하지 않는 네이티브 리스너를 통해
+ * `setActiveElement`를 호출하므로, `act()` 없이는 그 state 갱신이 언제 실제로 DOM에
+ * 반영되는지 테스트가 보장할 수 없다(자동 배칭 타이밍에 따라 다음 줄의 동기 assertion이
+ * 갱신 전 상태를 우연히 보고 통과해버릴 수 있다 — 2026-09-14 테스트 작성 중 실제로 겪음).
+ */
 function fireScroll(el: HTMLElement) {
-  el.dispatchEvent(new Event("scroll"));
+  act(() => {
+    el.dispatchEvent(new Event("scroll"));
+  });
 }
 
 describe("TableOfContents", () => {
@@ -270,6 +278,41 @@ describe("TableOfContents", () => {
     // 근처인 채) 그 사이에도 방금 클릭한 항목이 활성으로 보여야 한다.
     expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("link", { name: "마지막 섹션" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("클릭 후 smooth 스크롤이 안착하는 동안 scroll 이벤트가 반복돼도(여전히 바닥 근처) 클릭한 헤딩이 계속 활성으로 남고, 사용자가 실제로 휠 스크롤을 하면 그제서야 바닥 판정(마지막 헤딩)으로 돌아간다(2026-09-14 실사용 중 발견 — '화면에 제목이 2개 이상 보일 때 TOC를 클릭하면 컨텐츠는 이동하는데 TOC는 클릭한 제목에 포커스가 안 된다'. 원인은 클릭 후 안착 중 scroll 이벤트마다 바닥-고정 규칙이 클릭 선택을 계속 되돌린 것)", async () => {
+    const user = userEvent.setup();
+    render(<Harness html="<h2>섹션 A</h2><h2>마지막 섹션</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingLast] = document.querySelectorAll("h2");
+    Element.prototype.scrollIntoView = vi.fn();
+    mockScrollGeometry(scrollParent, { scrollTop: 1200, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -300);
+    mockRect(headingLast, 500);
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "마지막 섹션" })).toHaveAttribute("aria-current", "true")
+    );
+
+    await user.click(screen.getByRole("link", { name: "섹션 A" }));
+
+    // smooth 스크롤이 안착하는 동안 여러 scroll 이벤트가 더 온다(위치는 여전히 바닥
+    // 근처) — 클릭으로 고정해 둔 헤딩이 있으니 계속 "섹션 A"로 남아야 한다.
+    fireScroll(scrollParent);
+    fireScroll(scrollParent);
+    expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "마지막 섹션" })).not.toHaveAttribute("aria-current");
+
+    // 사용자가 실제로 휠로 스크롤하면 그 고정이 풀린다 — 이후 scroll 이벤트는 다시
+    // 원래 규칙(바닥이면 마지막 헤딩)을 따른다.
+    scrollParent.dispatchEvent(new Event("wheel"));
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "마지막 섹션" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
   });
 
   it("헤딩 엘리먼트에 어떤 속성도 쓰지 않는다(ProseMirror가 관리하는 DOM을 건드리면 그 변화를 감지해 무한 재조정 루프를 만드는 실제 버그를 막기 위함, 2026-09-11 실사용 중 발견 — '## 중제목'을 입력하면 사이트가 멈췄다)", () => {

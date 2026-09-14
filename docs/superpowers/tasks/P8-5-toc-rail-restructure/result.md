@@ -55,6 +55,20 @@
   헤딩이 "지나온 헤딩"으로 안 잡히고 바로 위 헤딩이 계속 활성으로 남았다.
   `ACTIVATION_OFFSET`을 72로 맞춰 두 값을 일치시켰다.
 
+- **클릭-바닥 판정 충돌 수정(같은 대화 후속)**: 사용자가 "화면에 제목이 2개 이상 보일 때
+  TOC를 클릭하면 컨텐츠는 이동하는데 TOC는 클릭한 제목에 포커스가 안 된다"고 제보하고,
+  이벤트 루프 여부를 확인해 달라고 요청했다. 무한 루프는 아니었지만 실질적 증상은
+  같았다 — 헤딩 2개 이상이 화면에 한 번에 보일 만큼 문서(또는 마지막 구간)가 짧으면
+  "바닥" 판정이 거의 항상 참이 되는데, 그 상태에서 마지막이 아닌 항목을 클릭하면
+  `scrollIntoView`의 smooth 스크롤이 안착하는 동안의 매 `scroll` 이벤트마다
+  `computeActiveHeading`이 "바닥이니까 마지막 헤딩"으로 클릭 선택을 계속 덮어썼다(PR
+  #114의 낙관적 클릭 처리는 그 직후 첫 재계산까지만 막았을 뿐, 안착 중 반복되는
+  재계산은 못 막았다). 클릭으로 이동 중인 헤딩을 `pinnedByClickRef`(ref, 상태 아님)로
+  기억해 두고, 바닥 판정이 무조건 마지막 헤딩이 아니라 그 헤딩을 우선하도록 고쳤다.
+  사용자가 실제로 휠/터치로 스크롤하면(`wheel`/`touchmove` — `scrollIntoView`의 프로그램적
+  스크롤은 이 이벤트를 안 만든다) 고정을 풀어 원래 동작(진짜 바닥에 닿으면 마지막 헤딩)
+  으로 되돌아간다.
+
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
 |------|---------|
@@ -69,6 +83,8 @@
 | `src/components/editor/TableOfContents.tsx`(추가 수정) | `pl-12`를 헤더 정렬 spacer에서 콘텐츠 div로 이동 |
 | `src/components/editor/TableOfContents.tsx`(추가 수정) | `ACTIVATION_OFFSET`을 64→72로 수정(`scroll-margin-top`과 일치) |
 | `src/components/editor/TableOfContents.test.tsx`(추가 수정) | 클릭 후 도착 헤딩(top=72px)이 자기 자신으로 활성 표시되는 회귀 테스트 추가 |
+| `src/components/editor/TableOfContents.tsx`(추가 수정) | `pinnedByClickRef` 추가, `computeActiveHeading`이 바닥 판정보다 클릭한 헤딩을 우선하도록 수정, `wheel`/`touchmove` 리스너로 고정 해제 |
+| `src/components/editor/TableOfContents.test.tsx`(추가 수정) | 클릭 후 smooth 스크롤 안착 중 반복되는 scroll 이벤트에도 클릭한 헤딩이 유지되고, 실제 휠 스크롤 후에는 바닥 판정으로 돌아가는 회귀 테스트 추가. `fireScroll` 헬퍼를 `act()`로 감싸 state 갱신 타이밍 문제로 인한 거짓 통과를 방지 |
 
 ## 커밋 내역
 | SHA | 메시지 |
@@ -79,6 +95,7 @@
 | caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
 | ef8f62e | fix: 본문↔TOC 거터가 헤더 정렬 spacer까지 밀어내던 문제 수정 (P8-5 후속) |
 | c49594f | fix: 클릭 활성 판정 기준선을 scroll-margin-top과 일치시킴 (P8-5 후속) |
+| 586e4ea | fix: 클릭한 헤딩이 바닥 판정에 계속 덮어써지던 문제 수정 (P8-5 후속) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
