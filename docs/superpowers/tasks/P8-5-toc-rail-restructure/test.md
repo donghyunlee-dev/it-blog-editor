@@ -94,6 +94,23 @@
   14개 전부 통과). `npx eslint`, `npx tsc --noEmit`도 통과.
 
 
+## 후속 수정(2026-09-14, 같은 대화 — 거터 위치)
+사용자가 "컨텐츠와 TOC 사이에 공간이 있어서 분리되어 보인다. 헤더 라인 연결이 안
+되어 있어서 알 수 있다. padding 48px이 적용되어 있는데 있을 필요가 있나?"고 지적했다.
+원인은 본문↔TOC 거터(`pl-12`, 48px)가 헤더 정렬 spacer를 포함한 `<nav>` 최상단에
+걸려 있어서였다 — spacer의 `border-b`가 48px 안쪽에서 시작해 본문 헤더의 `border-b`
+와 만나지 못하고 끊어져 보였다. `pl-12`를 spacer 밑 콘텐츠 div로만 옮겼다(거터 자체는
+design.md 실측값이라 유지 — "이 페이지" 텍스트만 48px 안쪽에서 시작).
+
+- **수동 검증**: 문서 헤더·TOC 레일 spacer·TOC 텍스트를 각각 넣은 정적 페이지를
+  임시로 띄워 `getBoundingClientRect()`로 직접 측정 — 수정 전에는 spacer.left가
+  헤더.right보다 48px 안쪽이라 경계선 사이에 48px짜리 빈 틈이 있었고, 수정 후에는
+  `header.right === spacer.left`로 완전히 이어짐을 확인했다. TOC 텍스트("이 페이지"
+  레이블)는 여전히 spacer 왼쪽 끝에서 48px 안쪽에서 시작함도 함께 확인했다. 확인 후
+  임시 파일은 삭제했다.
+- `npx vitest run src/components/editor/TableOfContents.test.tsx` — 14개 전부 통과.
+- `npx eslint`, `npx tsc --noEmit`, `npm run build` — 통과.
+
 ## 검증 중 새로 발견한 결정 사항
 없음.
 

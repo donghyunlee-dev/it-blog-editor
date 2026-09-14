@@ -21,6 +21,12 @@
 - `DocumentEditor.tsx`의 `<div className="flex justify-center gap-12">`(본문+TOC 묶음
   정렬)를 `<div className="flex justify-center">`(본문 단독 정렬)로 단순화했다.
 
+- **클릭 활성 즉시 반영 수정(배포 직후 후속)**: "바닥에 닿았으면 무조건 마지막 헤딩을
+  활성으로 본다"는 규칙이 너무 공격적이어서, 스크롤이 바닥 근처인 동안 다른 항목을
+  클릭해도 클릭 직후의 다음 `scroll` 이벤트가 그 선택을 다시 마지막 헤딩으로 덮어써
+  버렸다. 목차 항목 `onClick`에서 `scrollIntoView`와 함께 `setActiveElement`로 그
+  항목을 즉시(낙관적으로) 활성 처리하도록 고쳤다.
+
 - **헤더 정렬 수정(같은 대화 후속)**: 독립 레일로 뺀 부작용으로, 문서 헤더(본문 스크롤
   영역 안에만 있음)와 레일(그 밖의 독립 컬럼)의 높이가 안 맞아 TOC가 화면 맨 위부터
   시작하는 것처럼 보였다. 왼쪽 사이드바(`EditorSidebar.tsx`)가 이미 쓰는 패턴(자기만의
@@ -33,6 +39,13 @@
   유틸리티를 추가해 `EditorShell.tsx`의 `flex-1 overflow-y-auto`에 적용했다 —
   `overflow-y: auto`는 그대로 둬 스크롤 기능(휠·트랙패드·키보드·TOC 클릭)은 그대로다.
 
+- **거터 위치 수정(같은 대화 후속)**: 사용자가 "컨텐츠와 TOC 사이에 공간이 있어서
+  분리되어 보인다. 헤더 라인 연결이 안 되어 있어서 알 수 있다"고 지적했다 — 본문↔TOC
+  거터(`pl-12`, design.md 실측값 48px)가 `<nav>` 최상단(헤더 정렬용 spacer 포함)에
+  걸려 있어서, spacer의 `border-b`가 48px 안쪽에서 시작해 본문 헤더의 `border-b`와
+  끊어져 보였다. `pl-12`를 spacer 밑 콘텐츠 div로만 옮겨, spacer는 레일 전체 폭으로
+  그리고 "이 페이지" 텍스트는 그대로 48px 안쪽에서 시작하게 했다.
+
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
 |------|---------|
@@ -44,17 +57,16 @@
 | `docs/product/design.md` | "7. 우측 목차(TOC)" 절에 구조 변경 배경 기록 |
 | `docs/product/prd.md` | P8-5 항목에 이번 수정 이력 추가 |
 | `src/app/globals.css` | `.scrollbar-hidden` 유틸리티 추가 |
+| `src/components/editor/TableOfContents.tsx`(추가 수정) | `pl-12`를 헤더 정렬 spacer에서 콘텐츠 div로 이동 |
 
 ## 커밋 내역
 | SHA | 메시지 |
 |-----|--------|
 | d52c82e | feat: 우측 목차(TOC)를 독립된 레일 구조로 재구성, 활성 항목 버그 2건 수정 (P8-5) |
-
-| caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
-
-| c6e5554 | fix: 본문 스크롤 영역의 스크롤바를 숨김 (P8-5 후속) |
 | c7ecd48 | fix: 바닥 스크롤 중 클릭한 목차 항목이 즉시 활성 표시되도록 수정 (P8-5 후속) |
-
+| c6e5554 | fix: 본문 스크롤 영역의 스크롤바를 숨김 (P8-5 후속) |
+| caaccaa | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
+| (커밋 후 기록) | fix: 본문↔TOC 거터가 헤더 정렬 spacer까지 밀어내던 문제 수정 (P8-5 후속) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
