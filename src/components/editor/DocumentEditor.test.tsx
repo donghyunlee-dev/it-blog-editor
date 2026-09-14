@@ -168,6 +168,13 @@ describe("DocumentEditor", () => {
     expect(document.querySelector('[class*="max-w-[820px]"]')).not.toBeInTheDocument();
   });
 
+  it("본문 최대 폭(max-w-[830px])과 좌우 패딩(px-*)이 같은 엘리먼트에 있지 않다(2026-09-14 후속 — Tailwind 기본 box-sizing(border-box)에서는 패딩이 그 안에서 깎여나가, 이 둘을 한 엘리먼트에 같이 두면 830px가 아니라 830px-패딩만큼만 실제 읽기 영역이 된다. jsdom은 실제 레이아웃을 계산하지 않아 렌더링 폭 자체는 확인할 수 없으므로, 이 둘이 같은 클래스 문자열에 섞여 있지 않다는 구조로 대신 고정한다)", () => {
+    renderEditor(<DocumentEditor mode="create" />);
+
+    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[830px]"]') as HTMLElement;
+    expect(contentContainer.className).not.toMatch(/\bpx-\d/);
+  });
+
   it("새 문서 생성 성공 시 사이드바를 새로고침하고 새 문서로 이동한다", async () => {
     stubFetch(() => jsonResponse({ pageId: "new-1", version: 1 }, 201));
 
