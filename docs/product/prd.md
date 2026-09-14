@@ -25,7 +25,7 @@
 |---|---|---|---|
 | 로그인 화면 | AX Auth(사내 SSO)로 로그인 | `@sfood/ui`의 `Card`/`Typography`/`Alert` 조합(`LoginSimple`은 email/password 폼 전용이라 SSO 리다이렉트 흐름에 맞지 않아 쓰지 않음 — [design.md](./design.md) "로그인 화면" 절 참고), "MS 계정으로 로그인" 버튼, 로그인 실패 안내 | `/login` |
 | 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지 + 태그, 태그 필터, "새 문서" 버튼), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
-| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·삭제(확인 모달)·게시 설정 여는 버튼 | `/editor/new`, `/editor/[pageId]` |
+| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·게시 설정 여는 버튼(삭제·이력은 2026-09-14 P14-2로 헤더에서 빠지고 사이드바 문서 옵션 메뉴로 이동) | `/editor/new`, `/editor/[pageId]` |
 
 | 게시 설정 | 게시 여부·뷰어별 slug·메타 설명 설정 | 문서 전체 게시 토글, 뷰어별 카드(지금은 Tech Blog 1개, 카드마다 slug·메타 설명 입력) — 별도 화면이 아니라 문서 편집 화면(`DocumentEditor`) 안에서 열리는 `Modal` 오버레이다(2026-08-26 변경 — 기존 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal |
 | 환영 페이지(2026-09-03 추가, 같은 날 세 차례 재구성 — Modal→페이지→서비스 소개 보강→레퍼런스 기반 재설계) | 신규 가입자(또는 이름·팀 미입력 계정)가 로그인 직후 이름·팀을 입력하는 전용 화면. 로그인 화면과 같은 브랜드 셸(`AuthSplitShell`) 안에서, 따뜻한 인사말 한 단락으로 서비스를 소개하고("나만의 문서를 만들어 관리하고, 팀원과 공유") 로그인 계정 이메일을 함께 보여줌 | `AuthSplitShell`(좌측 `BrandPanelArt`, 우측 콘텐츠) + `Typography` 인사말 + `Avatar`로 계정 표시 + `FormField` 2개 + `Button`, 저장 성공 시 `/editor`로 이동 | `/welcome` — `/editor/layout.tsx`가 `needsOnboarding`이면 여기로 리다이렉트 |
@@ -74,7 +74,7 @@
 - 상태: 완료 — `listDocuments()`가 이미 문서마다 본문(`sourceDocument.doc`)을 조회하면서 제목만 쓰고 버리고 있었다는 것을 확인해 그 조회를 재사용했다(원래 우려했던 "N+1 비용을 배로 늘린다"는 문제가 실제로는 없음). `@sfood/ui`의 `Modal`은 `size`가 최대 `max-w-2xl`까지만 지원해 2단 와이드 레이아웃을 담을 수 없어 커스텀 오버레이로 대체했다(이유는 design.md "Ctrl+K 검색 팝업" 절 참고). 산출물: `docs/superpowers/tasks/P1-1a-content-search-ctrlk/{task,plan,result,test}.md`(최초 구현), `docs/superpowers/tasks/P1-1a-search-notion-style-redesign/{task,plan,result,test}.md`(Notion 스타일 재구성), src/lib/editor/documents.ts, src/lib/editor/documents.test.ts, src/app/api/editor/documents/search/route.ts, src/app/api/editor/documents/search/route.test.ts, src/components/editor/GlobalSearchModal.tsx, src/components/editor/GlobalSearchModal.test.tsx, src/components/editor/EditorShell.tsx, src/components/editor/EditorSidebar.tsx
 
 ### 기능 — 문서 작성·수정·삭제
-- 설명: TipTap 기반 WYSIWYG 에디터로 문서를 작성/수정하고, 필요 시 삭제(Confluence 휴지통 이동)한다. 삭제는 `window.confirm()`이 아니라 `Modal` 확인창으로 처리한다.
+- 설명: TipTap 기반 WYSIWYG 에디터로 문서를 작성/수정하고, 필요 시 삭제(Confluence 휴지통 이동)한다. 삭제는 `window.confirm()`이 아니라 `Modal` 확인창으로 처리한다. 삭제(및 버전 이력) 진입점은 2026-09-14(P14-2)부터 에디터 헤더가 아니라 사이드바 문서 행의 옵션(⋯) 메뉴다 — 지금 편집 중인 문서뿐 아니라 목록의 어떤 문서든 삭제/이력 조회를 할 수 있다.
 - 입력: 제목, 본문(TipTap JSON), (수정 시) 현재 버전 번호
 - 출력·동작: Confluence 페이지 생성/수정/삭제. 본문은 TipTap→storage format 변환기를 거쳐 저장하고, 편집 원본(TipTap JSON)은 별도 property(`sourceDocument`)로 보관
 - 예외 상황: 제목/본문 누락 → 400, 버전 불일치(동시 수정) → 409, 대상 없음 → 404. 저장 성공/실패는 `Toast`로 안내
@@ -372,6 +372,13 @@
 - 범위 밖: 에디터 헤더 컨텍스트 메뉴화(향후 헤더 버튼을 실제로 제거하게 되면 남는 버튼들의
   정렬을 다시 조정해야 한다는 점을 사용자가 미리 언급함), 폴더 행 액션 아이콘 통합, 메뉴
   항목 추가(지금은 "다른 폴더로 이동" 1개만).
+- P14-1 적용 후속(2026-09-14, 같은 대화·같은 PR — P14-2): 위 "헤더에 ⋯을 추가하는 건 안 해도
+  돼"를 "헤더는 그대로 두라"는 뜻으로 잘못 이해했었다 — 사용자가 정정: 실제로는 (1) 에디터
+  헤더에 **별도의** 옵션 메뉴를 새로 만들지 말라는 뜻이었고, (2) 헤더의 "이력"·"삭제" 버튼은
+  **제거**하고 그 기능을 사이드바 문서 옵션(⋯) 메뉴에 **항목으로 추가**해 "이동·이력·삭제"
+  3개를 한 메뉴로 모으는 것이 목표였다. 추가로 메뉴가 트리거 기준 왼쪽으로 펼쳐져 문서
+  제목과 겹치는 문제도 지적받아, `@sfood/ui`의 `DropdownMenu`가 위치를 바꾸는 props를 제공하지
+  않으므로 CSS로 `[role="menu"]`만 오른쪽(본문/페이지 방향)으로 덮어썼다.
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -583,6 +590,20 @@
   폴더 행 액션 아이콘은 사용자가 명시적으로 범위에서 제외해 이번엔 변경하지 않았다. 산출물:
   `docs/superpowers/tasks/P14-1-sidebar-document-context-menu/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
+- [x] (완료, P14-2) 사이드바 문서 옵션 메뉴에 "이력"·"삭제" 추가 + 에디터 헤더 버튼 제거 —
+  범위를 정정해(위 "P14-1 적용 후속" 참고) 에디터 헤더의 "이력"·"삭제" 버튼과 그 버튼이 열던
+  모달·핸들러(`handleDelete`, `deleteModalOpen`, `versionHistoryModalOpen`, `HistoryIcon`,
+  `TrashIcon`)를 `DocumentEditor.tsx`에서 모두 제거하고, 같은 기능을 사이드바 문서 옵션(⋯)
+  메뉴 항목으로 옮겼다. "이동"은 폴더가 있을 때만, "이력"·"삭제"는 항상 보인다. 삭제는
+  지금 보고 있는 문서(activePageId)를 지운 경우에만 `/editor`로 이동하고, 아니면 목록만
+  새로고침한다(사이드바 임의 행에서 삭제할 수 있으므로 DocumentEditor의 기존 삭제와 이
+  지점이 다르다). `DropdownMenu`가 메뉴를 트리거 기준 왼쪽으로 펼치는 문제(위치를 바꾸는
+  props 없음)는 `.sidebar-row-menu-right [role="menu"] { left: 0; right: auto; }`로 감쌌다.
+  `status` 타입에서 더 이상 쓰이지 않는 `"deleting"`도 뺐다. 산출물:
+  `docs/superpowers/tasks/P14-2-sidebar-history-delete-menu/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
+  src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
+  src/app/globals.css
 
 
 ## 🗄️ 데이터 저장 여부

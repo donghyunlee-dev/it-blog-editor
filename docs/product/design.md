@@ -243,7 +243,7 @@ Storybook 사이드바에서 확인한 실제 컴포넌트 목록 중, 이번 �
 | 화면/요소 | 컴포넌트 | 비고 |
 |---|---|---|
 | 로그인 화면 | 좌: 직접 마크업 브랜드 패널(`Typography` + 자체 제작 SVG `BrandPanelArt`) · 우: 카드 없이 `Typography` + `Alert` + `Button` 토큰 클래스를 입힌 `<a>`만 배경 위에 배치 | `LoginSimple`/`LoginSplit` 둘 다 email/password 폼 전용이라 쓰지 않음(단, `LoginSplit`의 좌/우 레이아웃 구조는 재현) — 아래 "로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증)" 참고 |
-| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState`/`DropdownMenu` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태·행 옵션 메뉴)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨, 문서 행의 "이동" 버튼은 같은 날(P14-1) `DropdownMenu` 기반 옵션(⋯) 메뉴로 대체됨 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
+| 좌측 사이드바(앱 셸) | 직접 마크업(`<aside>`) + `StatusBadge`/`Tag`/`EmptyState`/`DropdownMenu` + `Button` 토큰 클래스 | `Sidebar`·`List`가 이 용도에 맞지 않아 컨테이너와 문서 행은 직접 짜고, 그 안의 개별 요소(상태 뱃지·태그·빈 상태·행 옵션 메뉴)만 컴포넌트를 쓴다. `ChipGroup`(태그 필터)은 2026-09-14(P12-1)에 제거됨, 문서 행의 "이동" 버튼은 같은 날(P14-1) `DropdownMenu` 기반 옵션(⋯) 메뉴로 대체되고 곧이어(P14-2) 에디터 헤더의 "이력"·"삭제"도 이 메뉴로 합류함 — 아래 "확인된 사항"과 `src/components/editor/EditorSidebar.tsx` 참고 |
 | 문서 상태 뱃지(초안/게시됨) | `StatusBadge` | 상태 표시 전용 컴포넌트. `status`(`StatusVariant`)로 색을, `label`로 텍스트를 넘긴다 — `children`은 받지 않는다 |
 | 문서 태그 표시 | `Tag` | 편집 화면의 태그 입력 칩은 `Tag`(`onRemove` 포함). 사이드바의 태그 필터(`ChipGroup`)는 2026-09-14(P12-1)에 제거되었다 — 태그는 검색(사이드바 검색·Ctrl+K)의 매칭 대상으로만 쓰인다 |
 | 문서 목록 항목 | 직접 마크업(`<ul>`/`<li>`/`Link`) + `StatusBadge` + `Tag` | 기존 `<ul className="doc-list">`를 대체. `List`가 아니라 직접 만든 이유는 아래 "확인된 사항" 참고 |
@@ -291,7 +291,13 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
   "옵션"(⋯) 메뉴는 `DropdownMenu`(`trigger` + `DropdownItem[]`)를 쓴다 — 같은 패키지의
   `FileExplorer.itemActions`가 이미 같은 패턴("항목별 우측 액션 메뉴")을 쓰고 있어 그대로
   재사용했다(2026-09-14, P14-1 — "이동" 단일 버튼을 이 메뉴로 대체, 기능이 늘어날 때 항목만
-  추가하는 구조).
+  추가하는 구조). 같은 날(P14-2) 에디터 헤더에 있던 "이력"·"삭제" 버튼도 이 메뉴로 옮겨와
+  이동·이력·삭제 3개 항목이 됐다 — 헤더 쪽 버튼·모달·핸들러는 모두 제거됐다(`DocumentEditor.tsx`).
+  `DropdownMenu`는 메뉴를 트리거 기준 `right-0`(왼쪽으로 펼쳐짐)으로 고정 배치하는 props 없는
+  컴포넌트라, 좁은 사이드바의 오른쪽 끝에 있는 트리거에서 열면 문서 제목과 겹쳤다(사용자 지적 —
+  "컨텍스트 메뉴 나오는 위치가 왼쪽으로 나오는데 오른쪽 페이지 방향으로 나와야 해"). 컴포넌트를
+  고칠 수 없어 `globals.css`의 `.sidebar-row-menu-right [role="menu"] { left: 0; right: auto; }`로
+  트리거를 감싸는 래퍼에서만 위치를 덮어썼다.
 
 ## 로그인 화면 — `LoginSimple`/`LoginSplit`을 쓰지 않은 이유 (Task 15 검증, 2026-08-25 레이아웃 갱신)
 
@@ -403,8 +409,10 @@ Storybook 문서만 보고 이 표를 채웠을 때는 `Sidebar`를 사이드바
 <Button variant="primary">취소</Button>
 <Button variant="primary">삭제</Button>
 ```
-→ 편집 화면 헤더 버튼(저장/삭제/게시 설정 이동, 2026-08-25부터 상단 헤더에 위치)에도 같은
-원칙을 적용해 "저장"만 `primary`, "삭제"는 `danger`, "게시 설정"은 `secondary`로 구분한다.
+→ 편집 화면 헤더 버튼(저장/게시 설정, 2026-08-25부터 상단 헤더에 위치)에도 같은 원칙을
+적용해 "저장"만 `primary`, "게시 설정"은 `secondary`로 구분한다. "삭제"는 2026-09-14(P14-2)에
+헤더에서 사이드바 문서 옵션(⋯) 메뉴로 옮겨가 더 이상 `Button`이 아니라 `DropdownItem`의
+`danger` 스타일로 표시된다.
 
 **폼 구조**: 라벨/에러를 `FormField`로 감싼다.
 ```tsx

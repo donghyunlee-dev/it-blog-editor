@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
-import { EditorSidebar, extractPageIdFromPathname } from "./EditorSidebar";
+import { EditorSidebar, extractPageIdFromPathname, type EditorSidebarProps } from "./EditorSidebar";
 import { UnsavedChangesProvider, useUnsavedChanges } from "./UnsavedChangesContext";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 import type { FolderNode } from "@/lib/editor/folders";
@@ -75,6 +75,16 @@ vi.mock("next/link", () => ({
     >
       {children}
     </a>
+  ),
+}));
+
+// P14-2: VersionHistory 자체의 로딩/성공/실패 동작은 VersionHistory.test.tsx가 다룬다.
+// 여기서는 "이력" 메뉴 항목이 Modal을 열고 올바른 pageId를 넘기는지만 확인하면 되므로
+// 가벼운 대역으로 바꿔 끼운다(DocumentEditor.test.tsx가 헤더에 있던 이 버튼을 테스트하던
+// 방식과 동일 — 기능이 여기로 옮겨왔다).
+vi.mock("./VersionHistory", () => ({
+  VersionHistory: ({ pageId }: { pageId: string }) => (
+    <div data-testid="version-history" data-page-id={pageId} />
   ),
 }));
 
@@ -743,10 +753,13 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     expect(screen.getByRole("button", { name: "문서 옵션" })).toBeInTheDocument();
   });
 
-  it("폴더가 하나도 없는 계정에서는 옵션 트리거를 숨긴다(옮길 곳이 없음)", () => {
+  // P14-2: 옵션 메뉴에 "이력"·"삭제"가 추가되면서, 폴더가 하나도 없어도(옮길 곳이 없어도)
+  // 메뉴 자체는 항상 보인다 — "다른 폴더로 이동" 항목만 빠진다(같은 검증은 "EditorSidebar
+  // 문서 옵션 메뉴 — 이력·삭제(P14-2)" describe 블록에 있다).
+  it("폴더가 하나도 없는 계정에서도 옵션 트리거는 보인다(이력·삭제는 항상 유효)", () => {
     renderSidebar([DOC_UNCLASSIFIED], []);
 
-    expect(screen.queryByRole("button", { name: "문서 옵션" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "문서 옵션" })).toBeInTheDocument();
   });
 
   it("옵션 메뉴에서 '다른 폴더로 이동'을 누르면 대상 폴더를 고르는 모달이 뜨고, 하위 폴더는 들여쓴 이름으로 보인다", async () => {
@@ -820,6 +833,144 @@ describe("EditorSidebar 문서를 폴더로 이동(P7-6)", () => {
     await user.click(screen.getByRole("button", { name: "이동" }));
 
     expect(await screen.findByText("개인 폴더가 없습니다.")).toBeInTheDocument();
+  });
+});
+
+describe("EditorSidebar 문서 옵션 메뉴 — 이력·삭제(P14-2)", () => {
+  const DOC: DocumentSummary = {
+    pageId: "doc-1",
+    title: "문서A",
+    updatedAt: "2026-08-21T00:00:00.000Z",
+    isPublished: true,
+    tags: [],
+    folderId: null,
+  };
+
+  function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
+    const fetchMock = vi.fn(async (url: string, init?: RequestInit) => handler(url, init));
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  function renderSidebar(props?: Partial<EditorSidebarProps>) {
+    return render(
+      <ToastProvider>
+        <EditorSidebar documents={[DOC]} folders={[]} {...props} />
+      </ToastProvider>
+    );
+  }
+
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    push.mockClear();
+    refresh.mockClear();
+  });
+
+  async function openOptionsMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole("button", { name: "문서 옵션" }));
+  }
+
+  it("폴더가 하나도 없어도 옵션 메뉴에는 '이력'·'삭제'가 보인다(이동만 빠진다)", async () => {
+    const user = userEvent.setup();
+    renderSidebar();
+
+    await openOptionsMenu(user);
+
+    expect(screen.getByRole("menuitem", { name: "이력" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "삭제" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "다른 폴더로 이동" })).not.toBeInTheDocument();
+  });
+
+  it("'이력'을 누르면 버전 이력 모달이 열리고 올바른 pageId를 넘긴다", async () => {
+    const user = userEvent.setup();
+    renderSidebar();
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "이력" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("version-history")).toHaveAttribute("data-page-id", "doc-1");
+  });
+
+  it("'삭제'를 누르면 확인 모달이 뜨고, 확인해야 실제 삭제 요청을 보낸다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar();
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith("/api/editor/documents/doc-1", {
+        method: "DELETE",
+      });
+    });
+    expect(await screen.findByText("문서를 삭제했습니다.")).toBeInTheDocument();
+    expect(refresh).toHaveBeenCalled();
+  });
+
+  it("삭제 확인 모달에서 취소하면 삭제 요청을 보내지 않는다", async () => {
+    const user = userEvent.setup();
+    const fetchMock = stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar();
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    await user.click(screen.getByRole("button", { name: "취소" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("지금 보고 있는 문서를 삭제하면 /editor로 이동한다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar({ activePageId: "doc-1" });
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith("/editor");
+    });
+  });
+
+  it("다른 문서를 삭제할 때는 지금 문서함 화면을 벗어나지 않는다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() => new Response(null, { status: 204 }));
+    renderSidebar({ activePageId: "other-doc" });
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    await waitFor(() => {
+      expect(refresh).toHaveBeenCalled();
+    });
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("삭제에 실패하면 오류 Toast를 보여준다", async () => {
+    const user = userEvent.setup();
+    stubFetch(() =>
+      new Response(
+        JSON.stringify({ error: { message: "문서를 찾을 수 없습니다." } }),
+        { status: 404 }
+      )
+    );
+    renderSidebar();
+
+    await openOptionsMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "삭제" }));
+    await user.click(screen.getByRole("button", { name: "삭제 확인" }));
+
+    expect(await screen.findByText("문서를 찾을 수 없습니다.")).toBeInTheDocument();
   });
 });
 

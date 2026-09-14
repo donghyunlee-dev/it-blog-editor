@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button, DropdownMenu, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -11,6 +11,7 @@ import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
 import { MoveDocumentModal } from "./MoveDocumentModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
+import { VersionHistory } from "./VersionHistory";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 import type { FolderNode } from "@/lib/editor/folders";
@@ -157,6 +158,33 @@ function MoreIcon() {
       <circle cx="10" cy="4.5" r="1.6" />
       <circle cx="10" cy="10" r="1.6" />
       <circle cx="10" cy="15.5" r="1.6" />
+    </svg>
+  );
+}
+
+/**
+ * P14-2: 문서 옵션 메뉴의 "이력" 항목 아이콘 — `DocumentEditor.tsx`가 헤더에서 쓰던 것과
+ * 같은 모양(시계 반대 방향 화살표 + 시침)을 그대로 옮겨온다. 헤더의 "이력" 버튼 자체는
+ * 제거되고 이 메뉴 항목으로 기능이 이전됐다.
+ */
+function HistoryIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M4 6a7 7 0 1 1-1.5 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M2 3.5V6.5H5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 6.5v4l3 2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -393,6 +421,46 @@ export function EditorSidebar({
   // P7-6: 문서를 다른 폴더로 옮기는 모달의 대상 문서. 드래그앤드롭은 범위 밖이라
   // "이동" 메뉴/모달로만 구현한다(prd.md Phase 7 핵심 결정).
   const [moveDocumentTarget, setMoveDocumentTarget] = useState<DocumentSummary | null>(null);
+
+  // P14-2: "이력"·"삭제"가 에디터 헤더에서 사이드바 문서 옵션(⋯) 메뉴로 옮겨오면서, 그
+  // 대상 문서를 담는 상태도 함께 옮겨온다(moveDocumentTarget과 같은 패턴).
+  const [historyDocumentTarget, setHistoryDocumentTarget] = useState<DocumentSummary | null>(
+    null
+  );
+  const [deleteDocumentTarget, setDeleteDocumentTarget] = useState<DocumentSummary | null>(null);
+  const [deletingDocument, setDeletingDocument] = useState(false);
+
+  // P14-2: DocumentEditor.tsx의 handleDelete와 같은 API 호출이지만, 지금 열려 있는 문서가
+  // 아니라 사이드바 목록의 임의 행에서 삭제할 수 있다는 점이 다르다 — 지금 보고 있는
+  // 문서(currentPageId)를 지운 경우에만 /editor로 이동하고, 아니면 목록만 새로고침한다.
+  async function handleDeleteDocument() {
+    if (!deleteDocumentTarget) return;
+    setDeletingDocument(true);
+    try {
+      const response = await fetch(`/api/editor/documents/${deleteDocumentTarget.pageId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => null)) as
+          | { error?: { message?: string } }
+          | null;
+        throw new Error(data?.error?.message ?? "문서를 삭제하지 못했습니다.");
+      }
+      toast("문서를 삭제했습니다.", "success");
+      const wasActive = deleteDocumentTarget.pageId === currentPageId;
+      setDeleteDocumentTarget(null);
+      // DocumentEditor.tsx의 handleDelete와 같은 이유로 push를 먼저 완료시키고 나서
+      // refresh한다 — 순서가 바뀌면 아직 떠나지 않은 현재 라우트를 다시 조회해 404로 이어진다.
+      if (wasActive) {
+        router.push("/editor");
+      }
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "문서를 삭제하지 못했습니다.", "danger");
+    } finally {
+      setDeletingDocument(false);
+    }
+  }
 
   async function handleDeleteFolder() {
     if (!deleteFolderTarget) return;
@@ -652,16 +720,36 @@ export function EditorSidebar({
     const treeItemAttrs = treeItem
       ? { role: "treeitem" as const, "aria-level": depth + 1, "aria-selected": isActive }
       : {};
-    // P7-6: 옮길 수 있는 폴더가 하나도 없으면(계정에 폴더가 전혀 없음) 옵션(⋯) 메뉴
-    // 자체를 숨긴다 — 지금 메뉴엔 "다른 폴더로 이동"뿐이라, 눌러도 미분류(현재 상태)로만
-    // 되돌릴 수 있어 의미가 없다.
-    if (flatFolderOptions.length === 0) {
-      return (
-        <li key={document.pageId} style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }} {...treeItemAttrs}>
-          {row}
-        </li>
-      );
+    // P14-2: "이동"·"이력"·"삭제"를 하나의 옵션(⋯) 메뉴로 모은다(P14-1의 뒤이은 작업 —
+    // 에디터 헤더에 있던 "이력"·"삭제" 버튼이 여기로 옮겨왔다). "이동"만 폴더가 하나도
+    // 없는 계정에서는 의미가 없어(옮길 곳이 없음) 조건부로 뺀다 — 이력·삭제는 폴더 유무와
+    // 무관하게 항상 유효해 메뉴 자체는 늘 보인다.
+    const menuItems: {
+      label: string;
+      icon: ReactNode;
+      danger?: boolean;
+      divider?: boolean;
+      onClick: () => void;
+    }[] = [];
+    if (flatFolderOptions.length > 0) {
+      menuItems.push({
+        label: "다른 폴더로 이동",
+        icon: <MoveToFolderIcon />,
+        onClick: () => setMoveDocumentTarget(document),
+      });
     }
+    menuItems.push({
+      label: "이력",
+      icon: <HistoryIcon />,
+      onClick: () => setHistoryDocumentTarget(document),
+    });
+    menuItems.push({
+      label: "삭제",
+      icon: <TrashIcon />,
+      danger: true,
+      divider: true,
+      onClick: () => setDeleteDocumentTarget(document),
+    });
     return (
       <li
         key={document.pageId}
@@ -671,31 +759,35 @@ export function EditorSidebar({
       >
         {row}
         {/*
-          P14-1: "다른 폴더로 이동" 단일 버튼 대신 ⋯ 트리거로 DropdownMenu(@sfood/ui)를 연다
-          — 기능이 늘어날 때마다 행에 아이콘을 새로 추가하지 않고 이 메뉴에 항목만 추가하는
-          구조로 바꾼다. 트리거 자체에는 onClick을 달지 않는다 — DropdownMenu가 클릭 핸들러를
-          주입해 토글한다(node_modules/@sfood/ui/dist/index.js의 DropdownMenu 구현 확인).
+          P14-1/P14-2: "이동"·"이력"·"삭제" 단일 버튼들 대신 ⋯ 트리거로 DropdownMenu(@sfood/ui)를
+          연다 — 기능이 늘어날 때마다 행이나 헤더에 아이콘을 새로 추가하지 않고 이 메뉴에
+          항목만 추가하는 구조로 바꾼다. 트리거 자체에는 onClick을 달지 않는다 — DropdownMenu가
+          클릭 핸들러를 주입해 토글한다(node_modules/@sfood/ui/dist/index.js의 DropdownMenu
+          구현 확인).
+
+          `sidebar-row-menu-right`(globals.css): DropdownMenu는 메뉴를 트리거 기준
+          `right-0`(오른쪽 끝 정렬, 왼쪽으로 펼쳐짐)으로 고정 배치하는데, props로 바꿀 방법이
+          없다. 트리거가 좁은 사이드바의 오른쪽 끝에 있어 왼쪽으로 펼쳐지면 문서 제목 위에
+          겹쳐 보인다(2026-09-14, 사용자 지적 — "컨텍스트 메뉴 나오는 위치가 왼쪽으로 나오는데
+          오른쪽 페이지 방향으로 나와야 해"). `[role="menu"]`를 `left-0`으로 덮어써 본문(페이지)
+          방향으로 펼쳐지게 한다.
         */}
-        <DropdownMenu
-          trigger={
-            <button
-              type="button"
-              aria-label="문서 옵션"
-              title="옵션"
-              // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
-              className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
-            >
-              <MoreIcon />
-            </button>
-          }
-          items={[
-            {
-              label: "다른 폴더로 이동",
-              icon: <MoveToFolderIcon />,
-              onClick: () => setMoveDocumentTarget(document),
-            },
-          ]}
-        />
+        <div className="sidebar-row-menu-right">
+          <DropdownMenu
+            trigger={
+              <button
+                type="button"
+                aria-label="문서 옵션"
+                title="옵션"
+                // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
+                className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+              >
+                <MoreIcon />
+              </button>
+            }
+            items={menuItems}
+          />
+        </div>
       </li>
     );
   }
@@ -1185,6 +1277,46 @@ export function EditorSidebar({
           onSaved={() => router.refresh()}
         />
       )}
+
+      {/* P14-2: 헤더의 "이력" 버튼이 열던 모달을 그대로 옮겨온다 — VersionHistory는
+          pageId만 있으면 스스로 데이터를 가져오므로 대상 문서만 바꿔 끼우면 된다. */}
+      <Modal
+        open={historyDocumentTarget !== null}
+        onClose={() => setHistoryDocumentTarget(null)}
+        title="문서 이력"
+      >
+        {historyDocumentTarget && <VersionHistory pageId={historyDocumentTarget.pageId} />}
+      </Modal>
+
+      {/* P14-2: 헤더의 "삭제" 버튼이 열던 확인 모달과 같은 문구·버튼 구성을 그대로 옮겨온다. */}
+      <Modal
+        open={deleteDocumentTarget !== null}
+        onClose={() => setDeleteDocumentTarget(null)}
+        title="문서 삭제"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteDocumentTarget(null)}
+              disabled={deletingDocument}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={handleDeleteDocument}
+              disabled={deletingDocument}
+            >
+              {deletingDocument ? "삭제 중..." : "삭제 확인"}
+            </Button>
+          </>
+        }
+      >
+        &quot;{deleteDocumentTarget?.title}&quot; 문서를 삭제하시겠습니까? 삭제된 문서는
+        사이드바의 &quot;삭제된 문서&quot;에서 복구할 수 있습니다.
+      </Modal>
 
       <Modal
         open={deleteFolderTarget !== null}
