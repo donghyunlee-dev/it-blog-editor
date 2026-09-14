@@ -379,6 +379,15 @@
   3개를 한 메뉴로 모으는 것이 목표였다. 추가로 메뉴가 트리거 기준 왼쪽으로 펼쳐져 문서
   제목과 겹치는 문제도 지적받아, `@sfood/ui`의 `DropdownMenu`가 위치를 바꾸는 props를 제공하지
   않으므로 CSS로 `[role="menu"]`만 오른쪽(본문/페이지 방향)으로 덮어썼다.
+- P14-2 적용 후속(2026-09-14, 같은 대화·같은 PR — P14-3): CSS로 방향만 바꿔도 메뉴가 "문서함
+  패널 안으로 들어가서 보이지 않는" 문제가 남아 있었다(사용자 지적 — "z-index를 완전히
+  밖으로 빼야 할 거 같아"). 코드로 원인을 확인한 결과, 사이드바 문서 목록을 감싸는 `<nav
+  overflow-y-auto>`가 CSS 스펙상(overflow-y가 visible이 아니면 overflow-x도 auto로 강제
+  계산됨) 가로로 넘치는 자손도 클리핑하고 있었다 — `DropdownMenu`의 팝업이 그 안에 있어
+  사이드바 폭을 넘는 순간 잘렸다. z-index는 스태킹 순서만 바꿀 뿐 overflow 클리핑을 뚫지
+  못해 사용자의 제안과는 다른 해법이 필요했다: `DropdownMenu` 사용을 그만두고, 팝업을
+  `<nav>` 바깥 형제 위치에 `position: fixed` + 트리거의 `getBoundingClientRect()` 좌표로
+  직접 그리는 커스텀 구현으로 교체했다(접근성 역할은 동일하게 유지).
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -604,6 +613,19 @@
   src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
   src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
   src/app/globals.css
+- [x] (완료, P14-3) 문서 옵션 메뉴가 사이드바 스크롤 영역에 잘려 안 보이는 문제 수정 — CSS로
+  방향만 바꾼 뒤에도 메뉴가 "문서함 패널 안으로 들어가서 보이지 않는" 문제가 있었다(사용자
+  지적 — "z-index를 완전히 밖으로 빼야 할 거 같아"). 원인은 문서 목록을 감싸는 `<nav
+  overflow-y-auto>`가 CSS 스펙상 가로로 넘치는 자손도 함께 클리핑하고 있었던 것이다 —
+  z-index는 스태킹 순서만 바꿀 뿐 overflow 클리핑을 뚫지 못한다. `@sfood/ui`의
+  `DropdownMenu`(팝업을 트리거 바로 옆 `position: absolute`로 그림) 사용을 그만두고, 팝업을
+  `<nav>` 바깥 형제 위치에 `position: fixed` + 트리거의 `getBoundingClientRect()` 좌표로
+  직접 그리는 커스텀 구현(`openDocumentMenu` state, `buildDocumentMenuItems`)으로 교체했다.
+  바깥 클릭·Escape·스크롤/리사이즈 시 닫는 동작을 직접 구현해 기존 동작을 유지했고,
+  `role="menu"`/`role="menuitem"` 접근성 역할도 그대로 유지해 회귀 테스트는 변경 없이
+  통과했다. `.sidebar-row-menu-right` CSS 규칙은 더 이상 필요 없어 제거했다. 산출물:
+  `docs/superpowers/tasks/P14-3-sidebar-menu-portal-fix/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/app/globals.css
 
 
 ## 🗄️ 데이터 저장 여부

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
-import { Button, DropdownMenu, EmptyState, Modal, useToast } from "@sfood/ui";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { Button, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
@@ -149,8 +149,11 @@ function MoveToFolderIcon() {
 
 /**
  * P14-1: 문서 행의 액션 트리거 아이콘(⋯). 기능이 늘어날 때마다 행에 아이콘을 새로 추가하는
- * 대신, 이 트리거 하나로 `DropdownMenu`(`@sfood/ui`)를 열어 항목을 늘리는 방식으로
- * 바꾼다(2026-09-14, 사용자가 Notion/Confluence/Google Drive 등과 비교 후 결정).
+ * 대신, 이 트리거 하나로 옵션 메뉴를 열어 항목을 늘리는 방식으로 바꾼다(2026-09-14, 사용자가
+ * Notion/Confluence/Google Drive 등과 비교 후 결정). 메뉴 자체는 처음엔 `@sfood/ui`의
+ * `DropdownMenu`를 썼지만, 사이드바가 스크롤 컨테이너라 팝업이 잘려 보이는 문제로 P14-3에서
+ * 직접 그리는 방식으로 바뀌었다(아래 `openDocumentMenu` 관련 코드 참고) — 트리거 아이콘
+ * 자체는 그대로다.
  */
 function MoreIcon() {
   return (
@@ -429,6 +432,58 @@ export function EditorSidebar({
   );
   const [deleteDocumentTarget, setDeleteDocumentTarget] = useState<DocumentSummary | null>(null);
   const [deletingDocument, setDeletingDocument] = useState(false);
+
+  // P14-3: 문서 옵션(⋯) 메뉴 팝업을 <nav> 바깥에 fixed로 직접 그리기 위해, "어떤 문서의
+  // 메뉴가 열려 있는지"와 "그 트리거가 화면 어디에 있었는지"를 여기서 들고 있는다 —
+  // renderDocumentRow는 이제 트리거만 그리고, 실제 팝업은 이 state를 보고 컴포넌트 하단
+  // (아래 "문서 옵션 메뉴 팝업" 렌더 부분)에서 그린다.
+  const [openDocumentMenu, setOpenDocumentMenu] = useState<{
+    document: DocumentSummary;
+    anchorRect: DOMRect;
+    triggerEl: HTMLButtonElement;
+  } | null>(null);
+  const documentMenuPopupRef = useRef<HTMLDivElement>(null);
+
+  // P14-3: @sfood/ui의 DropdownMenu가 내부적으로 하던 것(바깥 클릭·Escape로 닫기)을
+  // 여기서 직접 구현한다 — 팝업이 트리거와 다른 DOM 위치(<nav> 바깥)에 있어 트리거 하나만
+  // 감싸는 ref로는 "바깥 클릭"을 판단할 수 없다(트리거와 팝업 둘 다 확인해야 한다).
+  // 스크롤·리사이즈 시에는 앵커 좌표가 낡아지므로 다시 계산하는 대신 그냥 닫는다.
+  useEffect(() => {
+    if (!openDocumentMenu) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        !openDocumentMenu ||
+        openDocumentMenu.triggerEl.contains(target) ||
+        documentMenuPopupRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setOpenDocumentMenu(null);
+    }
+    // `KeyboardEvent`는 이 파일 상단에서 React의 합성 이벤트 타입으로 import돼 있어(다른
+    // 키보드 핸들러들이 그걸 쓴다), 여기서는 DOM 네이티브 리스너용으로 `globalThis.`를 붙여
+    // 구분한다.
+    function handleKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key === "Escape") {
+        openDocumentMenu?.triggerEl.focus();
+        setOpenDocumentMenu(null);
+      }
+    }
+    function handleScrollOrResize() {
+      setOpenDocumentMenu(null);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScrollOrResize, true);
+    window.addEventListener("resize", handleScrollOrResize);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScrollOrResize, true);
+      window.removeEventListener("resize", handleScrollOrResize);
+    };
+  }, [openDocumentMenu]);
 
   // P14-2: DocumentEditor.tsx의 handleDelete와 같은 API 호출이지만, 지금 열려 있는 문서가
   // 아니라 사이드바 목록의 임의 행에서 삭제할 수 있다는 점이 다르다 — 지금 보고 있는
@@ -720,36 +775,6 @@ export function EditorSidebar({
     const treeItemAttrs = treeItem
       ? { role: "treeitem" as const, "aria-level": depth + 1, "aria-selected": isActive }
       : {};
-    // P14-2: "이동"·"이력"·"삭제"를 하나의 옵션(⋯) 메뉴로 모은다(P14-1의 뒤이은 작업 —
-    // 에디터 헤더에 있던 "이력"·"삭제" 버튼이 여기로 옮겨왔다). "이동"만 폴더가 하나도
-    // 없는 계정에서는 의미가 없어(옮길 곳이 없음) 조건부로 뺀다 — 이력·삭제는 폴더 유무와
-    // 무관하게 항상 유효해 메뉴 자체는 늘 보인다.
-    const menuItems: {
-      label: string;
-      icon: ReactNode;
-      danger?: boolean;
-      divider?: boolean;
-      onClick: () => void;
-    }[] = [];
-    if (flatFolderOptions.length > 0) {
-      menuItems.push({
-        label: "다른 폴더로 이동",
-        icon: <MoveToFolderIcon />,
-        onClick: () => setMoveDocumentTarget(document),
-      });
-    }
-    menuItems.push({
-      label: "이력",
-      icon: <HistoryIcon />,
-      onClick: () => setHistoryDocumentTarget(document),
-    });
-    menuItems.push({
-      label: "삭제",
-      icon: <TrashIcon />,
-      danger: true,
-      divider: true,
-      onClick: () => setDeleteDocumentTarget(document),
-    });
     return (
       <li
         key={document.pageId}
@@ -759,37 +784,73 @@ export function EditorSidebar({
       >
         {row}
         {/*
-          P14-1/P14-2: "이동"·"이력"·"삭제" 단일 버튼들 대신 ⋯ 트리거로 DropdownMenu(@sfood/ui)를
-          연다 — 기능이 늘어날 때마다 행이나 헤더에 아이콘을 새로 추가하지 않고 이 메뉴에
-          항목만 추가하는 구조로 바꾼다. 트리거 자체에는 onClick을 달지 않는다 — DropdownMenu가
-          클릭 핸들러를 주입해 토글한다(node_modules/@sfood/ui/dist/index.js의 DropdownMenu
-          구현 확인).
-
-          `sidebar-row-menu-right`(globals.css): DropdownMenu는 메뉴를 트리거 기준
-          `right-0`(오른쪽 끝 정렬, 왼쪽으로 펼쳐짐)으로 고정 배치하는데, props로 바꿀 방법이
-          없다. 트리거가 좁은 사이드바의 오른쪽 끝에 있어 왼쪽으로 펼쳐지면 문서 제목 위에
-          겹쳐 보인다(2026-09-14, 사용자 지적 — "컨텍스트 메뉴 나오는 위치가 왼쪽으로 나오는데
-          오른쪽 페이지 방향으로 나와야 해"). `[role="menu"]`를 `left-0`으로 덮어써 본문(페이지)
-          방향으로 펼쳐지게 한다.
+          P14-3: 이전엔 이 자리에서 `@sfood/ui`의 `DropdownMenu`를 바로 열었는데, 그
+          컴포넌트는 팝업을 트리거를 감싸는 자기 자신의 `position: relative` 래퍼 안에
+          `position: absolute`로 그린다 — 스크롤 컨테이너(사이드바의 `<nav
+          overflow-y-auto>`) 안에 있으면 가로로 넘치는 부분이 그대로 잘려 안 보인다
+          (2026-09-14, 사용자 지적 — "컨텍스트 메뉴가 문서함 패널 안으로 들어가서 보이지
+          않아. z-index를 완전히 밖으로 빼야 할 거 같아" — z-index는 스태킹 순서만 바꿀 뿐
+          overflow 클리핑을 뚫지 못한다). `DropdownMenu`에 위치를 바꾸거나 포탈로 그리는
+          prop이 없어 이 자리에는 트리거만 남기고, 실제 팝업은 `openDocumentMenu` state로
+          끌어올려 `<nav>` 바깥(이 컴포넌트 트리 하단)에 `position: fixed`로 직접 그린다 —
+          스크롤 컨테이너의 overflow 영향을 받지 않는다.
         */}
-        <div className="sidebar-row-menu-right">
-          <DropdownMenu
-            trigger={
-              <button
-                type="button"
-                aria-label="문서 옵션"
-                title="옵션"
-                // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
-                className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
-              >
-                <MoreIcon />
-              </button>
-            }
-            items={menuItems}
-          />
-        </div>
+        <button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={openDocumentMenu?.document.pageId === document.pageId}
+          aria-label="문서 옵션"
+          title="옵션"
+          onClick={(event) => {
+            const triggerEl = event.currentTarget;
+            setOpenDocumentMenu((current) =>
+              current?.document.pageId === document.pageId
+                ? null
+                : { document, anchorRect: triggerEl.getBoundingClientRect(), triggerEl }
+            );
+          }}
+          // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
+          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+        >
+          <MoreIcon />
+        </button>
       </li>
     );
+  }
+
+  /**
+   * P14-3: `openDocumentMenu`(현재 열린 문서 옵션 메뉴)가 있을 때 그 문서 기준으로 메뉴
+   * 항목을 조립한다. "이동"만 폴더가 하나도 없는 계정에서는 의미가 없어(옮길 곳이 없음)
+   * 조건부로 뺀다 — 이력·삭제는 폴더 유무와 무관하게 항상 유효하다.
+   */
+  function buildDocumentMenuItems(document: DocumentSummary) {
+    const items: {
+      label: string;
+      icon: ReactNode;
+      danger?: boolean;
+      divider?: boolean;
+      onClick: () => void;
+    }[] = [];
+    if (flatFolderOptions.length > 0) {
+      items.push({
+        label: "다른 폴더로 이동",
+        icon: <MoveToFolderIcon />,
+        onClick: () => setMoveDocumentTarget(document),
+      });
+    }
+    items.push({
+      label: "이력",
+      icon: <HistoryIcon />,
+      onClick: () => setHistoryDocumentTarget(document),
+    });
+    items.push({
+      label: "삭제",
+      icon: <TrashIcon />,
+      danger: true,
+      divider: true,
+      onClick: () => setDeleteDocumentTarget(document),
+    });
+    return items;
   }
 
   /**
@@ -1161,6 +1222,45 @@ export function EditorSidebar({
           </Button>
         )}
       </nav>
+
+      {/*
+        P14-3: 문서 옵션(⋯) 메뉴 팝업 — `<nav>`(스크롤 컨테이너) 바깥의 형제 위치에 그려서
+        overflow 클리핑을 받지 않는다. `position: fixed` + 트리거의 `getBoundingClientRect()`
+        좌표로 뷰포트 기준에 직접 배치한다(위 `openDocumentMenu` state·`renderDocumentRow`
+        주석 참고).
+      */}
+      {openDocumentMenu && (
+        <div
+          ref={documentMenuPopupRef}
+          role="menu"
+          className="fixed z-50 min-w-[160px] rounded-card border border-border bg-surface py-1 shadow-lg"
+          style={{
+            top: openDocumentMenu.anchorRect.bottom + 4,
+            left: openDocumentMenu.anchorRect.left,
+          }}
+        >
+          {buildDocumentMenuItems(openDocumentMenu.document).map((item) => (
+            <div key={item.label}>
+              {item.divider && <div className="my-1 border-t border-border" aria-hidden="true" />}
+              <button
+                type="button"
+                role="menuitem"
+                className={
+                  "sidebar-row-hover flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm " +
+                  (item.danger ? "text-danger" : "text-foreground")
+                }
+                onClick={() => {
+                  item.onClick();
+                  setOpenDocumentMenu(null);
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/*
         문서 목록(nav)과 계정 정보 사이에 별도로 분리한 "문서 관련 기능" 영역이다
