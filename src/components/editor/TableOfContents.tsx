@@ -200,8 +200,17 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     }
 
     setTocRail(
-      <nav aria-label="이 페이지" className="flex h-full flex-col pt-10 pl-12">
-        <div className="flex-1 overflow-y-auto pr-2">
+      <nav aria-label="이 페이지" className="flex h-full flex-col pl-12">
+        {/*
+          문서 헤더(DocumentEditor.tsx의 `<header className="h-14 ...">`)는 본문 스크롤
+          영역 안에만 있고, 이 레일은 그 밖의 독립된 컬럼이라 자동으로 헤더 밑에서
+          시작하지 않는다 — 같은 이유로 왼쪽 사이드바(EditorSidebar.tsx)도 자기만의
+          h-14 자리표시 행을 맨 위에 둬서 헤더와 높이를 맞춘다(그 파일의 "두 헤더 모두
+          못을 박아" 주석 참고). 이 spacer가 없으면 TOC가 화면 맨 위(헤더보다 위)에서
+          시작해 헤더를 무시하고 튀어나온 것처럼 보인다(2026-09-14 실사용 중 발견).
+        */}
+        <div className="h-14 shrink-0 border-b border-border" aria-hidden="true" />
+        <div className="flex-1 overflow-y-auto pt-10 pr-2">
           <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
           <ul className="flex flex-col gap-1.5">
             {headings.map((heading) => {

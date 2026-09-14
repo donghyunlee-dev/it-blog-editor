@@ -20,6 +20,11 @@
   - `scroll`(스크롤 조상 요소)·`resize`(윈도우) 이벤트로 재계산한다.
 - `DocumentEditor.tsx`의 `<div className="flex justify-center gap-12">`(본문+TOC 묶음
   정렬)를 `<div className="flex justify-center">`(본문 단독 정렬)로 단순화했다.
+- **헤더 정렬 수정(같은 대화 후속)**: 독립 레일로 뺀 부작용으로, 문서 헤더(본문 스크롤
+  영역 안에만 있음)와 레일(그 밖의 독립 컬럼)의 높이가 안 맞아 TOC가 화면 맨 위부터
+  시작하는 것처럼 보였다. 왼쪽 사이드바(`EditorSidebar.tsx`)가 이미 쓰는 패턴(자기만의
+  `h-14` 자리표시 행으로 헤더와 높이를 맞춤)을 `TableOfContents.tsx`의 레일 최상단에도
+  그대로 적용했다(`h-14 shrink-0 border-b border-border` spacer).
 
 ## 파일 변경 내역
 | 파일 | 변경 사항 |
@@ -36,6 +41,7 @@
 | SHA | 메시지 |
 |-----|--------|
 | d52c82e | feat: 우측 목차(TOC)를 독립된 레일 구조로 재구성, 활성 항목 버그 2건 수정 (P8-5) |
+| (커밋 후 기록) | fix: TOC 레일이 문서 헤더 높이에 맞춰 시작하도록 정렬 수정 (P8-5 후속) |
 
 ## 자체 검토 (Self-Review)
 ### 긍정 사항
