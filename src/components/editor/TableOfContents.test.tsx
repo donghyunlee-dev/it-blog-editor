@@ -177,7 +177,7 @@ describe("TableOfContents", () => {
     const scrollParent = screen.getByTestId("scroll-parent");
     const [headingA, headingB] = document.querySelectorAll("h2");
     mockScrollGeometry(scrollParent, { scrollTop: 400, scrollHeight: 2000, clientHeight: 800 });
-    // scrollParent 상단(rect.top=0) + ACTIVATION_OFFSET(64)보다 위(작은 값)면 "지나온" 헤딩이다.
+    // scrollParent 상단(rect.top=0) + ACTIVATION_OFFSET(72)보다 위(작은 값)면 "지나온" 헤딩이다.
     mockRect(headingA, 10);
     mockRect(headingB, 900);
 
@@ -187,6 +187,31 @@ describe("TableOfContents", () => {
       expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true")
     );
     expect(screen.getByRole("link", { name: "섹션 B" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("클릭으로 이동한 헤딩이 scroll-margin-top(72px)만큼 아래에 자리잡아도 그 헤딩 자신이 활성으로 표시된다(2026-09-14 실사용 중 발견 — 클릭하면 본문은 정확히 이동하는데 TOC는 한 칸 위 제목에 활성 표시가 남았다. globals.css의 `.prose h2/h3 { scroll-margin-top: 4.5rem }`가 scrollIntoView 도착 지점을 72px 아래로 밀어두는데, 예전 기준선(64px)보다 커서 도착한 헤딩이 '지나온 헤딩'으로 안 잡혔다)", async () => {
+    // 헤딩 3개를 쓴다 — 마운트 직후(모킹 전) 기본 판정은 "바닥"(atBottom, 실제 지오메트리가
+    // 전부 0이라)이라 항상 마지막 헤딩(섹션 C)이 우선 활성으로 잡힌다. 만약 아래 검증이
+    // "섹션 B"가 아니라 우연히 이 마운트 시점 기본값과 같은 헤딩을 기대했다면, 실제 scroll
+    // 이벤트 기반 재계산이 전혀 반영되지 않아도 테스트가 거짓으로 통과할 위험이 있다 —
+    // 헤딩을 3개로 늘려 기대값(B)과 그 우연한 기본값(C)을 서로 다르게 만들어 이 위험을 없앤다.
+    render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2><h2>섹션 C</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingB, headingC] = document.querySelectorAll("h2");
+    mockScrollGeometry(scrollParent, { scrollTop: 400, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -900);
+    // scrollIntoView({block:"start"})가 scroll-margin-top(72px)만큼 여백을 두고 도착시킨
+    // 실제 값 — 예전 기준선(64px)이었다면 이 헤딩은 "지나온" 것으로 안 잡혔다.
+    mockRect(headingB, 72);
+    mockRect(headingC, 900);
+
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "섹션 B" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "섹션 C" })).not.toHaveAttribute("aria-current");
   });
 
   it("여러 헤딩을 모두 지나면 문서 순서상 가장 나중(아래) 것을 활성으로 본다", async () => {

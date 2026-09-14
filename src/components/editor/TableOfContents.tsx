@@ -36,7 +36,13 @@ function getScrollParent(el: HTMLElement): HTMLElement {
   return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
 }
 
-const ACTIVATION_OFFSET = 64; // 문서 헤더(h-14=56px) 아래로 살짝 여유를 둔 "지금 섹션" 기준선
+// globals.css의 `.prose h2, .prose h3 { scroll-margin-top: 4.5rem }`(72px)과 반드시
+// 같은 값이어야 한다 — 클릭 시 scrollIntoView()가 그 scroll-margin-top만큼 헤딩 위에
+// 여백을 두고 정렬하는데(문서 헤더에 가리지 않기 위함), 이 기준선이 그보다 낮으면
+// (예전엔 64였다) 방금 스크롤해 도착한 헤딩의 top이 기준선을 살짝 넘어버려 그 헤딩이
+// "지나온" 것으로 안 잡히고, 바로 위 헤딩이 활성으로 남는 버그가 있었다(2026-09-14
+// 실사용 중 발견 — "클릭하면 컨텐츠는 이동하는데 TOC는 한 칸 위 제목에 포커스된다").
+const ACTIVATION_OFFSET = 72;
 const BOTTOM_EPSILON = 2; // 스크롤이 바닥에 닿았는지 판정할 때 허용하는 서브픽셀 오차
 
 /**
