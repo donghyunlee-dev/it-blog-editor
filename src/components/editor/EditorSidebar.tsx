@@ -371,7 +371,15 @@ export function EditorSidebar({
   // 그 폴더까지 조상 체인을 펼치고 스크롤·잠깐 강조해 "탐색 도착"을 대신한다. searchParams는
   // 라우터 컨텍스트가 없는 테스트에서도 usePathname처럼 null을 반환할 뿐 던지지 않는다.
   const searchParams = useSearchParams();
-  const focusFolderId = searchParams?.get("folder") ?? null;
+  // P15-1 이후(2026-09-15 버그 수정): 폴더 행의 "+"가 같은 이름의 쿼리(`?folder={id}`)를
+  // `/editor/new`로 보내기 시작하면서, 이 effect가 pathname을 가리지 않고 어떤 화면에서든
+  // "folder" 쿼리만 있으면 반응해 `/editor/new?folder={id}`에서도 폴더를 펼치고 곧바로
+  // `router.replace("/editor")`로 메인 화면으로 되돌려버리는 문제가 있었다(사용자 제보 —
+  // "폴더에서 + 버튼을 눌렀을 때 메인화면으로 가는 버그가 있어"). 이 "브레드크럼에서 도착한
+  // 폴더로 스크롤·강조"는 원래 `/editor?folder={id}`(P7-7) 전용 기능이므로, 지금 경로가
+  // 정확히 `/editor`일 때만 쿼리를 읽는다 — 다른 화면이 우연히 같은 이름의 쿼리를 쓰더라도
+  // (지금의 `/editor/new?folder=`, 앞으로 생길 수도 있는 다른 화면 포함) 더는 간섭하지 않는다.
+  const focusFolderId = pathname === "/editor" ? (searchParams?.get("folder") ?? null) : null;
   const [highlightedFolderId, setHighlightedFolderId] = useState<string | null>(null);
   useEffect(() => {
     if (!focusFolderId) return;
