@@ -4,7 +4,7 @@
 
   
 
-> 전체 진행률: 111 / 111 항목 완료 (최근 갱신: 2026-09-14 — **P8-5 구조 변경 + 버그 수정**(우측 목차(TOC)가 스크롤하면 사라지던 문제 — 본문과 같은 flex 그룹 안에서 `sticky`로 흉내 내던 구조 자체가 원인이라 판단해, `EditorShell`의 독립된 우측 레일 슬롯(`TocRailContext`)으로 옮겼다. 문서를 막 열었을 때·스크롤이 바닥에 닿았을 때 활성 항목이 표시되지 않던 버그 2건도 함께 수정. 산출물: `docs/superpowers/tasks/P8-5-toc-rail-restructure/{task,plan,result,test}.md`). 이전 갱신: 2026-09-11 — **P11-1**(사이드바 문서 목록 행에서 태그 표시 제거 — 노션 재현 문서를 실제로 만들어 넣고 검토하다가 "태그가 리스트 공간을 너무 차지한다"는 지적을 받아, 목록 행의 태그 칩 나열을 제거하고 태그 필터·Ctrl+K 검색은 유지했다). Phase 11(사이드바 다듬기)이 이로써 완료됐다. 이전 갱신: **P10-1**(문서 링크 카드 블록 — [노션 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)의 두 번째 격차. `documentLink` atom 노드로 다른 문서를 아이콘(📄)+제목+화살표 카드로 삽입하고 클릭 시 이동한다. 슬래시 메뉴 "문서 링크" 항목이 기존 문서 검색 API를 재사용하는 피커 모달을 연다 — 제목은 삽입 시점 스냅샷 캐시, 아이콘은 고정, 링크 대상은 검색 피커로만 고른다). Phase 10(문서 링크 카드 블록)이 이로써 완료됐다. 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용). Phase 9(콜아웃 패널 아이콘 커스터마이징)가 이로써 완료됐다. 이전 갱신: **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
+> 전체 진행률: 112 / 112 항목 완료 (최근 갱신: 2026-09-14 — **P16-1**("삭제된 문서"를 사이드바 `Modal`에서 전용 페이지 `/editor/trash`로 전환 — 목록이 늘어날수록 팝업으로 감당이 안 된다는 지적에 대응한다. 상단 검색 + 하단 목록으로 재구성하고, 삭제 시점의 태그·게시 상태·소속 폴더 스냅샷을 함께 기록해 더 상세한 정보를 보여준다). 이전 갱신: **P8-5 구조 변경 + 버그 수정**(우측 목차(TOC)가 스크롤하면 사라지던 문제 — 본문과 같은 flex 그룹 안에서 `sticky`로 흉내 내던 구조 자체가 원인이라 판단해, `EditorShell`의 독립된 우측 레일 슬롯(`TocRailContext`)으로 옮겼다. 문서를 막 열었을 때·스크롤이 바닥에 닿았을 때 활성 항목이 표시되지 않던 버그 2건도 함께 수정. 산출물: `docs/superpowers/tasks/P8-5-toc-rail-restructure/{task,plan,result,test}.md`). 이전 갱신: 2026-09-11 — **P11-1**(사이드바 문서 목록 행에서 태그 표시 제거 — 노션 재현 문서를 실제로 만들어 넣고 검토하다가 "태그가 리스트 공간을 너무 차지한다"는 지적을 받아, 목록 행의 태그 칩 나열을 제거하고 태그 필터·Ctrl+K 검색은 유지했다). Phase 11(사이드바 다듬기)이 이로써 완료됐다. 이전 갱신: **P10-1**(문서 링크 카드 블록 — [노션 재현 검토](https://bird-earl-256.notion.site/SFOOD-AI-3d7be4fbb834817f8ed2c4742219ce7b)의 두 번째 격차. `documentLink` atom 노드로 다른 문서를 아이콘(📄)+제목+화살표 카드로 삽입하고 클릭 시 이동한다. 슬래시 메뉴 "문서 링크" 항목이 기존 문서 검색 API를 재사용하는 피커 모달을 연다 — 제목은 삽입 시점 스냅샷 캐시, 아이콘은 고정, 링크 대상은 검색 피커로만 고른다). Phase 10(문서 링크 카드 블록)이 이로써 완료됐다. 이전 갱신: **P9-2**(콜아웃 아이콘 선택 UI — [Issue #101](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/101) 답변으로 큐레이션 이모지 24개 확정 후 착수. `panel` 노드에 `addNodeView()`를 추가해 아이콘을 클릭 가능한 트리거로 렌더링하고, `Popover` 그리드에서 고른 이모지를 즉시 반영한다 — 글자색/하이라이트 스와치와 같은 UI 패턴 재사용). Phase 9(콜아웃 패널 아이콘 커스터마이징)가 이로써 완료됐다. 이전 갱신: **P8-5 버그 수정**(사용자가 실제 화면 스크린샷으로 "저장된 문서를 열기만 하면(편집 안 하면) 목차가 안 보인다"고 제보 — `TableOfContents.tsx`가 `doc` prop 변경에만 반응해 재스캔하던 것을 `MutationObserver`로 컨테이너 DOM 변화를 직접 감시하도록 고쳤다), **P9-1**(콜아웃 패널 아이콘 자유 지정 데이터 모델 — `panel` 노드에 노션 콜아웃 스키마 호환 `icon` attrs 추가, storage 직렬화 보존, 기존 문서는 타입별 기본 아이콘으로 보정), **P8-4**(완료 후 사용자 UX 검토로 되돌려짐 — 랜딩 히어로 검색 버튼이 헤더 검색 버튼(P8-1)과 완전히 같은 동작이라 중복이라 판단해 랜딩 버튼만 제거), **P8-7**(타이포그래피 스케일 비교 검토, 구현 없음), **P8-5**(우측 목차 TOC 신규 구현), **P8-3**(브레드크럼 항목 간격 조정), **P2-8**(인용구·구분선·밑줄·제목3 슬래시 항목), **P8-2**(사이드바 목록 행 간격/비율 재조정), **P7-10**(모바일 대응 + 접근성), **P7-9**(검색·삭제된 문서·공유 문서 통합 정합성), **P8-6**(본문 최대 폭 조정), **P8-1**(헤더 검색 트리거 버튼)이 완료됐다. 남은 미완료 항목은 없다.
 
 
  
@@ -25,7 +25,8 @@
 |---|---|---|---|
 | 로그인 화면 | AX Auth(사내 SSO)로 로그인 | `@sfood/ui`의 `Card`/`Typography`/`Alert` 조합(`LoginSimple`은 email/password 폼 전용이라 SSO 리다이렉트 흐름에 맞지 않아 쓰지 않음 — [design.md](./design.md) "로그인 화면" 절 참고), "MS 계정으로 로그인" 버튼, 로그인 실패 안내 | `/login` |
 | 내 문서함 | 로그인한 사용자의 문서 목록 조회(사이드바 중심) | 사이드바(문서 목록 + 상태 뱃지 + 태그, 태그 필터, "새 문서" 버튼), 본문 영역은 문서 미선택 시 빈 상태(`EmptyState`) | `/editor` |
-| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·게시 설정 여는 버튼(삭제·이력은 2026-09-14 P14-2로 헤더에서 빠지고 사이드바 문서 옵션 메뉴로 이동). 사이드바 폴더 행의 "+"로 들어오면 `?folder={id}` 쿼리로 그 폴더에 바로 배정되고 헤더에 폴더 경로 브레드크럼이 보인다(2026-09-14, P15-1) | `/editor/new`, `/editor/new?folder={id}`, `/editor/[pageId]` |
+| 새 문서 작성 / 문서 편집 | WYSIWYG로 문서 작성·수정, 태그 지정, 이미지 삽입, 삭제 | 큰 제목 입력, TipTap 본문 에디터(슬래시 삽입 메뉴, 텍스트 선택 시 버블 툴바), 본문 아래 태그 칩 입력(2026-09-14, P12-2 — 검색용 키워드로 위상을 낮춰 하단으로 이동), 드래그앤드롭/붙여넣기 이미지 업로드, 저장·게시 설정 여는 버튼(삭제·이력은 2026-09-14 P14-2로 헤더에서 빠지고 사이드바 문서 옵션 메뉴로 이동) | `/editor/new`, `/editor/[pageId]` |
+| 삭제된 문서 | 삭제(휴지통 이동)한 문서 검색·복구 | 상단 제목·태그 검색 입력, 하단 목록(제목·게시 상태 아이콘·태그·원래 있던 폴더·삭제일시·복구 버튼) — 2026-09-14(P16-1) 이전에는 사이드바 버튼이 여는 `Modal`이었으나, 목록이 늘어날수록 팝업으로는 감당이 안 된다는 지적으로 다른 화면과 같은 전용 페이지로 전환 | `/editor/trash` |
 
 | 게시 설정 | 게시 여부·뷰어별 slug·메타 설명 설정 | 문서 전체 게시 토글, 뷰어별 카드(지금은 Tech Blog 1개, 카드마다 slug·메타 설명 입력) — 별도 화면이 아니라 문서 편집 화면(`DocumentEditor`) 안에서 열리는 `Modal` 오버레이다(2026-08-26 변경 — 기존 `src/app/editor/[pageId]/publish/page.tsx`는 삭제됨) | 별도 라우트 없음 — `/editor/[pageId]` 화면 내 Modal |
 | 환영 페이지(2026-09-03 추가, 같은 날 세 차례 재구성 — Modal→페이지→서비스 소개 보강→레퍼런스 기반 재설계) | 신규 가입자(또는 이름·팀 미입력 계정)가 로그인 직후 이름·팀을 입력하는 전용 화면. 로그인 화면과 같은 브랜드 셸(`AuthSplitShell`) 안에서, 따뜻한 인사말 한 단락으로 서비스를 소개하고("나만의 문서를 만들어 관리하고, 팀원과 공유") 로그인 계정 이메일을 함께 보여줌 | `AuthSplitShell`(좌측 `BrandPanelArt`, 우측 콘텐츠) + `Typography` 인사말 + `Avatar`로 계정 표시 + `FormField` 2개 + `Button`, 저장 성공 시 `/editor`로 이동 | `/welcome` — `/editor/layout.tsx`가 `needsOnboarding`이면 여기로 리다이렉트 |
@@ -389,6 +390,21 @@
   `<nav>` 바깥 형제 위치에 `position: fixed` + 트리거의 `getBoundingClientRect()` 좌표로
   직접 그리는 커스텀 구현으로 교체했다(접근성 역할은 동일하게 유지).
 
+### Phase 16 — "삭제된 문서" Modal → 전용 페이지 전환 (신규, 2026-09-14 계획)
+- 배경: "삭제된 문서"(P1-2b)는 사이드바 버튼이 여는 `Modal`이었는데, 사용자 지적 — "삭제된
+  문서는 늘어날 수록 팝업으로 감당이 안돼. 삭제된 문서 클릭 시 오른쪽 페이지 영역에 상단
+  검색과 하단 삭제된 페이지 리스트가 나오도록 구성을 해야 할 것 같아. 검색해서 복구할 수
+  있으면 좋을 것 같고, 삭제된 페이지 정보 표시도 좀 더 상세하게 보여 줄 수 있을 것 같아."
+- 핵심 결정: (1) Modal 대신 `/editor/trash` 전용 페이지(다른 `/editor/*` 화면과 같은 서버
+  컴포넌트가 데이터를 미리 조회하는 패턴). (2) 상단 검색(제목·태그, 사이드바 검색과 동일
+  로직) + 하단 목록. (3) 목록 행에 게시 상태·태그·원래 폴더를 추가로 보여주기 위해
+  `DeletedDocumentEntry`(레지스트리 저장 항목)에 삭제 시점 스냅샷(`tags`/`isPublished`/
+  `folderId`)을 추가하고, `deleteDocument()`가 페이지가 실제로 삭제되기 직전에 이 값을
+  함께 기록한다. 폴더는 id만 저장하고 이름은 조회 시점에 현재 폴더 트리에서 다시 찾는다
+  (이름 변경에 안전하게).
+- 진행 방식: Phase 5~14와 동일 — task/plan/result/test 4파일 + 개별 PR.
+- 범위 밖: 삭제된 문서 미리보기(본문 확인), 완전 삭제(영구 삭제) 버튼.
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -452,6 +468,9 @@
 - [x] (완료, P1-1c) 문서 목록에 페이지네이션 또는 무한스크롤을 도입한다 — 화면(사이드바) 쪽만 "더 보기" 버튼으로 30개씩 점진적으로 그린다. 서버 조회 범위(`listDocuments()`) 자체의 페이지네이션은 다루지 않았다 — 태그 자동완성(`tag-suggestions.ts`)이 같은 함수로 전체 목록을 필요로 해서 P0-5a/P1-1a와 같은 종류의 아키텍처 결정이 필요하다(`task.md` 참고, 별도 이슈 없이 알려진 위험으로 남김). 산출물: `docs/superpowers/tasks/P1-1c-document-list-pagination/{task,plan,result,test}.md`, src/components/editor/EditorSidebar.tsx
 - [x] (완료, P1-2a) Confluence 페이지 버전 이력을 읽기 전용으로 조회하는 화면을 추가했다 — 문서 편집 화면 헤더의 "이력" 버튼 → Modal. `GET /api/v2/pages/{id}/versions` 응답 형태는 처음엔 실제 인스턴스로 검증하지 못한 채 PR로 올렸으나, 2026-08-28 사용자 승인 하에 실제(미사용) Confluence 인스턴스로 직접 확인했다(`number`/`createdAt` 필드명 일치, 서버가 이미 최신순 반환 — `docs/superpowers/tasks/P1-2a-revision-history-view/test.md` 참고). [PR #8](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/8) 머지 완료. 산출물: `docs/superpowers/tasks/P1-2a-revision-history-view/{task,plan,result,test}.md`, src/lib/confluence/client.ts, src/lib/editor/documents.ts, src/app/api/editor/documents/[pageId]/versions/route.ts, src/components/editor/VersionHistory.tsx, src/components/editor/DocumentEditor.tsx
 - [x] (완료, P1-2b) 삭제된 문서를 복구하는 기능을 추가했다 — 삭제 시 작성자 계정 폴더의 `deletedDocuments` property에 기록해두고(휴지통을 직접 질의하는 대신 P0-5a와 같은 "직접 기록해둔 상태만 신뢰" 패턴 재사용), 사이드바의 문서 목록과 계정 정보 사이에 별도로 분리한 "삭제된 문서" 영역에서 Modal을 열어 "초안"으로 되돌릴 수 있다. `movePage`가 트래시된 페이지를 대상으로도 동작하는지는 2026-08-28 사용자 승인 하에 실제(미사용) Confluence 인스턴스로 직접 검증했다(트래시 이동 시 `parentId`가 `null`이 되는 것·트래시 상태에서의 `GET`·`PUT status:"current"` 복구 모두 확인됨, 부수적으로 `DELETE`가 일시적 500을 반환한 사례도 발견 — P1-3의 필요성을 뒷받침). [PR #9](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/9) 머지 완료. 산출물: `docs/superpowers/tasks/P1-2b-restore-deleted-document/{task,plan,result,test}.md`, src/lib/editor/documents.ts, src/lib/editor/deleted-documents.ts, src/app/api/editor/documents/deleted/route.ts, src/app/api/editor/documents/[pageId]/restore/route.ts, src/components/editor/DeletedDocumentsModal.tsx, src/components/editor/EditorSidebar.tsx
+  **2026-09-14 갱신(P16-1)**: 이 Modal은 목록이 늘어날수록 팝업으로 감당이 안 된다는 지적으로
+  전용 페이지(`/editor/trash`)로 대체됐다 — `DeletedDocumentsModal.tsx`는 삭제되고
+  `DeletedDocumentsPage.tsx`로 교체됐다. 상세는 아래 Phase 16 참고.
 - [x] (완료, P1-3) `confluenceRequest`에 429/5xx 대상 재시도·지수 백오프를 추가한다 — 재시도는 GET(멱등) 요청에만 적용했다(Confluence Cloud API에 idempotency key가 없어, POST/PUT/DELETE를 재시도하면 실제로 반영된 요청을 중복 실행할 위험이 있어 제외). 최대 3회, 지수 백오프+jitter, 429의 `Retry-After` 헤더 우선 적용. P1-2b 검증 중 실제로 관측된 사례(`DELETE`가 한 번 500을 반환했다 재시도로 성공)가 이 항목의 필요성을 뒷받침했다. 산출물: `docs/superpowers/tasks/P1-3-confluence-retry-backoff/{task,plan,result,test}.md`, src/lib/confluence/client.ts
 - [x] (완료, P1-4a) 구조화 로깅을 도입한다 — [Issue #4](https://github.com/sfood-pioneer-1st/sfood-it-editor/issues/4)에서 "Slack만 유지, 별도 도구 도입 안 함"으로 결정. `src/lib/logger.ts`에 `logger.info/warn/error`를 추가해 JSON 한 줄(`{level, message, timestamp, context?}`)로 남기고, 기존 산발적인 `console.error` 4곳(`api-response.ts` 2곳, `documents.ts`, `tag-suggestions.ts`)을 교체했다(pageId/email 등 맥락 포함). `serializeError`로 `Error`의 message/stack/커스텀 속성(`ConfluenceApiError.status` 등)까지 온전히 직렬화한다 — 그 과정에서 `toErrorResponse`가 기존엔 `error.message`만 로그에 남기던 정보 손실도 함께 고쳤다. Slack 알림 로직 자체는 바꾸지 않았다. 산출물: `docs/superpowers/tasks/P1-4a-structured-logging/{task,plan,result,test}.md`, src/lib/logger.ts, src/lib/logger.test.ts, src/lib/api-response.ts, src/lib/editor/documents.ts, src/lib/editor/tag-suggestions.ts
 - [x] (완료, P1-4b) Slack 웹훅 전송 자체가 실패할 때의 재시도/폴백을 추가한다 — `sendSlackAlert`에 P1-3(`confluenceRequest`)와 같은 정책(최대 3회 지수 백오프+jitter, 429의 `Retry-After` 우선, 429/5xx가 아닌 4xx는 즉시 실패)을 적용했다. Confluence와 달리 GET/POST 구분 없이 재시도한다 — 중복 알림 정도의 부작용이라 데이터 유실 위험이 없다고 판단했다. 재시도 소진 시 예외를 던지는 기존 동작은 유지해, 호출부(`notifyUpstreamFailure`)의 "실패하면 구조화 로그만 남기고 넘어간다"는 기존 폴백을 그대로 활용한다. 산출물: `docs/superpowers/tasks/P1-4b-slack-webhook-retry/{task,plan,result,test}.md`, src/lib/notifications/slack.ts, src/lib/notifications/slack.test.ts
@@ -627,6 +646,33 @@
   `docs/superpowers/tasks/P14-3-sidebar-menu-portal-fix/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/app/globals.css
 
+
+### Phase 16 — "삭제된 문서" Modal → 전용 페이지 전환 (신규, 2026-09-14 계획)
+- [x] (완료, P16-1) "삭제된 문서"를 사이드바 버튼이 여는 `Modal`에서 전용 페이지
+  (`/editor/trash`)로 전환 — 목록이 늘어날수록 팝업으로는 감당이 안 된다는 지적에 대응한다.
+  `DeletedDocumentsModal.tsx`(마운트 후 클라이언트 fetch)를 삭제하고
+  `DeletedDocumentsPage.tsx` + `src/app/editor/trash/page.tsx`(서버 컴포넌트가
+  `listDeletedDocuments(email)`을 미리 조회해 `initialDocuments`로 내려주는, 다른
+  `/editor/*` 페이지와 같은 패턴)로 교체했다. 상단에 제목·태그 검색 입력(사이드바 검색과
+  같은 필터 로직), 하단에 목록(제목·`StatusIcon`(게시 상태)·`Tag`(태그)·원래 폴더 이름·
+  삭제일시·복구 버튼)을 보여준다. "삭제된 정보를 더 상세히" 요구를 위해
+  `DeletedDocumentEntry`에 `tags`/`isPublished`/`folderId`를 추가했다 — 이 값들은 삭제된
+  뒤(Confluence 페이지가 실제로 지워진 뒤)에는 더 이상 조회할 수 없으므로,
+  `deleteDocument()`가 `deletePage()` 호출 직전(페이지가 아직 존재하는 마지막 시점)에
+  `getTags`/`publishMetadata`/`folderId`를 함께 읽어 레지스트리에 스냅샷으로 남긴다. 이
+  필드가 없는(이번 변경 이전에 기록된) 옛 항목은 `listDeletedDocuments`가 기본값(빈 배열/
+  `false`/`null`)으로 보정한다. 폴더는 이름이 아니라 id만 저장하고, 조회 시점에 그 계정의
+  현재 폴더 트리(`listFolders`)에서 이름을 다시 찾아 `folderName`으로 얹는다 — 이름이
+  바뀌어도 옛 이름이 박제되지 않고, 그 폴더가 그 사이 삭제됐으면 "미분류"와 동일하게
+  `null`로 표시한다. 산출물:
+  `docs/superpowers/tasks/P16-1-deleted-documents-page/{task,plan,result,test}.md`,
+  src/lib/editor/documents.ts, src/lib/editor/documents.test.ts,
+  src/lib/editor/deleted-documents.ts, src/lib/editor/deleted-documents.test.ts,
+  src/app/editor/trash/page.tsx, src/components/editor/DeletedDocumentsPage.tsx,
+  src/components/editor/DeletedDocumentsPage.test.tsx, src/components/editor/EditorSidebar.tsx,
+  src/components/editor/EditorSidebar.test.tsx,
+  src/app/api/editor/documents/deleted/route.test.ts
+
 ### Phase 15 — 새 문서 생성 진입점 개편 (신규, 2026-09-14 계획)
 - [x] (완료, P15-1) 폴더별 "+"·사이드바 "새 문서" 버튼 재배치 — 폴더 트리(P7-4/P7-5)가 있어도
   폴더 안에 문서를 바로 만들 방법이 없다는 지적("폴더에서 새문서를 시작할 방법이 없어")에
@@ -645,6 +691,7 @@
   src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
   src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
   src/app/editor/new/page.tsx
+
 
 
 ## 🗄️ 데이터 저장 여부

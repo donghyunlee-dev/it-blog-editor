@@ -394,21 +394,13 @@ describe("EditorSidebar", () => {
     expect(push).toHaveBeenCalledWith("/editor/2");
   });
 
-  it("'삭제된 문서' 버튼을 누르면 목록 Modal이 열린다(P1-2b)", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ documents: [] }), { status: 200 })
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
+  it("'삭제된 문서' 링크는 전용 페이지(/editor/trash)로 이동한다(P16-1, 팝업 대신 전용 페이지로 전환)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
-    await userEvent.click(screen.getByRole("button", { name: "삭제된 문서" }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith("/api/editor/documents/deleted");
-    expect(await screen.findByText("삭제된 문서가 없습니다.")).toBeInTheDocument();
-
-    vi.unstubAllGlobals();
+    expect(screen.getByRole("link", { name: "삭제된 문서" })).toHaveAttribute(
+      "href",
+      "/editor/trash"
+    );
   });
 
   it("사이드바 메뉴에는 '계정 관리' 진입점이 없다(P5-7, 화면은 유지하되 메뉴 연결은 끊음 — 사용자 피드백)", () => {

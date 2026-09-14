@@ -22,7 +22,15 @@ describe("GET /api/editor/documents/deleted", () => {
   it("로그인한 이메일 기준 삭제된 문서 목록을 반환한다", async () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
     vi.mocked(listDeletedDocuments).mockResolvedValue([
-      { pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-20T00:00:00.000Z" },
+      {
+        pageId: "doc-1",
+        title: "문서 1",
+        deletedAt: "2026-08-20T00:00:00.000Z",
+        tags: [],
+        isPublished: false,
+        folderId: null,
+        folderName: null,
+      },
     ]);
 
     const response = await GET();
@@ -30,7 +38,17 @@ describe("GET /api/editor/documents/deleted", () => {
 
     expect(vi.mocked(listDeletedDocuments)).toHaveBeenCalledWith("user@s-food.com");
     expect(body).toEqual({
-      documents: [{ pageId: "doc-1", title: "문서 1", deletedAt: "2026-08-20T00:00:00.000Z" }],
+      documents: [
+        {
+          pageId: "doc-1",
+          title: "문서 1",
+          deletedAt: "2026-08-20T00:00:00.000Z",
+          tags: [],
+          isPublished: false,
+          folderId: null,
+          folderName: null,
+        },
+      ],
     });
   });
 

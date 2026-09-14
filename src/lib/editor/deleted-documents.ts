@@ -11,6 +11,7 @@ import {
   type DeletedDocumentEntry,
 } from "./documents";
 import { createPersonalFolder, findPersonalFolder } from "./folder";
+import { listFolders } from "./folders";
 import type { PublishMetadata } from "./publish";
 import { NotFoundError } from "./errors";
 
@@ -20,19 +21,41 @@ async function getFolderOrThrow(email: string) {
   return (await findPersonalFolder(email)) ?? (await createPersonalFolder(email));
 }
 
-/** 로그인한 사용자가 삭제한(휴지통으로 이동한) 문서 목록을 최근 삭제순으로 반환한다. */
+/**
+ * P16-1: 화면(삭제된 문서 페이지)에 보여줄 형태 — 저장된 `DeletedDocumentEntry`에 폴더
+ * "이름"(id가 아니라)을 얹는다. 이름은 저장하지 않고 조회 시점에 현재 폴더 트리에서
+ * 찾는다 — 폴더 이름이 바뀌어도(이름 변경) 오래된 이름이 박제되지 않게 하기 위해서다.
+ * 삭제 당시 폴더가 이미 없어졌으면(트리에서 못 찾으면) `null`(= "미분류"와 동일하게 표시).
+ */
+export interface DeletedDocumentSummary extends DeletedDocumentEntry {
+  folderName: string | null;
+}
+
+/**
+ * 로그인한 사용자가 삭제한(휴지통으로 이동한) 문서 목록을 최근 삭제순으로 반환한다.
+ * `tags`/`isPublished`/`folderId`가 생기기 전(P16-1 이전)에 기록된 옛 항목은 그 필드가
+ * 없을 수 있어 기본값으로 보정한다.
+ */
 export async function listDeletedDocuments(
   email: string
-): Promise<DeletedDocumentEntry[]> {
+): Promise<DeletedDocumentSummary[]> {
   const folder = await getFolderOrThrow(email);
-  const property = await getPageProperty<DeletedDocumentEntry[]>(
-    folder.accountFolderId,
-    DELETED_DOCUMENTS_PROPERTY_KEY
-  );
+  const [property, folders] = await Promise.all([
+    getPageProperty<DeletedDocumentEntry[]>(folder.accountFolderId, DELETED_DOCUMENTS_PROPERTY_KEY),
+    listFolders(folder.accountFolderId),
+  ]);
   const entries = property?.value ?? [];
-  return [...entries].sort(
-    (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
-  );
+  const folderNameById = new Map(folders.map((f) => [f.id, f.name]));
+
+  return entries
+    .map((entry) => ({
+      ...entry,
+      tags: entry.tags ?? [],
+      isPublished: entry.isPublished ?? false,
+      folderId: entry.folderId ?? null,
+      folderName: entry.folderId ? (folderNameById.get(entry.folderId) ?? null) : null,
+    }))
+    .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
 }
 
 /**

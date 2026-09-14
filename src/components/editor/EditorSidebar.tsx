@@ -7,7 +7,6 @@ import { Button, EmptyState, Modal, useToast } from "@sfood/ui";
 import { BrandIcon } from "@/components/BrandIcon";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AccountInfoModal } from "./AccountInfoModal";
-import { DeletedDocumentsModal } from "./DeletedDocumentsModal";
 import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
 import { MoveDocumentModal } from "./MoveDocumentModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
@@ -327,9 +326,6 @@ export function EditorSidebar({
   const { guardNavigate } = useUnsavedChanges();
   const router = useRouter();
   const { toast } = useToast();
-  // P1-2b: 삭제된 문서를 복구할 수 있는 Modal. 복구에 성공하면 이 목록(서버 컴포넌트
-  // props)이 최신 상태를 반영하도록 router.refresh()로 다시 조회한다.
-  const [deletedDocsOpen, setDeletedDocsOpen] = useState(false);
   // P5-4: 계정 정보를 스스로 열고 닫아 확인·수정하는 팝업. 온보딩(P5-2, `/welcome`)과
   // 달리 강제 흐름이 아니라 사용자가 원할 때만 여는 것이라 Modal로 유지한다.
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
@@ -1320,11 +1316,16 @@ export function EditorSidebar({
         (2026-08-28, 사용자 요청 — "페이지 관련된 기능이 있으면 별도의 영역을
         분리하는 게 좋겠어"). 지금은 "삭제된 문서" 하나뿐이지만, 문서 자체를
         다루는(개별 문서 열기가 아닌) 기능이 늘어나면 이 자리에 계속 추가한다.
+        P16-1: `Modal`을 여는 버튼이었는데, 삭제된 문서가 늘어날수록 팝업으로는
+        감당이 안 된다는 지적으로 전용 페이지(`/editor/trash`)로 이동하는 링크로
+        바꿨다 — 다른 사이드바 nav 링크와 같은 `guardNavigate` 패턴을 쓴다.
       */}
       <div className="border-t border-border p-2">
-        <button
-          type="button"
-          onClick={() => setDeletedDocsOpen(true)}
+        <Link
+          href="/editor/trash"
+          onClick={onNavigate}
+          onNavigate={(event) => guardNavigate(event, "/editor/trash")}
+          aria-current={pathname === "/editor/trash" ? "page" : undefined}
           className="flex w-full items-center gap-2 rounded-btn px-2 py-1.5 text-xs text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
         >
           {/*
@@ -1348,7 +1349,7 @@ export function EditorSidebar({
             />
           </svg>
           삭제된 문서
-        </button>
+        </Link>
       </div>
 
       {onLogout && (
@@ -1395,14 +1396,6 @@ export function EditorSidebar({
           </button>
         </form>
       )}
-
-      <Modal
-        open={deletedDocsOpen}
-        onClose={() => setDeletedDocsOpen(false)}
-        title="삭제된 문서"
-      >
-        <DeletedDocumentsModal onRestored={() => router.refresh()} />
-      </Modal>
 
       <Modal
         open={accountInfoOpen}

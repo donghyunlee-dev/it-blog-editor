@@ -16,26 +16,93 @@ beforeEach(() => {
 });
 
 describe("listDeletedDocuments", () => {
+  /** `deletedDocuments`/`folderIndex`를 키에 맞춰 각각 돌려준다(P16-1). */
+  function stubGetPageProperty(options: {
+    registry?: unknown[];
+    folderIndex?: Array<{ id: string; name: string; parentId: string | null; order: number }>;
+  }) {
+    return vi.spyOn(client, "getPageProperty").mockImplementation(async (pageId, key) => {
+      if (key === "deletedDocuments" && pageId === "account-1") {
+        return options.registry
+          ? { id: "prop-1", key, value: options.registry, version: { number: 1 } }
+          : null;
+      }
+      if (key === "folderIndex" && pageId === "account-1") {
+        return options.folderIndex
+          ? { id: "prop-2", key, value: options.folderIndex, version: { number: 1 } }
+          : null;
+      }
+      return null;
+    });
+  }
+
   it("레지스트리가 없으면 빈 배열을 반환한다", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue(null);
+    stubGetPageProperty({});
 
     await expect(listDeletedDocuments("user@s-food.com")).resolves.toEqual([]);
   });
 
   it("삭제 시각 최신순으로 정렬해 반환한다", async () => {
-    vi.spyOn(client, "getPageProperty").mockResolvedValue({
-      id: "prop-1",
-      key: "deletedDocuments",
-      value: [
+    stubGetPageProperty({
+      registry: [
         { pageId: "old", title: "오래된 삭제", deletedAt: "2026-08-01T00:00:00.000Z" },
         { pageId: "new", title: "최근 삭제", deletedAt: "2026-08-20T00:00:00.000Z" },
       ],
-      version: { number: 1 },
     });
 
     const result = await listDeletedDocuments("user@s-food.com");
 
     expect(result.map((entry) => entry.pageId)).toEqual(["new", "old"]);
+  });
+
+  it("P16-1 필드(tags/isPublished/folderId)가 없는 옛 항목은 기본값(빈 배열/false/null)으로 보정한다", async () => {
+    stubGetPageProperty({
+      registry: [{ pageId: "old", title: "옛 삭제 항목", deletedAt: "2026-08-01T00:00:00.000Z" }],
+    });
+
+    const [result] = await listDeletedDocuments("user@s-food.com");
+
+    expect(result).toMatchObject({ tags: [], isPublished: false, folderId: null, folderName: null });
+  });
+
+  it("folderId가 현재 폴더 트리에 있으면 folderName을 이름으로 채운다(P16-1)", async () => {
+    stubGetPageProperty({
+      registry: [
+        {
+          pageId: "doc-1",
+          title: "삭제된 문서",
+          deletedAt: "2026-08-01T00:00:00.000Z",
+          tags: ["React"],
+          isPublished: true,
+          folderId: "f1",
+        },
+      ],
+      folderIndex: [{ id: "f1", name: "업무", parentId: null, order: 0 }],
+    });
+
+    const [result] = await listDeletedDocuments("user@s-food.com");
+
+    expect(result).toMatchObject({ folderId: "f1", folderName: "업무" });
+  });
+
+  it("folderId가 가리키던 폴더가 그 사이 삭제됐으면 folderName을 null로 돌려준다(미분류와 동일하게 표시)", async () => {
+    stubGetPageProperty({
+      registry: [
+        {
+          pageId: "doc-1",
+          title: "삭제된 문서",
+          deletedAt: "2026-08-01T00:00:00.000Z",
+          tags: [],
+          isPublished: false,
+          folderId: "deleted-folder",
+        },
+      ],
+      folderIndex: [{ id: "f1", name: "업무", parentId: null, order: 0 }],
+    });
+
+    const [result] = await listDeletedDocuments("user@s-food.com");
+
+    expect(result.folderName).toBeNull();
   });
 });
 
