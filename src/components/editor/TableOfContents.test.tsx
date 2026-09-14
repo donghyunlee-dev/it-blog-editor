@@ -1,13 +1,30 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { TableOfContents } from "./TableOfContents";
+import { TocRailContext } from "./EditorShell";
 import { RichTextEditor } from "./RichTextEditor";
 
 const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
+
+/**
+ * TableOfContents는 자기 자리에 아무것도 그리지 않고(P8-8, 항상 null 반환), 실제 목차
+ * UI를 EditorShell의 우측 레일 슬롯(TocRailContext)으로 밀어 넣는다. 이 하네스는
+ * EditorShell을 통째로 마운트하지 않고, EditorShell이 하는 일(Provider로 setter를
+ * 내려주고 그 setter가 받은 노드를 렌더링하는 것)만 그대로 흉내 낸다.
+ */
+function RailHarness({ children }: { children: ReactNode }) {
+  const [tocRail, setTocRail] = useState<ReactNode>(null);
+  return (
+    <TocRailContext.Provider value={setTocRail}>
+      {children}
+      {tocRail}
+    </TocRailContext.Provider>
+  );
+}
 
 /**
  * TableOfContents는 doc(JSONContent)을 직접 파싱하지 않고, containerRef 안의 실제
@@ -15,6 +32,10 @@ const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
  * 실제 통합 상황에서 대신하는 자리) — 그래서 테스트도 TipTap 없이 순수 HTML로 그
  * "렌더링된 본문"을 흉내 낸다. `doc` prop은 재스캔 트리거로만 쓰이므로, 매번 다른
  * 참조를 주면(예: `{ ...EMPTY_DOC }`) 의도적으로 재스캔을 유발할 수 있다.
+ *
+ * containerRef를 감싸는 `overflowY:auto` 조상은 실제 EditorShell의 스크롤 영역
+ * (`flex-1 overflow-y-auto`)을 흉내 낸 것 — TableOfContents가 getScrollParent로 이
+ * 조상을 찾아 스크롤 위치를 읽는다(아래 mockScrollGeometry/fireScroll 참고).
  */
 function Harness({
   html,
@@ -25,10 +46,12 @@ function Harness({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   return (
-    <div>
-      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
-      <TableOfContents containerRef={containerRef} doc={doc} />
-    </div>
+    <RailHarness>
+      <div data-testid="scroll-parent" style={{ overflowY: "auto" }}>
+        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
+        <TableOfContents containerRef={containerRef} doc={doc} />
+      </div>
+    </RailHarness>
   );
 }
 
@@ -37,45 +60,53 @@ function RescanHarness({ initialHtml, nextHtml }: { initialHtml: string; nextHtm
   const containerRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState(initialHtml);
   return (
-    <div>
-      <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
-      <button type="button" onClick={() => setHtml(nextHtml)}>
-        본문 바꾸기
-      </button>
-      <TableOfContents containerRef={containerRef} doc={{ type: "doc", content: [{ type: "text", text: html }] }} />
-    </div>
+    <RailHarness>
+      <div style={{ overflowY: "auto" }}>
+        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
+        <button type="button" onClick={() => setHtml(nextHtml)}>
+          본문 바꾸기
+        </button>
+        <TableOfContents
+          containerRef={containerRef}
+          doc={{ type: "doc", content: [{ type: "text", text: html }] }}
+        />
+      </div>
+    </RailHarness>
   );
 }
 
-const { observe, unobserve, disconnect } = vi.hoisted(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-}));
-let intersectionCallback: IntersectionObserverCallback | null = null;
+/** getBoundingClientRect()가 jsdom 기본값(전부 0)이 아니라 지정한 위치를 돌려주게 한다. */
+function mockRect(el: Element, top: number) {
+  vi.spyOn(el, "getBoundingClientRect").mockReturnValue({
+    top,
+    bottom: top + 20,
+    height: 20,
+    width: 100,
+    left: 0,
+    right: 100,
+    x: 0,
+    y: top,
+    toJSON() {},
+  } as DOMRect);
+}
 
-beforeEach(() => {
-  observe.mockClear();
-  unobserve.mockClear();
-  disconnect.mockClear();
-  intersectionCallback = null;
-  vi.stubGlobal(
-    "IntersectionObserver",
-    vi.fn().mockImplementation(function (this: unknown, callback: IntersectionObserverCallback) {
-      intersectionCallback = callback;
-      return { observe, unobserve, disconnect, takeRecords: () => [] };
-    })
-  );
-});
+/**
+ * jsdom은 실제 레이아웃이 없어 scrollHeight/clientHeight가 항상 0이다 — 스크롤 위치를
+ * 흉내 내려면 이 값들을 직접 정의해야 한다. scrollTop=0, scrollHeight=clientHeight+큰값
+ * 조합이 기본("아직 바닥에 안 닿음")이다.
+ */
+function mockScrollGeometry(
+  el: HTMLElement,
+  { scrollTop, scrollHeight, clientHeight }: { scrollTop: number; scrollHeight: number; clientHeight: number }
+) {
+  Object.defineProperty(el, "scrollTop", { value: scrollTop, configurable: true });
+  Object.defineProperty(el, "scrollHeight", { value: scrollHeight, configurable: true });
+  Object.defineProperty(el, "clientHeight", { value: clientHeight, configurable: true });
+  mockRect(el, 0);
+}
 
-function fireIntersections(entries: Array<{ element: Element; isIntersecting: boolean }>) {
-  intersectionCallback?.(
-    entries.map((entry) => ({
-      target: entry.element,
-      isIntersecting: entry.isIntersecting,
-    })) as IntersectionObserverEntry[],
-    {} as IntersectionObserver
-  );
+function fireScroll(el: HTMLElement) {
+  el.dispatchEvent(new Event("scroll"));
 }
 
 describe("TableOfContents", () => {
@@ -123,34 +154,74 @@ describe("TableOfContents", () => {
     expect(screen.getByRole("link", { name: "(제목 없음)" })).toBeInTheDocument();
   });
 
-  it("IntersectionObserver가 교차를 보고하면 그 항목에 aria-current='true'가 붙는다", async () => {
+  it("문서를 막 열어 아직 스크롤하지 않은 시점에도 첫 헤딩이 기본으로 활성 표시된다(2026-09-14 실사용 중 발견 — 열자마자는 아무 항목도 활성화되지 않았다)", async () => {
     render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
-    const linkA = screen.getByRole("link", { name: "섹션 A" });
-    const linkB = screen.getByRole("link", { name: "섹션 B" });
-    const [headingA] = document.querySelectorAll("h2");
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingB] = document.querySelectorAll("h2");
+    // 아직 스크롤 전이라 두 헤딩 모두 "지금 섹션 기준선" 훨씬 아래에 있다 — 그래도
+    // 첫 헤딩이 기본값으로 활성화돼야 한다.
+    mockScrollGeometry(scrollParent, { scrollTop: 0, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, 300);
+    mockRect(headingB, 900);
 
-    expect(linkA).not.toHaveAttribute("aria-current");
-    expect(linkB).not.toHaveAttribute("aria-current");
+    fireScroll(scrollParent);
 
-    fireIntersections([{ element: headingA, isIntersecting: true }]);
-
-    await waitFor(() => expect(linkA).toHaveAttribute("aria-current", "true"));
-    expect(linkB).not.toHaveAttribute("aria-current");
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 B" })).not.toHaveAttribute("aria-current");
   });
 
-  it("여러 헤딩이 동시에 교차하면 문서 순서상 가장 나중(아래) 것을 활성으로 본다", async () => {
+  it("스크롤로 헤딩을 지나면 그 헤딩이 활성 표시된다", async () => {
     render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
-    const linkA = screen.getByRole("link", { name: "섹션 A" });
-    const linkB = screen.getByRole("link", { name: "섹션 B" });
+    const scrollParent = screen.getByTestId("scroll-parent");
     const [headingA, headingB] = document.querySelectorAll("h2");
+    mockScrollGeometry(scrollParent, { scrollTop: 400, scrollHeight: 2000, clientHeight: 800 });
+    // scrollParent 상단(rect.top=0) + ACTIVATION_OFFSET(64)보다 위(작은 값)면 "지나온" 헤딩이다.
+    mockRect(headingA, 10);
+    mockRect(headingB, 900);
 
-    fireIntersections([
-      { element: headingA, isIntersecting: true },
-      { element: headingB, isIntersecting: true },
-    ]);
+    fireScroll(scrollParent);
 
-    await waitFor(() => expect(linkB).toHaveAttribute("aria-current", "true"));
-    expect(linkA).not.toHaveAttribute("aria-current");
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "섹션 A" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 B" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("여러 헤딩을 모두 지나면 문서 순서상 가장 나중(아래) 것을 활성으로 본다", async () => {
+    render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingB] = document.querySelectorAll("h2");
+    mockScrollGeometry(scrollParent, { scrollTop: 900, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -200);
+    mockRect(headingB, 10);
+
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "섹션 B" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("스크롤이 바닥에 닿으면 위치 계산과 무관하게 마지막 헤딩이 활성으로 바뀐다(2026-09-14 실사용 중 발견 — 마지막 섹션 뒤 여백이 짧은 문서는 스크롤이 최대치에 막혀 마지막 항목이 영영 활성화되지 못했고, 그 항목을 클릭해도 마찬가지였다)", async () => {
+    render(<Harness html="<h2>섹션 A</h2><h2>마지막 섹션</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingLast] = document.querySelectorAll("h2");
+    // 마지막 헤딩의 rect.top(500)은 "지금 섹션 기준선" 안에 전혀 들어오지 않는 값이다 —
+    // 그래도 스크롤이 최대치(scrollHeight - scrollTop - clientHeight <= 오차)에 닿았으면
+    // 위치와 무관하게 마지막 헤딩을 활성으로 봐야 한다.
+    mockScrollGeometry(scrollParent, { scrollTop: 1200, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -300);
+    mockRect(headingLast, 500);
+
+    fireScroll(scrollParent);
+
+    await waitFor(() =>
+      expect(screen.getByRole("link", { name: "마지막 섹션" })).toHaveAttribute("aria-current", "true")
+    );
+    expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
   });
 
   it("헤딩 엘리먼트에 어떤 속성도 쓰지 않는다(ProseMirror가 관리하는 DOM을 건드리면 그 변화를 감지해 무한 재조정 루프를 만드는 실제 버그를 막기 위함, 2026-09-11 실사용 중 발견 — '## 중제목'을 입력하면 사이트가 멈췄다)", () => {
@@ -178,10 +249,10 @@ describe("TableOfContents", () => {
         return () => clearTimeout(timer);
       }, []);
       return (
-        <div>
+        <RailHarness>
           <div ref={containerRef} />
           <TableOfContents containerRef={containerRef} doc={EMPTY_DOC} />
-        </div>
+        </RailHarness>
       );
     }
 
@@ -203,10 +274,12 @@ describe("TableOfContents", () => {
       const containerRef = useRef<HTMLDivElement>(null);
       return (
         <ToastProvider>
-          <div ref={containerRef}>
-            <RichTextEditor content={content} onChange={() => {}} />
-          </div>
-          <TableOfContents containerRef={containerRef} doc={content} />
+          <RailHarness>
+            <div ref={containerRef}>
+              <RichTextEditor content={content} onChange={() => {}} />
+            </div>
+            <TableOfContents containerRef={containerRef} doc={content} />
+          </RailHarness>
         </ToastProvider>
       );
     }

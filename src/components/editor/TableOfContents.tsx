@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useContext, useEffect, useState, type RefObject } from "react";
 import type { JSONContent } from "@tiptap/react";
+import { TocRailContext } from "./EditorShell";
 
 interface HeadingItem {
   key: string;
@@ -22,12 +23,79 @@ export interface TableOfContentsProps {
   doc: JSONContent;
 }
 
+/** containerRef를 감싸는 가장 가까운 스크롤 조상을 찾는다(읽기 전용 DOM 순회). */
+function getScrollParent(el: HTMLElement): HTMLElement {
+  let node: HTMLElement | null = el.parentElement;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (overflowY === "auto" || overflowY === "scroll") {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return (document.scrollingElement as HTMLElement | null) ?? document.documentElement;
+}
+
+const ACTIVATION_OFFSET = 64; // 문서 헤더(h-14=56px) 아래로 살짝 여유를 둔 "지금 섹션" 기준선
+const BOTTOM_EPSILON = 2; // 스크롤이 바닥에 닿았는지 판정할 때 허용하는 서브픽셀 오차
+
+/**
+ * "지금 읽고 있는 섹션"을 스크롤 위치로 직접 계산한다(P8-8, 2026-09-14 — 아래 두 버그
+ * 때문에 IntersectionObserver의 "화면 상단 30% 띠에 걸쳐 있는지"만으로는 부족했다).
+ *
+ * 1) 문서를 막 열었을 때: 첫 헤딩이 아직 그 띠 안에 들어오지 않은 위치라면(본문 상단에
+ *    제목·태그 등 여백이 있는 문서는 흔하다) 아무 헤딩도 활성 표시되지 않았다.
+ * 2) 문서 끝까지 스크롤했을 때: 마지막 헤딩 뒤에 남은 여백이 뷰포트 높이보다 짧으면
+ *    스크롤이 최대치에 막혀 마지막 헤딩이 그 띠 안으로 절대 들어올 수 없다(스크롤이
+ *    더 안 되니까) — 마지막 항목을 클릭해 scrollIntoView해도 도착점이 그 띠 밖이라
+ *    똑같이 활성 표시가 안 바뀌었다.
+ *
+ * 그래서 "화면에 걸쳐있는지"가 아니라 스크롤이 실제로 어디까지 왔는지를 직접 읽는다 —
+ * 아직 첫 헤딩도 지나지 않았으면 첫 헤딩을 기본값으로, 스크롤이 바닥에 닿았으면(더
+ * 내려갈 데가 없으면) 위치 계산과 무관하게 무조건 마지막 헤딩을 활성으로 본다.
+ */
+function computeActiveHeading(
+  headings: HeadingItem[],
+  scrollParent: HTMLElement
+): HTMLHeadingElement | null {
+  if (headings.length === 0) {
+    return null;
+  }
+
+  const atBottom =
+    scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight <= BOTTOM_EPSILON;
+  if (atBottom) {
+    return headings[headings.length - 1].element;
+  }
+
+  const line = scrollParent.getBoundingClientRect().top + ACTIVATION_OFFSET;
+  let candidate = headings[0].element;
+  for (const heading of headings) {
+    if (heading.element.getBoundingClientRect().top <= line) {
+      candidate = heading.element;
+    } else {
+      break;
+    }
+  }
+  return candidate;
+}
+
 /**
  * 문서 보기/편집 화면 우측 목차(P8-5, design.md "7. 우측 목차(TOC)" 절이 스펙).
  * 본문 H2/H3를 스캔해 목록을 만들고, 스크롤 위치에 따라 현재 섹션을 강조하며,
  * 클릭하면(또는 키보드로 포커스한 뒤 Enter를 누르면) 그 헤딩으로 스크롤 이동한다.
  * 헤딩이 하나도 없는 문서에서는 렌더링 자체를 하지 않는다(EditorSidebar.tsx의
  * "공유받은 문서" 영역이 비어 있을 때 렌더링을 생략하는 것과 같은 원칙).
+ *
+ * **이 컴포넌트는 자기 자리에는 아무것도 그리지 않고 항상 `null`을 반환한다**(P8-8,
+ * 2026-09-14 구조 변경). 실제 목차 UI는 `EditorShell`의 우측 레일 슬롯(`TocRailContext`)
+ * 으로 밀어 넣는다 — 예전엔 이 목차가 본문과 같은 `flex` 그룹의 한 아이템이라
+ * `sticky`로 스크롤에 붙어있는 것처럼 흉내 내야 했는데, 그 flex 그룹의 `align-items`
+ * 기본값(stretch)이 이 nav를 본문과 같은 높이(문서 전체 길이)로 늘려버려 `sticky`가
+ * 계산상 아무 효과를 못 내는 문제가 반복됐다("스크롤하면 목차가 안 보인다"). 사용자가
+ * 벤치마킹한 참고 사이트처럼, 왼쪽 사이드바와 동급으로 스크롤 영역 **밖**에 있는
+ * 독립된 형제 컬럼으로 만들면 이 문제 자체가 구조적으로 생기지 않는다(`sticky` 계산이
+ * 아예 필요 없다 — `EditorShell.tsx`의 `TocRailContext` 주석 참고).
  *
  * **이 컴포넌트는 ProseMirror가 관리하는 DOM(containerRef 안의 h2/h3)에 절대
  * 쓰기(mutate)를 하지 않는다** — 예전 구현은 헤딩마다 `element.id`를 직접 붙였는데,
@@ -40,6 +108,7 @@ export interface TableOfContentsProps {
  * 쓰지 않으므로 ProseMirror의 재조정을 절대 유발하지 않는다.
  */
 export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
+  const setTocRail = useContext(TocRailContext);
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [activeElement, setActiveElement] = useState<HTMLHeadingElement | null>(null);
 
@@ -84,11 +153,9 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doc]);
 
-  // 스크롤 위치에 따라 "지금 읽고 있는 섹션"을 강조한다. 여러 헤딩이 동시에 뷰포트에
-  // 들어와도(짧은 섹션이 이어질 때 흔함) 문서 순서상 가장 아래(나중) 것을 활성으로
-  // 본다 — 스크롤이 내려가며 한 헤딩을 지나칠 때 다음 섹션으로 자연스럽게 넘어가는
-  // 흔한 패턴이다. rootMargin 상단(-64px)은 sticky 헤더(56px)를 감안한 여유,
-  // 하단(-70%)은 화면 위쪽 30% 구간에 걸린 헤딩만 "지금 섹션"으로 잡기 위함이다.
+  // 스크롤 위치에 따라 "지금 읽고 있는 섹션"을 다시 계산한다. computeActiveHeading의
+  // 주석에 그 이유를 적었다 — 초기 진입/바닥 스크롤 두 경우를 IntersectionObserver의
+  // "화면 상단 띠"만으로는 못 잡아서, 직접 scroll/resize를 구독해 계산한다.
   useEffect(() => {
     if (headings.length === 0) {
       // headings(외부 시스템 — 본문 DOM 스캔 결과)가 바뀔 때만 반응하는 동기화라
@@ -98,74 +165,78 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
       setActiveElement(null);
       return;
     }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting).map((entry) => entry.target);
-        if (visible.length > 0) {
-          setActiveElement(visible[visible.length - 1] as HTMLHeadingElement);
-        }
-      },
-      { rootMargin: "-64px 0px -70% 0px", threshold: 0 }
-    );
-    for (const heading of headings) {
-      observer.observe(heading.element);
+    const container = containerRef.current;
+    if (!container) {
+      return;
     }
-    return () => observer.disconnect();
+    const scrollParent = getScrollParent(container);
+
+    function update() {
+      setActiveElement(computeActiveHeading(headings, scrollParent));
+    }
+
+    update();
+    scrollParent.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      scrollParent.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+    // containerRef는 안정된 ref 객체라 의존성에 넣을 필요가 없다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headings]);
 
-  if (headings.length === 0) {
-    return null;
-  }
+  // EditorShell의 우측 레일 슬롯으로 실제 UI를 밀어 넣는다(위 클래스 주석 참고) —
+  // headings가 비면 슬롯을 비워(null) 레일 자체가 사라지게 한다(EditorShell.tsx의
+  // `{tocRail && ...}` 조건). Provider 밖(예: 테스트에서 Context 없이 단독 렌더)에서는
+  // setTocRail이 null이라 아무것도 하지 않는다.
+  useEffect(() => {
+    if (!setTocRail) {
+      return;
+    }
+    if (headings.length === 0) {
+      setTocRail(null);
+      return;
+    }
 
-  return (
-    // ≥1280px(Tailwind 기본 xl 브레이크포인트)에서만 노출 — design.md "2. 반응형
-    // 붕괴 지점" 실측(레퍼런스가 1024~1280px 사이에서 TOC를 숨김)을 그대로 따른다.
-    // sticky top-14(56px)로 본문 헤더 밑에 붙고, 뷰포트보다 목차가 길면 자기 영역
-    // 안에서만 스크롤된다(본문 스크롤과 분리).
-    //
-    // self-start는 장식이 아니라 sticky가 실제로 동작하기 위한 필수 조건이다 — 이
-    // nav는 DocumentEditor.tsx의 `flex justify-center gap-12` 행의 아이템인데,
-    // align-items 기본값(stretch)을 그대로 두면 이 nav가 옆 본문 칼럼과 같은 높이
-    // (문서 전체 길이, 종종 수천 px)로 강제로 늘어난다. 그 늘어난 상태에서는
-    // sticky가 계산상 아무 효과를 못 내(스크롤해도 top-14에 붙지 않고 본문과 같이
-    // 흘러가 버림 — 실사용 중 발견: "스크롤하면 목차가 안 보인다") self-start로
-    // nav 자신의 콘텐츠 높이만큼만 박스를 갖게 해야 sticky가 실제로 붙는다.
-    <nav
-      aria-label="이 페이지"
-      className="sticky top-14 hidden w-60 shrink-0 self-start pt-10 xl:block"
-    >
-      <div className="max-h-[calc(100vh-3.5rem)] overflow-y-auto pr-2">
-        <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
-        <ul className="flex flex-col gap-1.5">
-          {headings.map((heading) => {
-            const isActive = heading.element === activeElement;
-            return (
-              <li key={heading.key} style={{ paddingLeft: heading.level === 3 ? 22 : 10 }}>
-                {/*
-                  href="#"만 두고 실제 이동은 onClick에서 엘리먼트 참조로 직접
-                  scrollIntoView한다 — 예전처럼 href="#id"로 진짜 앵커 이동을
-                  겸하려면 헤딩에 id를 붙여야 하는데, 그건 ProseMirror가 관리하는
-                  DOM에 쓰기를 하는 것이라 위 클래스 주석의 무한 루프를 다시 만든다.
-                */}
-                <a
-                  href="#"
-                  aria-current={isActive ? "true" : undefined}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                  className={
-                    "block truncate border-l-2 py-0.5 pl-2 text-xs transition-colors duration-default " +
-                    (isActive ? "toc-active-link" : "border-transparent text-muted hover:text-foreground")
-                  }
-                >
-                  {heading.text}
-                </a>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </nav>
-  );
+    setTocRail(
+      <nav aria-label="이 페이지" className="flex h-full flex-col pt-10 pl-12">
+        <div className="flex-1 overflow-y-auto pr-2">
+          <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
+          <ul className="flex flex-col gap-1.5">
+            {headings.map((heading) => {
+              const isActive = heading.element === activeElement;
+              return (
+                <li key={heading.key} style={{ paddingLeft: heading.level === 3 ? 22 : 10 }}>
+                  {/*
+                    href="#"만 두고 실제 이동은 onClick에서 엘리먼트 참조로 직접
+                    scrollIntoView한다 — 예전처럼 href="#id"로 진짜 앵커 이동을
+                    겸하려면 헤딩에 id를 붙여야 하는데, 그건 ProseMirror가 관리하는
+                    DOM에 쓰기를 하는 것이라 위 클래스 주석의 무한 루프를 다시 만든다.
+                  */}
+                  <a
+                    href="#"
+                    aria-current={isActive ? "true" : undefined}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    className={
+                      "block truncate border-l-2 py-0.5 pl-2 text-xs transition-colors duration-default " +
+                      (isActive ? "toc-active-link" : "border-transparent text-muted hover:text-foreground")
+                    }
+                  >
+                    {heading.text}
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </nav>
+    );
+    return () => setTocRail(null);
+  }, [headings, activeElement, setTocRail]);
+
+  return null;
 }
