@@ -612,13 +612,16 @@ export function EditorSidebar({
           // 값)를 그대로 쓴다. 상하 padding은 P8-2 당시 `py-1.5`(6px)에서 `py-2`(8px)로
           // 올렸었는데, 문서가 적어도 목록이 화면의 상당 부분을 차지한다는 지적(2026-09-14,
           // P13-1)으로 다시 `py-1.5`로 되돌린다 — 폴더 행과 높이를 맞추는 것은 유지한다.
-          // 왼쪽 패딩은 폴더 트리 들여쓰기를 감당하는 `<li>`의 inline style
-          // (`INDENT_BASE_PX + depth * INDENT_STEP_PX`)이 depth 0에서 8px와 일치해 따로
-          // 바꿀 필요가 없다.
-          "block min-w-0 flex-1 rounded-card py-1.5 pr-2 transition-colors duration-default " +
+          // `pl-2`(2026-09-14, P13-2 — 사용자 지적: "선택한 페이지 영역의 왼쪽은 여백이
+          // 없어, 게시 아이콘하고 붙어 있어")를 추가한다 — 왼쪽 들여쓰기는 `<li>`의 inline
+          // style이 행 전체(배경 포함)를 밀어줄 뿐, 배경 박스 안쪽 여백은 별도로 필요하다.
+          "block min-w-0 flex-1 rounded-card py-1.5 pl-2 pr-2 transition-colors duration-default " +
           (isActive
             ? "sidebar-row-active text-foreground"
-            : "text-foreground hover:bg-surface-raised")
+            // P13-2: 라이트 모드에서 hover:bg-surface-raised가 --color-surface와 같은 값이라
+            // 아무 효과가 없었다(사용자 지적 — "마우스 오버 했을 때... 없어"). sidebar-row-active와
+            // 같은 color-mix 방식을 쓰는 `.sidebar-row-hover`로 바꾼다(globals.css 참고).
+            : "text-foreground sidebar-row-hover")
         }
       >
         <div className="flex items-start gap-1">
@@ -702,9 +705,12 @@ export function EditorSidebar({
           id={`sidebar-folder-${folder.id}`}
           // P8-2: 문서 목록 행과 radius를 맞춘다(rounded-btn 8px → rounded-card 12px,
           // design.md "4. 좌측 사이드바" 벤치마킹 참고) — 같은 트리 안에서 폴더 행만
-          // 다른 radius를 쓰면 어색하다.
+          // 다른 radius를 쓰면 어색하다. `pl-1`(P13-2)은 문서 행과 같은 이유로 추가 —
+          // 아이콘이 배경 박스 왼쪽 끝에 바로 붙지 않도록 최소한의 안쪽 여백을 준다.
+          // hover:bg-surface-raised → sidebar-row-hover 교체 이유는 문서 행과 동일(P13-2,
+          // 라이트 모드에서 surface-raised가 surface와 같아 hover가 안 보이던 문제).
           className={
-            "group flex items-center gap-0.5 rounded-card pr-1 transition-colors duration-default hover:bg-surface-raised " +
+            "group flex items-center gap-0.5 rounded-card pl-1 pr-1 transition-colors duration-default sidebar-row-hover " +
             (highlightedFolderId === folder.id ? "bg-brand/10" : "")
           }
           style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }}
@@ -907,7 +913,9 @@ export function EditorSidebar({
                       "block rounded-card py-1.5 pl-2 pr-2 transition-colors duration-default " +
                       (isActive
                         ? "sidebar-row-active text-foreground"
-                        : "text-foreground hover:bg-surface-raised")
+                        // P13-2: 문서 목록 행과 같은 이유로 hover:bg-surface-raised 대신
+                        // sidebar-row-hover를 쓴다(라이트 모드에서 hover가 안 보이던 문제).
+                        : "text-foreground sidebar-row-hover")
                     }
                   >
                     <div className="flex items-start gap-1">

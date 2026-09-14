@@ -344,6 +344,15 @@
 - 진행 방식: Phase 5~12와 동일 — task/plan/result/test 4파일 + 개별 PR.
 - 범위 밖: 폴더 하위 목록 세로 가이드라인(위 참고), 사이드바 태그 필터·태그 입력 위치(Phase
   12에서 별도 처리), "새 문서" 버튼 자체의 크기(감싸는 wrapper padding만 조정).
+- P13-1 적용 후속(2026-09-14, 같은 대화·같은 PR): 사용자가 새 캡처로 확인하며 두 가지를 추가
+  지적했다 — (1) "선택한 페이지 영역의 왼쪽은 여백이 없어. 게시 아이콘하고 붙어 있어" — 문서
+  행 `Link`에 `pl-*`가 없어 배경 박스 안쪽 왼쪽 여백이 없었다. (2) "마우스 오버 했을 때 폴더,
+  파일의 선택 영역이 표시되어야 하는데 없어" — 확인 결과 라이트 모드에서
+  `--color-surface-raised`가 `--color-surface`와 같은 값이라(`.sidebar-row-active`가 2026-08-26에
+  이미 겪은 문제) `hover:bg-surface-raised`가 무효했다. 문서 행에 `pl-2`(폴더 행은 `pl-1`)를
+  추가하고, `.sidebar-row-active`와 같은 `color-mix()` 방식으로 `.sidebar-row-hover`(5%)를
+  새로 만들어 교체했다(P13-2). "간격이 큰 변화가 없는 듯하다"는 언급도 있었으나 추가 축소를
+  명시적으로 요청한 것은 아니라 이번 범위에는 포함하지 않았다.
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -536,6 +545,15 @@
   수 없어, 사용자 확인 후 필요하면 별도 진행). 산출물:
   `docs/superpowers/tasks/P13-1-sidebar-row-density/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx
+- [x] (완료, P13-2) 사이드바 행 왼쪽 여백 + 호버 하이라이트 복구 — 문서 행에 `pl-2`(폴더 행은
+  `pl-1`)를 추가해 상태 아이콘이 선택/호버 배경 박스 왼쪽 끝에 바로 붙지 않게 했다. 라이트
+  모드에서 `--color-surface-raised`가 `--color-surface`와 같은 값이라 `hover:bg-surface-raised`가
+  무효했던 것을 발견해, `.sidebar-row-active`(10% 브랜드 믹스)와 같은 방식의
+  `.sidebar-row-hover`(5% 브랜드 믹스, `globals.css`)로 교체했다(폴더 행·문서 행·공유받은
+  문서 행 모두). 사이드바의 다른 `hover:bg-surface-raised` 사용처(아이콘 버튼 등)는 범위
+  밖으로 남겼다. 산출물:
+  `docs/superpowers/tasks/P13-2-sidebar-row-inset-hover/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/app/globals.css
 
 
 ## 🗄️ 데이터 저장 여부
