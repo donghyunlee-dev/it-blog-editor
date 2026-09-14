@@ -1,7 +1,7 @@
 # P12-1: 사이드바 태그 필터(ChipGroup) 제거 — 결과
 
 ## 커밋
-- (커밋 후 기록 예정)
+- `f3798ac` fix: 사이드바 태그 필터(ChipGroup) 제거 — 태그는 검색 전용으로 (P12-1)
 
 ## 변경 파일
 - `src/components/editor/EditorSidebar.tsx` — `activeTag` 상태(및 관련 주석)·`allTags` useMemo·
