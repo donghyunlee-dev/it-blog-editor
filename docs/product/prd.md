@@ -317,15 +317,33 @@
   이미 받아온 결과를 다시 좁히는 클라이언트 사이드 토글일 뿐, 기본 검색 범위가 아니다) 별도
   변경이 필요 없었다.
 - 핵심 결정(2026-09-14, 사용자와의 대화로 확정): (1) 사이드바의 상시 노출 태그 필터 칩
-
-  (`ChipGroup`)은 제거하고 사이드바 검색(제목+태그 매칭)으로 흡수한다(P12-1, 별도 PR). (2) 편집
+  (`ChipGroup`)은 제거하고 사이드바 검색(제목+태그 매칭)으로 흡수한다([PR #122](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/122), P12-1). (2) 편집
   화면의 태그 입력 영역은 제목 바로 아래(상단, 2줄 차지)에서 본문 하단으로 옮기고 1줄에 가깝게
-  압축하며, 태그가 이미 있으면 placeholder 예시 문구를 보여주지 않는다(P12-2, 이 PR). (3) 태그
+  압축하며, 태그가 이미 있으면 placeholder 예시 문구를 보여주지 않는다([PR #123](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/123), P12-2). (3) 태그
   이름 변경/병합 같은 관리 기능은 신설하지 않는다(좁아진 용도에서는 필요성이 낮다고 판단).
 
 - 진행 방식: Phase 5~11과 동일 — task/plan/result/test 4파일 + 개별 PR.
 - 범위 밖: 태그 데이터 모델·API(`tags.ts`, `[pageId]/tags/route.ts`) 변경, 태그 이름 변경/병합
   기능 신설, Ctrl+K 검색 로직 변경(이미 태그를 포함하고 있어 대상 아님).
+
+### Phase 13 — 사이드바 문서함 행 밀도·들여쓰기 조정 (신규, 2026-09-14 계획)
+- 배경: 사용자가 폴더 2~3개·문서 10개 미만으로 실사용 테스트를 하던 중(캡처로 확인) "문서가
+  10개도 안 되는데 리스트 영역의 2/3이 찬다"고 지적했다. 실측 결과 폴더 행·문서 행 모두
+  `py-2`(P8-2에서 올린 값)를 쓰고 있어 한 행이 36px를 차지했고, 검색창·새 문서 버튼·`nav`
+  패딩·폴더 라벨 여백이 트리 진입 전에 겹겹이 쌓여 있었다. "폴더와 페이지 사이 간격도 넓고
+  폴더 안의 페이지 리스트라는 느낌이 안 난다"는 지적도 있었는데, 행 사이 간격(`gap-0.5`, 2px)은
+  이미 최소치였고 실제 원인은 들여쓰기(depth당 14px)가 얕아 위계가 약해 보이는 데 있었다.
+  선택 상태 배경색(핑크, `.sidebar-row-active`)이 위아래로 넓어 보인다는 지적도 행 padding에
+  종속된 문제라 같은 변경으로 함께 해결된다.
+- 핵심 결정(2026-09-14, 사용자와의 대화로 확정): 행 상하 padding을 `py-2`(8px)→`py-1.5`(6px)로
+  되돌리고, 들여쓰기를 depth당 14px→20px로 늘리며, 트리 진입 전 고정 영역(검색창·새 문서
+  버튼·`nav`·폴더 라벨)의 padding/margin을 줄인다. 폴더 하위 목록에 세로 가이드라인을 추가하는
+  안은 이번 범위에서 제외한다 — 실제 화면에서 반복 조정이 필요한데 이 세션은 AX Auth 로그인
+  제약으로 시각적 미세조정을 검증할 방법이 없어, 사용자가 이번 변경을 확인한 뒤 필요하면 별도
+  진행하기로 했다.
+- 진행 방식: Phase 5~12와 동일 — task/plan/result/test 4파일 + 개별 PR.
+- 범위 밖: 폴더 하위 목록 세로 가이드라인(위 참고), 사이드바 태그 필터·태그 입력 위치(Phase
+  12에서 별도 처리), "새 문서" 버튼 자체의 크기(감싸는 wrapper padding만 조정).
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -502,9 +520,22 @@
   `docs/superpowers/tasks/P12-2-tag-input-bottom-compact/{task,plan,result,test}.md`,
   src/components/editor/TagInput.tsx, src/components/editor/TagInput.test.tsx,
   src/components/editor/DocumentEditor.tsx
-- [ ] (P12-1) 사이드바 태그 필터(`ChipGroup`) 제거 — 별도 PR([#122](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/122))로 진행 중, 산출물:
-  `docs/superpowers/tasks/P12-1-sidebar-remove-tag-filter/{task,plan,result,test}.md`
+- [x] (완료, P12-1, [PR #122](https://github.com/sfood-pioneer-1st/sfood-it-editor/pull/122)) 사이드바 태그 필터(`ChipGroup`) 제거 —
+  `activeTag` 상태·`allTags` 계산·`ChipGroup` 렌더 블록을 제거하고, 사이드바 검색(제목+태그
+  매칭)만으로 "태그로 찾기"를 대체한다. 태그 데이터·입력·Ctrl+K 검색의 태그 매칭은 변경하지
+  않았다. 산출물: `docs/superpowers/tasks/P12-1-sidebar-remove-tag-filter/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
 
+### Phase 13 — 사이드바 문서함 행 밀도·들여쓰기 조정 (신규, 2026-09-14 계획)
+- [x] (완료, P13-1) 사이드바 문서함 행 밀도·들여쓰기 조정 — 폴더 행·문서 행(공유받은 문서 포함)의
+  상하 padding을 `py-2`(8px)에서 `py-1.5`(6px)로 되돌려 선택 상태 배경(핑크) 높이도 함께
+  줄었다. 들여쓰기를 `INDENT_BASE_PX + depth * INDENT_STEP_PX`(8 + depth*20)로 상수화하며
+  폭을 14px에서 20px로 늘렸다. 검색창·새 문서 버튼·`nav`·폴더 라벨 등 트리 진입 전 고정
+  영역의 padding/margin도 줄였다(`p-3`→`p-2.5`, `mb-2`→`mb-1.5`). 폴더 하위 목록 세로
+  가이드라인 추가는 범위 밖으로 남겼다(AX Auth 제약으로 이 세션에서 시각적 미세조정을 검증할
+  수 없어, 사용자 확인 후 필요하면 별도 진행). 산출물:
+  `docs/superpowers/tasks/P13-1-sidebar-row-density/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx
 
 
 ## 🗄️ 데이터 저장 여부
