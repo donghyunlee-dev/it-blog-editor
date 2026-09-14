@@ -43,6 +43,22 @@
   않는다" 테스트와 `EditorShell.test.tsx`의 "아무도 TocRailContext를 쓰지 않으면 우측
   레일을 렌더링하지 않는다" 테스트로 이 경계를 확인했다 — 둘 다 통과.
 
+
+## 후속 수정(2026-09-14, 같은 대화 — 본문 스크롤바 숨김)
+사용자가 벤치마킹한 참고 사이트(페이지 전체 스크롤이라 브라우저 자체 스크롤바만
+보임)와 비교해, 이 프로젝트의 본문 스크롤 영역에 보이는 OS 기본 스크롤바가 이질적
+이라고 지적했다. `globals.css`에 `.scrollbar-hidden` 유틸리티를 추가해
+`EditorShell.tsx`의 `flex-1 overflow-y-auto`에 적용했다.
+
+- **수동 검증**: 로그인 화면에 접근할 수 없어, 같은 CSS 규칙만 떼어 스크롤 가능한
+  `<div>` 두 개(대조군/적용군)를 프로젝트 `public/`에 임시로 올려 브라우저로 비교했다
+  — 대조군은 스크롤바가 보이고, `.scrollbar-hidden` 적용군은 스크롤바가 안 보이면서도
+  `el.scrollTop`을 바꾸면 실제로 스크롤됨(`scrollTop` 값이 그대로 반영됨)을 확인했다.
+  확인 후 임시 파일은 삭제했다.
+- `npx vitest run src/components/editor/EditorShell.test.tsx` — 18개 전부 통과(클래스
+  추가만으로 렌더링 결과 자체는 바뀌지 않아 기존 테스트가 그대로 커버).
+- `npx eslint src/components/editor/EditorShell.tsx`, `npm run build` — 통과.
+
 ## 후속 수정(2026-09-14, 배포 직후 실사용 중 발견)
 - **원인**: "스크롤이 바닥에 닿았으면 무조건 마지막 헤딩을 활성으로 본다"는 규칙이
   너무 공격적이었다 — 스크롤이 바닥 근처인 동안 사용자가 다른(마지막이 아닌) 항목을
@@ -60,6 +76,7 @@
   항목을 클릭하면 그 항목이 즉시 활성으로 바뀐다" 테스트를 추가해 수정 전 실패 →
   수정 후 통과를 확인했다(`npx vitest run src/components/editor/TableOfContents.test.tsx`,
   14개 전부 통과). `npx eslint`, `npx tsc --noEmit`도 통과.
+
 
 ## 검증 중 새로 발견한 결정 사항
 없음.
