@@ -315,8 +315,29 @@ describe("DocumentEditor", () => {
           { type: "paragraph", content: [{ type: "text", text: "본" }] },
         ],
       },
+      // P15-1: initialFolderId를 넘기지 않으면(대부분의 새 문서 작성) 미분류로 만든다.
+      folderId: null,
     });
     expect(payload).not.toHaveProperty("body");
+  });
+
+  it("initialFolderId가 있으면 새 문서 생성 요청에 folderId로 실어 보낸다(P15-1, 사이드바 폴더 행 '+')", async () => {
+    const fetchMock = stubFetch((url) =>
+      url.endsWith("/tags")
+        ? jsonResponse({ pageId: "new-1", tags: [] })
+        : jsonResponse({ pageId: "new-1", version: 1 }, 201)
+    );
+
+    renderEditor(<DocumentEditor mode="create" initialFolderId="f1" />);
+
+    await userEvent.type(screen.getByLabelText("제목"), "새 문서");
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    const createCall = fetchMock.mock.calls.find(
+      ([url, init]) => url === "/api/editor/documents" && init?.method === "POST"
+    );
+    const payload = JSON.parse(String(createCall?.[1]?.body));
+    expect(payload).toMatchObject({ folderId: "f1" });
     // 생성 요청에는 version을 보내지 않는다(서버가 새로 발급한다).
     expect(payload).not.toHaveProperty("version");
   });
@@ -760,6 +781,21 @@ describe("DocumentEditor — 헤더 폴더 경로 브레드크럼(P7-7)", () => 
     renderEditor(<DocumentEditor mode="create" />);
 
     expect(screen.queryByRole("navigation", { name: "문서 위치" })).not.toBeInTheDocument();
+  });
+
+  it("mode=\"create\"라도 folderPath를 넘기면 브레드크럼을 보여준다(P15-1, 폴더 행 '+'로 만든 새 문서)", () => {
+    renderEditor(
+      <DocumentEditor
+        mode="create"
+        folderPath={[{ id: "f1", name: "업무", parentId: null, order: 0 }]}
+      />
+    );
+
+    const nav = screen.getByRole("navigation", { name: "문서 위치" });
+    expect(within(nav).getByRole("link", { name: "업무" })).toHaveAttribute(
+      "href",
+      "/editor?folder=f1"
+    );
   });
 
   it("브레드크럼 항목 간 간격이 8px(gap-2)다(P8-3, support.claude.com/ko 벤치마킹 실측값)", () => {

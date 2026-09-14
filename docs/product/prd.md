@@ -646,6 +646,7 @@
   `docs/superpowers/tasks/P14-3-sidebar-menu-portal-fix/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/app/globals.css
 
+
 ### Phase 16 — "삭제된 문서" Modal → 전용 페이지 전환 (신규, 2026-09-14 계획)
 - [x] (완료, P16-1) "삭제된 문서"를 사이드바 버튼이 여는 `Modal`에서 전용 페이지
   (`/editor/trash`)로 전환 — 목록이 늘어날수록 팝업으로는 감당이 안 된다는 지적에 대응한다.
@@ -671,6 +672,26 @@
   src/components/editor/DeletedDocumentsPage.test.tsx, src/components/editor/EditorSidebar.tsx,
   src/components/editor/EditorSidebar.test.tsx,
   src/app/api/editor/documents/deleted/route.test.ts
+
+### Phase 15 — 새 문서 생성 진입점 개편 (신규, 2026-09-14 계획)
+- [x] (완료, P15-1) 폴더별 "+"·사이드바 "새 문서" 버튼 재배치 — 폴더 트리(P7-4/P7-5)가 있어도
+  폴더 안에 문서를 바로 만들 방법이 없다는 지적("폴더에서 새문서를 시작할 방법이 없어")에
+  대응한다. 백엔드(`POST /api/editor/documents`)는 이미 `folderId`를 받았지만(P7-3) 프론트에서
+  쓰인 적이 없었다 — 이번 작업은 그 배선만 완성한다. (1) 폴더 행의 "+"를 "하위 폴더
+  추가"에서 "이 폴더에 새 문서"(`/editor/new?folder={id}`)로 바꾸고, 원래 "+"가 하던 일과
+  이름변경·삭제는 문서 옵션 메뉴(P14)와 같은 패턴의 "..."(폴더 옵션) 메뉴로 옮겼다 —
+  두 메뉴는 `openDocumentMenu` state를 `MenuTarget` 기반 `openMenu`로 일반화해 열기/닫기·
+  `<nav>` 바깥 `position: fixed` 렌더 로직을 공유한다. (2) 사이드바 상단의 "새 문서" 버튼은
+  삭제 대신 문서/폴더 목록 맨 아래(미분류 문서 다음)로 옮겼다 — 처음엔 완전히 없애고 `/editor`
+  홈 화면 CTA만 남기려 했으나, 폴더가 없는 계정(대부분)은 사이드바 안에서 문서를 만들 방법이
+  사라지는 퇴보라는 지적으로 정정했다. (3) `/editor/new?folder={id}`로 들어가면 헤더에 폴더
+  경로 브레드크럼(P7-7 메커니즘을 create 모드에도 연결)이 보이고, 저장 시 그 폴더로 배정된
+  문서가 만들어진다. 산출물:
+  `docs/superpowers/tasks/P15-1-new-document-entry-points/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
+  src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
+  src/app/editor/new/page.tsx
+
 
 
 ## 🗄️ 데이터 저장 여부

@@ -207,14 +207,14 @@ describe("EditorSidebar", () => {
     ).toBeTruthy();
   });
 
-  it("'새 문서' 링크가 '폴더' 섹션 바로 위(앞)에 있다(2026-09-11, 폴더 생성 위로 재배치)", () => {
+  it("'새 문서' 링크가 '폴더' 섹션·문서 목록보다 아래(뒤)에 있다(2026-09-14, P15-1 — 폴더 행의 '+'가 폴더별 생성을 맡고, 이 버튼은 미분류 생성 전용으로 목록 맨 아래로 이동)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
     const newDocLink = screen.getByRole("link", { name: "새 문서" });
     const folderLabel = screen.getByText("폴더");
 
     expect(
-      newDocLink.compareDocumentPosition(folderLabel) & Node.DOCUMENT_POSITION_FOLLOWING
+      folderLabel.compareDocumentPosition(newDocLink) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
 
@@ -574,6 +574,14 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     refresh.mockClear();
   });
 
+  // P15-1: "하위 폴더 추가"·"이름 변경"·"삭제"가 폴더 행에 나란히 있던 독립 버튼에서
+  // "폴더 옵션"(...) 트리거를 눌러야 나오는 메뉴 항목(role="menuitem")으로 바뀌었다 —
+  // 문서 옵션 메뉴(P14-1)와 같은 이유·같은 패턴이라 이 헬퍼로 두 단계 클릭을 묶는다.
+  async function openFolderMenuItem(user: ReturnType<typeof userEvent.setup>, itemName: string) {
+    await user.click(screen.getByRole("button", { name: "폴더 옵션" }));
+    await user.click(screen.getByRole("menuitem", { name: itemName }));
+  }
+
   it("'새 폴더 만들기' 버튼을 누르면 생성 모달이 뜬다(최상위, parentId: null)", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch(() => jsonResponse({ id: "f2", name: "새 폴더", parentId: null, order: 1 }, 201));
@@ -594,12 +602,21 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  it("폴더 행의 '하위 폴더 추가' 버튼을 누르면 그 폴더를 parentId로 하는 생성 모달이 뜬다", async () => {
+  it("폴더 행의 '+'는 그 폴더로 바로 이동하는 새 문서 링크다(P15-1)", () => {
+    renderSidebar();
+
+    expect(screen.getByRole("link", { name: '"업무"에 새 문서' })).toHaveAttribute(
+      "href",
+      "/editor/new?folder=f1"
+    );
+  });
+
+  it("폴더 옵션 메뉴의 '하위 폴더 추가'를 누르면 그 폴더를 parentId로 하는 생성 모달이 뜬다(P15-1)", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch(() => jsonResponse({ id: "f3", name: "하위", parentId: "f1", order: 0 }, 201));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "하위 폴더 추가" }));
+    await openFolderMenuItem(user, "하위 폴더 추가");
     await user.type(screen.getByRole("textbox", { name: /폴더 이름/ }), "하위");
     await user.click(screen.getByRole("button", { name: "저장" }));
 
@@ -611,12 +628,12 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     });
   });
 
-  it("폴더 행의 '이름 변경' 버튼을 누르면 현재 이름이 채워진 모달이 뜨고, 저장하면 PUT을 호출한다", async () => {
+  it("폴더 옵션 메뉴의 '이름 변경'을 누르면 현재 이름이 채워진 모달이 뜨고, 저장하면 PUT을 호출한다(P15-1)", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch(() => jsonResponse({ id: "f1", name: "새이름", parentId: null, order: 0 }));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "폴더 이름 변경" }));
+    await openFolderMenuItem(user, "이름 변경");
     const input = screen.getByRole("textbox", { name: /폴더 이름/ });
     expect(input).toHaveValue("업무");
     await user.clear(input);
@@ -631,12 +648,12 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     });
   });
 
-  it("'삭제' 버튼을 누르면 바로 삭제되지 않고 확인 모달이 뜬다", async () => {
+  it("폴더 옵션 메뉴의 '삭제'를 누르면 바로 삭제되지 않고 확인 모달이 뜬다(P15-1)", async () => {
     const user = userEvent.setup();
     const fetchMock = stubFetch(() => jsonResponse({}));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await openFolderMenuItem(user, "삭제");
 
     expect(
       screen.getByText('"업무" 폴더를 삭제하시겠습니까? 안에 있던 하위 폴더와 문서는 삭제되지 않고 상위 위치로 이동합니다.')
@@ -649,7 +666,7 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     const fetchMock = stubFetch(() => jsonResponse({}));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await openFolderMenuItem(user, "삭제");
     await user.click(screen.getByRole("button", { name: "취소" }));
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -661,7 +678,7 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     const fetchMock = stubFetch(() => jsonResponse(null, 204));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await openFolderMenuItem(user, "삭제");
     await user.click(screen.getByRole("button", { name: "삭제 확인" }));
 
     await waitFor(() => {
@@ -675,7 +692,7 @@ describe("EditorSidebar 폴더 생성·이름변경·삭제(P7-5)", () => {
     stubFetch(() => jsonResponse({ error: { message: "폴더를 찾을 수 없습니다." } }, 404));
     renderSidebar();
 
-    await user.click(screen.getByRole("button", { name: "폴더 삭제" }));
+    await openFolderMenuItem(user, "삭제");
     await user.click(screen.getByRole("button", { name: "삭제 확인" }));
 
     expect(await screen.findByText("폴더를 찾을 수 없습니다.")).toBeInTheDocument();
