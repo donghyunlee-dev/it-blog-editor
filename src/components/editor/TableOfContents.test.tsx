@@ -222,6 +222,31 @@ describe("TableOfContents", () => {
     expect(screen.getByRole("link", { name: "섹션 C" })).not.toHaveAttribute("aria-current");
   });
 
+  it("바닥이 아닌 위치에서도, 클릭으로 도착한 헤딩이 활성 판정 기준선(scroll-margin-top)을 살짝 벗어나면 바로 위 헤딩이 활성으로 남는다(2026-09-14 실사용 중 발견 — 실제 브라우저에 올려 여러 헤딩을 연속 클릭해보니, 폰트 로딩 등으로 인한 미세한 리플로우 때문에 도착 지점이 기준선과 정확히 일치하지 않는 경우가 실제로 있었다. ACTIVATION_OFFSET을 scroll-margin-top과 정확히 맞추는 방식은 이 오차에 취약해서, 클릭 자체를 신뢰하는 pinnedByClick 우선순위를 바닥 판정 여부와 무관하게 항상 적용하도록 바꿨다)", async () => {
+    const user = userEvent.setup();
+    render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2><h2>섹션 C</h2>" />);
+    const scrollParent = screen.getByTestId("scroll-parent");
+    const [headingA, headingB, headingC] = document.querySelectorAll("h2");
+    Element.prototype.scrollIntoView = vi.fn();
+    // 바닥이 아니다(atBottom=false) — 그런데도 클릭 우선순위가 적용돼야 한다.
+    mockScrollGeometry(scrollParent, { scrollTop: 400, scrollHeight: 2000, clientHeight: 800 });
+    mockRect(headingA, -900);
+    // 실제 브라우저 실측(71.96~76.78px 사이로 흔들림)을 흉내 낸 값 — 기준선(72)을
+    // 살짝 넘겨서, 위치 기반 계산만 썼다면 이 헤딩은 "지나온 헤딩"으로 안 잡혔을 것이다.
+    mockRect(headingB, 76.78);
+    mockRect(headingC, 900);
+
+    await user.click(screen.getByRole("link", { name: "섹션 B" }));
+    // smooth 스크롤 안착을 흉내 낸 추가 scroll 이벤트 — 위치 기반 계산이었다면 여기서
+    // "섹션 A"로 되돌아갔을 것이다.
+    fireScroll(scrollParent);
+    fireScroll(scrollParent);
+
+    expect(screen.getByRole("link", { name: "섹션 B" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "섹션 A" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "섹션 C" })).not.toHaveAttribute("aria-current");
+  });
+
   it("여러 헤딩을 모두 지나면 문서 순서상 가장 나중(아래) 것을 활성으로 본다", async () => {
     render(<Harness html="<h2>섹션 A</h2><h2>섹션 B</h2>" />);
     const scrollParent = screen.getByTestId("scroll-parent");

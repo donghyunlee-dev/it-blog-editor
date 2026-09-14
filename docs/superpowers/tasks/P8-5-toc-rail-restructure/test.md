@@ -169,6 +169,39 @@ design.md 실측값이라 유지 — "이 페이지" 텍스트만 48px 안쪽에
 - `npx vitest run src/components/editor/TableOfContents.test.tsx` — 16개 전부 통과.
 - `npx eslint`, `npx tsc --noEmit`, `npm run build` — 통과.
 
+## 후속 수정(2026-09-14, 배포 직후 재제보 — 클릭 우선순위를 바닥 판정과 무관하게 적용)
+바로 앞 수정을 배포한 뒤에도 사용자가 "안 고쳐졌어. 왼쪽 컨텐츠 위치와 오른쪽 TOC가
+클릭을 해도 불일치해"라고 스크린샷과 함께 재차 제보했다.
+
+- **원인 조사 방법 전환**: 지금까지의 `TableOfContents.test.tsx` 회귀 테스트는 전부
+  `happy-dom` 환경에서 `getBoundingClientRect()`를 수동으로 모킹하는 방식이었다 —
+  실제 레이아웃 계산을 전혀 하지 않으므로, "실제 브라우저에서 클릭 후 도착 지점이
+  정확히 몇 px인가" 같은 질문에는 애초에 답할 수 없는 한계가 있었다. 그래서 이번엔
+  `src/app/toc-debug/page.tsx`라는 임시 라우트를 만들어(로그인이 필요 없는 최상위
+  라우트 — `middleware.ts`가 없고 인증 체크는 `editor/layout.tsx` 안에만 있음을 먼저
+  확인) 실제 `TableOfContents`/`EditorShell`의 `TocRailContext`를 그대로 가져와, 사용자
+  스크린샷과 같은 헤딩 11개짜리 실제 문서를 렌더링하고 실제 브라우저(Chromium 기반
+  Browser pane)에서 헤딩들을 순서대로 클릭해봤다. 확인 후 이 라우트는 즉시 삭제했고
+  커밋하지 않았다.
+- **재현**: 11개 헤딩을 차례로 클릭했더니 11개 중 3개("대화와 제공 정보", "데이터와
+  정보 분석 기준", "민감한 분야")에서 활성 표시가 바로 위 헤딩에 남았다 — 사용자가
+  스크린샷으로 보여준 것과 똑같은 증상. `getBoundingClientRect()`로 실측한 도착
+  지점은 71.9625~76.775px 사이로 흔들렸다 — 이 문서는 화면에 헤딩이 여러 개 보이는
+  긴 문서라 바닥 판정과는 무관했다(atBottom=false인 위치에서도 재현됨).
+- **원인**: `ACTIVATION_OFFSET`을 `scroll-margin-top`과 똑같이(72px) 맞춰둔 것 자체가
+  구조적으로 취약했다 — 폰트 로딩·레이아웃 계산의 미세한 오차로 도착 지점이 기준선을
+  아주 조금이라도 넘으면 그 헤딩이 "지나온 헤딩"으로 안 잡혔다.
+- **조치**: `pinnedByClick`(클릭으로 이동 중인 헤딩)을 바닥 판정보다 먼저, 무조건
+  최우선으로 확인하도록 `computeActiveHeading`을 재구성했다 — 위치 계산은 사용자가
+  직접 스크롤할 때만 관여한다.
+- **재검증**: 같은 디버그 페이지에서 11개 헤딩을 다시 순서대로 클릭 — 11/11 전부
+  올바르게 활성 표시됨을 확인. 안착 전(150ms만 기다리고 바로 확인) 빠른 연속 클릭
+  4회도 전부 정상 확인. `TableOfContents.test.tsx`에 헤딩 3개 중 클릭 도착 지점이
+  기준선(72px)을 살짝 넘도록(76.78px) 모킹한 회귀 테스트를 추가하고, 수정 전 코드로
+  되돌려 실제로 실패함을 먼저 확인한 뒤 복원해 통과를 재확인했다.
+- `npx vitest run src/components/editor/TableOfContents.test.tsx` — 17개 전부 통과.
+- `npx eslint`, `npx tsc --noEmit`, `npm run build` — 통과.
+
 ## 검증 중 새로 발견한 결정 사항
 없음.
 
