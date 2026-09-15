@@ -27,7 +27,7 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Modal, Popover, Tooltip, useToast } from "@sfood/ui";
+import { Button, Modal, Popover, Spinner, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -91,18 +91,67 @@ function stripPastedInlineStyles(html: string): string {
   return parsed.body.innerHTML;
 }
 
-/** 드롭/붙여넣기로 받은 이미지를 업로드한 뒤, 해당 위치에 image 노드를 삽입한다. */
-function insertUploadedImage(
+/**
+ * P17-9: 업로드가 끝날 때까지(드래그앤드롭·붙여넣기·슬래시 메뉴 세 경로 공통) 업로드 중임을
+ * 보여주는 자리표시자(placeholder) image 노드를 그 자리에 바로 심는다 — 이전에는 업로드가
+ * 끝난 뒤에야 노드를 삽입해서, 그 사이(특히 느린 네트워크)에는 아무 반응이 없어 "진행 중인지
+ * 알 수 없다"는 지적을 받았다. `uploadId`로 나중에 같은 노드를 다시 찾아 결과를 반영한다
+ * (transaction을 넘나드는 위치 추적 대신, 완료 시점의 현재 문서에서 다시 스캔하는 방식 —
+ * 그 사이 사용자가 다른 곳을 편집해 위치가 밀려도 안전하다).
+ */
+function insertUploadPlaceholder(
   view: EditorView,
   pos: number,
-  { url, filename }: { url: string; filename: string }
+  { uploadId, filename }: { uploadId: string; filename: string }
 ) {
   const { schema, doc } = view.state;
   const imageType = schema.nodes.image;
   if (!imageType) return;
   const insertPos = Math.min(pos, doc.content.size);
-  const node = imageType.create({ src: url, filename });
+  const node = imageType.create({ uploadId, filename, uploading: true });
   view.dispatch(view.state.tr.insert(insertPos, node));
+}
+
+/** 현재 문서에서 `uploadId`가 일치하는 업로드 자리표시자 image 노드를 찾는다. */
+function findUploadPlaceholder(
+  doc: ProseMirrorNode,
+  uploadId: string
+): { pos: number; node: ProseMirrorNode } | null {
+  let found: { pos: number; node: ProseMirrorNode } | null = null;
+  doc.descendants((node, pos) => {
+    if (found) return false;
+    if (node.type.name === "image" && node.attrs.uploadId === uploadId) {
+      found = { pos, node };
+      return false;
+    }
+  });
+  return found;
+}
+
+/** 업로드 성공: 자리표시자를 실제 이미지(첨부 URL)로 바꾼다. 이미 지워졌으면(사용자가 업로드 중 삭제) 아무 일도 하지 않는다. */
+function resolveUploadPlaceholder(
+  view: EditorView,
+  uploadId: string,
+  { url, filename }: { url: string; filename: string }
+) {
+  const match = findUploadPlaceholder(view.state.doc, uploadId);
+  if (!match) return;
+  view.dispatch(
+    view.state.tr.setNodeMarkup(match.pos, undefined, {
+      ...match.node.attrs,
+      src: url,
+      filename,
+      uploading: false,
+      uploadId: null,
+    })
+  );
+}
+
+/** 업로드 실패: 자리표시자를 지운다. 이미 지워졌으면 아무 일도 하지 않는다. */
+function removeUploadPlaceholder(view: EditorView, uploadId: string) {
+  const match = findUploadPlaceholder(view.state.doc, uploadId);
+  if (!match) return;
+  view.dispatch(view.state.tr.delete(match.pos, match.pos + match.node.nodeSize));
 }
 
 /**
@@ -137,10 +186,13 @@ export function createImageSlashItem(
 
         editor.chain().focus().deleteRange(range).run();
         const pos = editor.state.selection.from;
+        const uploadId = crypto.randomUUID();
+        insertUploadPlaceholder(editor.view, pos, { uploadId, filename: file.name });
 
         uploadImage(pageId, file)
-          .then((uploaded) => insertUploadedImage(editor.view, pos, uploaded))
+          .then((uploaded) => resolveUploadPlaceholder(editor.view, uploadId, uploaded))
           .catch((error) => {
+            removeUploadPlaceholder(editor.view, uploadId);
             notify(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
           });
       });
@@ -196,14 +248,50 @@ export function createDocumentLinkSlashItem(
 // shim packages (same rationale as Task 2's @tiptap/extension-list
 // consolidation).
 
+/**
+ * P17-9: 업로드 중에는 `uploading: true`(+ 되찾기용 `uploadId`) 상태로 심어둔 자리표시자를
+ * `ImageView`가 스피너로 렌더링한다 — 업로드가 끝나면(성공/실패) 이 attrs를 다시 갱신/삭제
+ * 하므로 최종 저장 데이터(`tiptap-to-storage.ts`)에는 절대 남지 않는다(그쪽은 src/filename만
+ * 읽는다). `uploading`/`uploadId`는 rendered:false로 둬 HTML(및 Confluence storage
+ * 변환용 JSON parseHTML 왕복)에도 노출되지 않게 한다.
+ */
 const AttachmentImage = TiptapImage.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
       filename: { default: null },
+      uploadId: { default: null, rendered: false },
+      uploading: { default: false, rendered: false },
     };
   },
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageView);
+  },
 });
+
+/** 업로드 중인 이미지 자리표시자 — 스피너 + 안내 문구로 "진행 중"임을 보여준다(P17-9). */
+function ImageView({ node }: Pick<NodeViewProps, "node">) {
+  if (node.attrs.uploading) {
+    return (
+      <NodeViewWrapper
+        contentEditable={false}
+        className="flex min-h-[120px] items-center justify-center gap-2 rounded-md border border-border bg-surface-subtle text-sm text-muted"
+      >
+        <Spinner size="sm" />
+        <span>{node.attrs.filename ? `${node.attrs.filename} 업로드 중…` : "이미지 업로드 중…"}</span>
+      </NodeViewWrapper>
+    );
+  }
+  return (
+    <NodeViewWrapper contentEditable={false}>
+      {/* Confluence 첨부파일 URL은 사전에 알 수 없는 임의 외부 호스트라 next/image의
+          remotePatterns 설정 대상이 될 수 없다 — 에디터 본문 이미지는 기존에도(NodeView
+          도입 전, TipTap의 renderHTML을 통해) 평범한 <img>였다. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={node.attrs.src ?? undefined} alt={node.attrs.alt ?? ""} title={node.attrs.title ?? undefined} />
+    </NodeViewWrapper>
+  );
+}
 
 /**
  * 콜아웃 아이콘 트리거(P9-2) — 클릭하면 큐레이션된 이모지 그리드가 담긴 `Popover`가
@@ -700,11 +788,15 @@ function ImageAltPopoverForm({ editor }: { editor: Editor }) {
   );
 }
 
-/** 이미지가 선택돼 있을 때만 뜨는, alt 텍스트 입력 전용 버블 메뉴. */
+/**
+ * 이미지가 선택돼 있을 때만 뜨는, alt 텍스트 입력 전용 버블 메뉴. 업로드 중인 자리표시자
+ * (P17-9)는 alt를 편집할 실제 이미지가 아직 없으므로 제외한다.
+ */
 function ImageBubbleMenu({ editor }: { editor: Editor | null }) {
   const isImageActive = useEditorState({
     editor,
-    selector: ({ editor: currentEditor }) => !!currentEditor?.isActive("image"),
+    selector: ({ editor: currentEditor }) =>
+      !!currentEditor?.isActive("image") && !currentEditor.getAttributes("image").uploading,
   });
 
   if (!editor || !isImageActive) return null;
@@ -1182,10 +1274,13 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
 
         const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
         const pos = coords?.pos ?? view.state.selection.from;
+        const uploadId = crypto.randomUUID();
+        insertUploadPlaceholder(view, pos, { uploadId, filename: file.name });
 
         uploadImage(pageId, file)
-          .then((uploaded) => insertUploadedImage(view, pos, uploaded))
+          .then((uploaded) => resolveUploadPlaceholder(view, uploadId, uploaded))
           .catch((error) => {
+            removeUploadPlaceholder(view, uploadId);
             toast(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.", "danger");
           });
         return true;
@@ -1205,10 +1300,13 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
         }
 
         const pos = view.state.selection.from;
+        const uploadId = crypto.randomUUID();
+        insertUploadPlaceholder(view, pos, { uploadId, filename: file.name });
 
         uploadImage(pageId, file)
-          .then((uploaded) => insertUploadedImage(view, pos, uploaded))
+          .then((uploaded) => resolveUploadPlaceholder(view, uploadId, uploaded))
           .catch((error) => {
+            removeUploadPlaceholder(view, uploadId);
             toast(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.", "danger");
           });
         return true;

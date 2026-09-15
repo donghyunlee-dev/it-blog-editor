@@ -46,19 +46,23 @@ function selectText(container: HTMLElement, textMatch: string) {
   document.dispatchEvent(new Event("selectionchange"));
 }
 
-/** N개의 이미지 노드를 담은 TipTap doc을 만든다. */
+/**
+ * N개의 이미지 노드를 담은 TipTap doc을 만든다. image 노드는 `inline: false`(기본값)라
+ * 스키마상 `paragraph`(content: "inline*")가 아니라 `doc`(content: "block+")의 직계
+ * 자식이어야 한다 — 예전엔 이미지들을 paragraph 안에 넣어뒀는데, 초기 `content` prop
+ * 로드는 이 위반을 조용히 허용했지만(엄격 검증 없이 JSON에서 직접 구성) 이후 그 paragraph
+ * 안으로 `tr.insert`를 시도하면 콘텐츠 매칭 자체가 깨져 있어 "Invalid content for node
+ * paragraph"로 실패한다(P17-9에서 업로드 placeholder를 동기적으로 insert하며 실제로
+ * 드러남 — 이전엔 promise then() 안에서 비동기로만 삽입해 이 테스트가 그 시점 전에
+ * 끝나 버그가 가려져 있었다). 이미지를 doc의 최상위 블록으로 바로 둬 스키마를 맞춘다.
+ */
 function docWithImages(count: number): JSONContent {
   return {
     type: "doc",
-    content: [
-      {
-        type: "paragraph",
-        content: Array.from({ length: count }, (_, i) => ({
-          type: "image",
-          attrs: { src: `https://example.com/${i}.png`, filename: `${i}.png` },
-        })),
-      },
-    ],
+    content: Array.from({ length: count }, (_, i) => ({
+      type: "image",
+      attrs: { src: `https://example.com/${i}.png`, filename: `${i}.png` },
+    })),
   };
 }
 
@@ -907,6 +911,67 @@ describe("RichTextEditor 이미지 업로드 성공 경로(P1-9e)", () => {
     const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
     expect(lastDoc.content?.some((n) => n.type === "image")).toBe(true);
 
+  });
+});
+
+/**
+ * P17-9: 이미지가 업로드되는 동안(드래그앤드롭·붙여넣기·슬래시 메뉴 공통 경로) 아무 표시가
+ * 없어 "진행 중인지 알 수 없다"는 지적을 받았다 — 업로드가 끝나기 전에는 그 자리에 스피너
+ * 자리표시자가 보이고, 성공하면 실제 이미지로, 실패하면 자리표시자가 사라지고 에러 토스트가
+ * 뜨는지 확인한다. 업로드 완료 시점을 직접 제어해야 "중간 상태"를 관찰할 수 있으므로,
+ * `uploadImage`를 즉시 resolve/reject하지 않는 수동 Promise로 모킹한다.
+ */
+describe("RichTextEditor 이미지 업로드 진행 상태 표시(P17-9)", () => {
+  it("업로드가 끝나기 전에는 자리표시자가 보이고, 끝나면 실제 이미지로 바뀐다", async () => {
+    let resolveUpload!: (value: { url: string; filename: string }) => void;
+    vi.spyOn(imageUpload, "uploadImage").mockReturnValue(
+      new Promise((resolve) => {
+        resolveUpload = resolve;
+      })
+    );
+
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [] }] }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    fireDrop(container, makeImageFile("photo.png"));
+
+    await waitFor(() => expect(screen.getByText("photo.png 업로드 중…")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror img")).toBeNull();
+
+    resolveUpload({ url: "https://example.com/new.png", filename: "new.png" });
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror img")).not.toBeNull());
+    expect(screen.queryByText("photo.png 업로드 중…")).not.toBeInTheDocument();
+  });
+
+  it("업로드가 실패하면 자리표시자가 사라지고 에러 토스트가 뜬다", async () => {
+    vi.spyOn(imageUpload, "uploadImage").mockRejectedValue(new Error("업로드 실패!"));
+
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [] }] }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    fireDrop(container, makeImageFile("photo.png"));
+
+    // mockRejectedValue는 이미 거부된 Promise라 다음 마이크로태스크에서 바로 실패
+    // 콜백이 실행된다 — "중간에 자리표시자가 보였는지"는 관찰 시점이 불안정해 검증하지
+    // 않고, 실패 후 최종 상태(토스트가 뜨고 자리표시자·이미지 둘 다 없음)만 확인한다.
+    await waitFor(() => expect(screen.getByText("업로드 실패!")).toBeInTheDocument());
+    expect(screen.queryByText("photo.png 업로드 중…")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror img")).toBeNull();
   });
 });
 
