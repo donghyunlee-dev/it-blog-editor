@@ -1266,12 +1266,16 @@ export function EditorSidebar({
           계정(대부분의 현재 사용자)은 이 버튼이 유일한 사이드바 내 생성 진입점이라 기존과
           동작이 같다 — 위치만 위→아래로 바뀐다. `/editor` 홈 화면의 "새 문서 작성" CTA도
           같은 동작(미분류 생성)의 또 다른 진입점으로 그대로 남아 있다.
+          P15-3(2026-09-15): 문서가 많아 목록이 `<nav>`보다 길어지면 이 버튼이 스크롤
+          맨 아래로 밀려 매번 스크롤해야만 보이는 문제가 있었다(사용자 지적). `sticky
+          bottom-0`으로 스크롤 컨테이너(`<nav>`) 안에서 항상 하단에 고정되게 한다 — 이미
+          불투명한 `bg-brand` 배경이라 뒤로 스크롤되는 문서 행이 비쳐 보이지 않는다.
         */}
         <Link
           href="/editor/new"
           onClick={onNavigate}
           onNavigate={(event) => guardNavigate(event, "/editor/new")}
-          className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
+          className="sticky bottom-0 mt-2 inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand shadow-lg transition-colors duration-default hover:bg-brand-hover"
         >
           <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
             <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
