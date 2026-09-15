@@ -1,7 +1,7 @@
 # P15-3: 사이드바 "새 문서" 버튼 sticky 고정 — 결과
 
 ## 커밋
-- (커밋 전 — 아래 커밋 생성 후 SHA 기록)
+- `943699e` fix: 사이드바 "새 문서" 버튼을 스크롤 컨테이너 하단에 고정 (P15-3)
 
 ## 변경 파일
 - `src/components/editor/EditorSidebar.tsx` — "새 문서" `<Link>`에 `sticky bottom-0
