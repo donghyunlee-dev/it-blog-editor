@@ -1243,7 +1243,13 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       // (node_modules/@tiptap/extension-code-block-lowlight 확인 — language 속성이
       // 없으면 lowlight.highlightAuto()로 폴백) — 이번 범위는 "문법 강조 추가"까지라
       // 언어를 직접 고르는 UI는 범위 밖으로 뒀다(자동 추정으로 대부분의 경우 충분).
-      CodeBlockLowlight.configure({ lowlight }),
+      //
+      // P17-5a: `enableTabIndentation`이 기본값 false라 코드 블록 안에서 Tab을 눌러도
+      // 무시되고 포커스가 에디터 밖(다음 버튼 등)으로 빠져나갔다 — "코드 블록 편집이
+      // 불편하다"는 지적 중 하나. 옵션만 켜면 Tab/Shift-Tab이 각각 들여쓰기/내어쓰기로
+      // 동작한다(node_modules/@tiptap/extension-code-block 확인 — 핸들러는 이미 구현돼
+      // 있고 이 플래그로만 켜고 끔). `tabSize`는 기본값(4칸)을 그대로 둔다.
+      CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true }),
       TextStyle,
       Color,
       FontSize,
