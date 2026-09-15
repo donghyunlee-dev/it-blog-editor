@@ -1178,83 +1178,98 @@ export function EditorSidebar({
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto p-2.5" aria-label="문서 목록">
-        {/*
-          P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
-          (그 전까지는 폴더 기능 자체를 발견할 방법이 없었다), 문서 유무와 무관하게
-          항상 보인다 — 아래 문서 목록/빈 상태 분기와 별개다.
-        */}
-        <div className="mb-1.5 flex items-center justify-between px-1">
-          <p className="text-xs font-medium text-muted">폴더</p>
-          <div className="flex items-center gap-0.5">
-            {documents.length > 0 && (
+      {/*
+        P15-4(2026-09-15): 이전엔 <nav> 전체가 스크롤 컨테이너였고 "새 문서" 버튼도 그
+        스크롤되는 콘텐츠의 일부였다 — `sticky bottom-0`을 줘도(P15-3) 목록이 짧아
+        실제로 스크롤이 생기지 않으면 sticky는 아무 효과가 없어(스크롤이 있어야만
+        "붙는" 것이지, 빈 공간을 채워 바닥까지 밀어주지는 않는다) 버튼이 계속 미분류
+        바로 아래에 눌러앉아 있었다(사용자 지적 — "다시 화면 그렸을 때 그대로
+        미분류에 붙어 있어"). 그래서 스크롤 영역과 버튼을 아예 분리한다 — <nav> 자체를
+        flex column으로 바꾸고, 폴더 트리·문서 목록·"더 보기"는 그 안의 별도
+        `flex-1 overflow-y-auto` 자식으로, "새 문서" 버튼은 스크롤에 영향받지 않는
+        형제 자식으로 둔다. 이러면 목록이 짧을 땐 버튼이 flex 레이아웃으로 항상
+        패널 맨 아래에 있고, 목록이 길 땐 그 목록만 스크롤되고 버튼은 계속 보인다 —
+        두 경우 모두에서 "항상 하단에 보인다"가 성립한다.
+      */}
+      <nav className="flex flex-1 flex-col overflow-hidden" aria-label="문서 목록">
+        <div className="flex-1 overflow-y-auto p-2.5">
+          {/*
+            P7-5: 폴더가 하나도 없는 계정도 이 버튼으로 첫 폴더를 만들 수 있어야 하므로
+            (그 전까지는 폴더 기능 자체를 발견할 방법이 없었다), 문서 유무와 무관하게
+            항상 보인다 — 아래 문서 목록/빈 상태 분기와 별개다.
+          */}
+          <div className="mb-1.5 flex items-center justify-between px-1">
+            <p className="text-xs font-medium text-muted">폴더</p>
+            <div className="flex items-center gap-0.5">
+              {documents.length > 0 && (
+                <button
+                  type="button"
+                  aria-label={
+                    sortBy === "updatedAt"
+                      ? "정렬: 최신순 (누르면 제목순으로 변경)"
+                      : "정렬: 제목순 (누르면 최신순으로 변경)"
+                  }
+                  title={sortBy === "updatedAt" ? "정렬: 최신순" : "정렬: 제목순"}
+                  onClick={() =>
+                    setSortBy((current) => (current === "updatedAt" ? "title" : "updatedAt"))
+                  }
+                  className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
+                >
+                  <SortIcon />
+                </button>
+              )}
               <button
                 type="button"
-                aria-label={
-                  sortBy === "updatedAt"
-                    ? "정렬: 최신순 (누르면 제목순으로 변경)"
-                    : "정렬: 제목순 (누르면 최신순으로 변경)"
-                }
-                title={sortBy === "updatedAt" ? "정렬: 최신순" : "정렬: 제목순"}
-                onClick={() =>
-                  setSortBy((current) => (current === "updatedAt" ? "title" : "updatedAt"))
-                }
+                aria-label="새 폴더 만들기"
+                title="새 폴더 만들기"
+                onClick={() => setFolderFormState({ type: "create", parentId: null })}
                 className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
               >
-                <SortIcon />
+                <PlusIcon />
               </button>
-            )}
-            <button
-              type="button"
-              aria-label="새 폴더 만들기"
-              title="새 폴더 만들기"
-              onClick={() => setFolderFormState({ type: "create", parentId: null })}
-              className="rounded-btn p-1 text-muted transition-colors duration-default hover:bg-surface-raised hover:text-foreground"
-            >
-              <PlusIcon />
-            </button>
+            </div>
           </div>
+          {documents.length === 0 ? (
+            <EmptyState title="아직 작성한 문서가 없습니다." />
+          ) : filteredDocuments.length === 0 ? (
+            <EmptyState title="조건에 맞는 문서가 없습니다." />
+          ) : (
+            // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
+            // 구분 라인도 필요없어"라는 요청으로 뺐다(2026-08-26). 행 자체의 hover
+            // 배경(아래 isActive 삼항)만으로도 행 구분은 충분하다.
+            // P7-4: 폴더가 있는 계정만 트리 + "미분류" 레이블이 추가로 보인다 — 폴더가
+            // 하나도 없으면(대부분의 현재 사용자) 이 블록 전체가 기존과 동일하게
+            // 미분류 목록 하나만 그린다(topLevelFolders.length === 0이라 첫 두 블록이
+            // 렌더링되지 않음).
+            <>
+              {topLevelFolders.length > 0 && (
+                <ul className="mb-1.5 flex flex-col gap-0.5" role="tree" aria-label="폴더">
+                  {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
+                </ul>
+              )}
+              {folders.length > 0 && unclassifiedDocuments.length > 0 && (
+                <p className="px-2 pb-1 text-xs font-medium text-muted">미분류</p>
+              )}
+              {visibleDocuments.length > 0 && (
+                <ul className="flex flex-col gap-0.5">
+                  {visibleDocuments.map((document) => renderDocumentRow(document, 0))}
+                </ul>
+              )}
+            </>
+          )}
+          {/* P1-1c: 문서가 많으면 한 번에 다 그리지 않고 점진적으로 보여준다. */}
+          {hasMore && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="mt-2 w-full"
+              onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
+            >
+              더 보기
+            </Button>
+          )}
         </div>
-        {documents.length === 0 ? (
-          <EmptyState title="아직 작성한 문서가 없습니다." />
-        ) : filteredDocuments.length === 0 ? (
-          <EmptyState title="조건에 맞는 문서가 없습니다." />
-        ) : (
-          // 예전엔 행 사이에 divide-y 구분선이 있었는데, "문서함을 좀 더 심플하게...
-          // 구분 라인도 필요없어"라는 요청으로 뺐다(2026-08-26). 행 자체의 hover
-          // 배경(아래 isActive 삼항)만으로도 행 구분은 충분하다.
-          // P7-4: 폴더가 있는 계정만 트리 + "미분류" 레이블이 추가로 보인다 — 폴더가
-          // 하나도 없으면(대부분의 현재 사용자) 이 블록 전체가 기존과 동일하게
-          // 미분류 목록 하나만 그린다(topLevelFolders.length === 0이라 첫 두 블록이
-          // 렌더링되지 않음).
-          <>
-            {topLevelFolders.length > 0 && (
-              <ul className="mb-1.5 flex flex-col gap-0.5" role="tree" aria-label="폴더">
-                {topLevelFolders.map((folder) => renderFolderNode(folder, 0))}
-              </ul>
-            )}
-            {folders.length > 0 && unclassifiedDocuments.length > 0 && (
-              <p className="px-2 pb-1 text-xs font-medium text-muted">미분류</p>
-            )}
-            {visibleDocuments.length > 0 && (
-              <ul className="flex flex-col gap-0.5">
-                {visibleDocuments.map((document) => renderDocumentRow(document, 0))}
-              </ul>
-            )}
-          </>
-        )}
-        {/* P1-1c: 문서가 많으면 한 번에 다 그리지 않고 점진적으로 보여준다. */}
-        {hasMore && (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="mt-2 w-full"
-            onClick={() => setVisibleCount((current) => current + PAGE_SIZE)}
-          >
-            더 보기
-          </Button>
-        )}
 
         {/*
           P15-1: 예전엔 이 버튼이 사이드바 맨 위, "폴더" 섹션 바로 앞에 있었다(2026-09-11).
@@ -1266,22 +1281,26 @@ export function EditorSidebar({
           계정(대부분의 현재 사용자)은 이 버튼이 유일한 사이드바 내 생성 진입점이라 기존과
           동작이 같다 — 위치만 위→아래로 바뀐다. `/editor` 홈 화면의 "새 문서 작성" CTA도
           같은 동작(미분류 생성)의 또 다른 진입점으로 그대로 남아 있다.
-          P15-3(2026-09-15): 문서가 많아 목록이 `<nav>`보다 길어지면 이 버튼이 스크롤
-          맨 아래로 밀려 매번 스크롤해야만 보이는 문제가 있었다(사용자 지적). `sticky
-          bottom-0`으로 스크롤 컨테이너(`<nav>`) 안에서 항상 하단에 고정되게 한다 — 이미
-          불투명한 `bg-brand` 배경이라 뒤로 스크롤되는 문서 행이 비쳐 보이지 않는다.
+          P15-4(2026-09-15): 위 스크롤 wrapper div(`.flex-1.overflow-y-auto`)의 형제로
+          옮겨져, 문서/폴더 목록이 얼마나 길든 스크롤에 전혀 관여하지 않는다 — 항상
+          사이드바 맨 아래에 있다(P15-3의 `sticky` 시도는 목록이 짧아 스크롤이 없을
+          때는 효과가 없었다 — 사용자 지적: "다시 화면 그렸을 때 그대로 미분류에
+          붙어 있어"). 구분선(`border-t`)은 넣지 않는다 — 왼쪽 패널에 선이 너무 많다는
+          사용자 지적으로 뺐다.
         */}
-        <Link
-          href="/editor/new"
-          onClick={onNavigate}
-          onNavigate={(event) => guardNavigate(event, "/editor/new")}
-          className="sticky bottom-0 mt-2 inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand shadow-lg transition-colors duration-default hover:bg-brand-hover"
-        >
-          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-          새 문서
-        </Link>
+        <div className="shrink-0 p-2.5">
+          <Link
+            href="/editor/new"
+            onClick={onNavigate}
+            onNavigate={(event) => guardNavigate(event, "/editor/new")}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
+          >
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            새 문서
+          </Link>
+        </div>
       </nav>
 
       {/*
