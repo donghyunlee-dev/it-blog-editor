@@ -47,6 +47,30 @@ function selectText(container: HTMLElement, textMatch: string) {
 }
 
 /**
+ * `selectText`와 같은 원리(네이티브 Range → selectionchange)로, 선택 범위 대신 텍스트
+ * 뒤쪽에 커서(collapsed selection)만 둔다 — Tab 들여쓰기처럼 "커서 위치에 삽입"하는
+ * 동작을 검증하려면 텍스트를 선택하지 않고 커서만 옮겨야 한다.
+ */
+function placeCursorAfter(container: HTMLElement, textMatch: string) {
+  const editorEl = container.querySelector(".ProseMirror") as HTMLElement;
+  editorEl.focus();
+  const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT);
+  let node: Node | null = null;
+  while ((node = walker.nextNode())) {
+    if (node.textContent?.includes(textMatch)) break;
+  }
+  if (!node) throw new Error(`텍스트를 찾을 수 없습니다: ${textMatch}`);
+  const offset = node.textContent!.indexOf(textMatch) + textMatch.length;
+  const range = document.createRange();
+  range.setStart(node, offset);
+  range.collapse(true);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  document.dispatchEvent(new Event("selectionchange"));
+}
+
+/**
  * N개의 이미지 노드를 담은 TipTap doc을 만든다. image 노드는 `inline: false`(기본값)라
  * 스키마상 `paragraph`(content: "inline*")가 아니라 `doc`(content: "block+")의 직계
  * 자식이어야 한다 — 예전엔 이미지들을 paragraph 안에 넣어뒀는데, 초기 `content` prop
@@ -550,6 +574,56 @@ describe("RichTextEditor 코드블록 문법 강조(P1-7c)", () => {
     const codeEl = container.querySelector("pre code");
     expect(codeEl).toBeInTheDocument();
     expect(codeEl?.querySelector('[class^="hljs-"]')).not.toBeNull();
+  });
+});
+
+/**
+ * P17-5a: `CodeBlockLowlight`의 `enableTabIndentation`이 기본값 false라 코드 블록
+ * 안에서 Tab을 눌러도 무시되고 포커스가 에디터 밖으로 빠져나갔다 — "코드 블록 편집이
+ * 불편하다"는 지적 중 하나. 옵션을 켠 뒤 실제로 Tab이 들여쓰기(공백 4칸 삽입)로
+ * 동작하는지 확인한다.
+ */
+describe("RichTextEditor 코드 블록 Tab 들여쓰기(P17-5a)", () => {
+  it("코드 블록 안에서 Tab을 누르면 커서 위치에 공백 4칸이 삽입된다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "codeBlock", content: [{ type: "text", text: "const x = 1;" }] }],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    // 문법 강조가 코드 텍스트를 hljs-* <span>별로 여러 텍스트 노드로 쪼개므로("const x =
+    // 1;" 전체를 담은 단일 텍스트 노드가 없음), 마지막 글자(";")만으로 커서를 코드
+    // 끝으로 옮긴다.
+    placeCursorAfter(container, ";");
+    const editorEl = container.querySelector(".ProseMirror") as HTMLElement;
+    fireEvent.keyDown(editorEl, { key: "Tab", code: "Tab" });
+
+    await waitFor(() =>
+      expect(container.querySelector("pre code")?.textContent).toBe("const x = 1;    ")
+    );
+  });
+
+  it("코드 블록 밖(일반 문단)에서는 Tab을 눌러도 들여쓰기가 삽입되지 않는다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "일반 문단" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    placeCursorAfter(container, "일반 문단");
+    const editorEl = container.querySelector(".ProseMirror") as HTMLElement;
+    fireEvent.keyDown(editorEl, { key: "Tab", code: "Tab" });
+
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe("일반 문단");
   });
 });
 

@@ -4,7 +4,11 @@
 
   
 
-> 전체 진행률: 120 / 127 항목 완료 (최근 갱신: 2026-09-16 — **P17-4**(인라인 코드와 코드
+> 전체 진행률: 121 / 127 항목 완료 (최근 갱신: 2026-09-16 — **P17-5a**(코드 블록 편집이
+불편하다는 지적 중 Tab 들여쓰기 항목 — `CodeBlockLowlight.configure()`의
+`enableTabIndentation`이 기본값 false라 Tab을 눌러도 무시되고 포커스가 밖으로 빠졌다.
+라이브러리에 이미 구현된 Tab/Shift-Tab 핸들러를 옵션으로 켜기만 해서 해결). 이전 갱신:
+**P17-4**(인라인 코드와 코드
 블록을 구분 못하겠다는 지적 — 둘 다 `.prose` 기본값(본문과 같은 글자색)만 쓰던 것을,
 인라인 코드에 배경(`--color-surface-subtle`)+테두리(`--color-border`) 칩을 주고 중복되는
 기본 백틱 의사요소는 껐다. 임시 디버그 페이지로 Browser pane에서 라이트/다크 테마 모두
@@ -831,8 +835,11 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   블록(전체 폭 박스+문법 강조)과 형태로 뚜렷이 구분된다. 산출물:
   `docs/superpowers/tasks/P17-4-inline-code-codeblock-visual-distinction/{task,plan,result,test}.md`,
   src/app/globals.css
-- [ ] (P17-5a) 코드 블록 Tab 들여쓰기 지원 — `CodeBlockLowlight.configure()`에
-  `enableTabIndentation: true`를 켜 Tab/Shift-Tab으로 들여쓰기·내어쓰기가 되게 한다.
+- [x] (완료, P17-5a) 코드 블록 Tab 들여쓰기 지원 — `CodeBlockLowlight.configure()`에
+  `enableTabIndentation: true`를 켜 Tab/Shift-Tab으로 들여쓰기·내어쓰기가 되게 했다
+  (라이브러리에 이미 구현된 핸들러를 옵션으로 활성화). 산출물:
+  `docs/superpowers/tasks/P17-5a-codeblock-tab-indentation/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
 - [ ] (P17-5b) 코드 블록 언어 선택 UI — lowlight `common` 번들(`lowlight.listLanguages()`)
   기준으로 코드 블록마다 언어를 직접 고를 수 있는 UI를 추가한다.
 - [ ] (P17-5c) 코드 블록 복사 버튼 — 코드 블록에 노드뷰를 추가해 클릭 한 번으로 코드 전체를
