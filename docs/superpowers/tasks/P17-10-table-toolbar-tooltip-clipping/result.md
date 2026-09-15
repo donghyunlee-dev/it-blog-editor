@@ -1,7 +1,7 @@
 # P17-10: 표 툴바 툴팁 클리핑 수정 — 결과
 
 ## 커밋
-- (커밋 후 기록 — 아래 "산출물" 참고)
+- `accc574` fix: 표 툴바 툴팁이 스크롤 컨테이너 상단에서 잘려 보이던 문제 수정 (P17-10)
 
 ## 변경 파일
 - `src/components/editor/RichTextEditor.tsx` — `TableToolbarButton`의
