@@ -1,7 +1,7 @@
 # P17-5a: 코드 블록 Tab 들여쓰기 — 결과
 
 ## 커밋
-- (커밋 후 기록 — 아래 "산출물" 참고)
+- `2155459` feat: 코드 블록에서 Tab으로 들여쓰기 지원 (P17-5a)
 
 ## 변경 파일
 - `src/components/editor/RichTextEditor.tsx` — `CodeBlockLowlight.configure()`에
