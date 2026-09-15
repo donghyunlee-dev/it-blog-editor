@@ -837,8 +837,15 @@ function TableIcon({ children }: { children: ReactNode }) {
 
 // 4개의 "삽입" 아이콘은 모두 같은 문법(화살표가 새로 생길 선을 향해 뻗는다)을 공유해,
 // 하나를 이해하면 나머지 방향도 바로 유추할 수 있게 했다. 병합/분할은 칸이 모였다/갈라진다는
-// 느낌을 안쪽/바깥쪽 화살표로 대비시켰다. 삭제는 방향성이 의미 없어 범용 휴지통 아이콘
-// 하나를 행/열 삭제 둘 다에 재사용한다(그룹 위치 + 툴팁으로 구분).
+// 느낌을 안쪽/바깥쪽 화살표로 대비시켰다.
+//
+// P17-3: 예전엔 "행 삭제"·"열 삭제"·"표 삭제" 셋 다 같은 범용 휴지통 아이콘(`TrashIcon`)을
+// 재사용해 Tooltip/aria-label(마우스 오버·스크린리더)로만 구분됐다 — 사용자가 "휴지통
+// 아이콘이 여러 개 있어서 인식 불가"라고 지적했다. 삽입 아이콘의 "가로줄=행 / 세로줄=열"
+// 문법을 그대로 가져와, 행/열 삭제는 그 축을 나타내는 굵은 띠에 X를 그어 표시한다
+// (스프레드시트류 도구에서 흔한 "지울 행/열에 줄을 긋는" 표현). 표 전체 삭제만 기존
+// 범용 휴지통 모양을 유지한다 — 확인 Modal을 거치는 유일한 항목이라 "표 전체가 없어진다"는
+// 느낌의 아이콘이 그대로 더 적절하다.
 const RowInsertBeforeIcon = () => (
   <TableIcon>
     <line x1="4" y1="6" x2="20" y2="6" />
@@ -874,6 +881,24 @@ const TrashIcon = () => (
     <path d="M19 7l-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 7" />
   </TableIcon>
 );
+/** "행 삭제" 전용 — 삽입 아이콘과 같은 가로줄=행 문법에, 지울 대상임을 나타내는 X를 더한다. */
+const RowDeleteIcon = () => (
+  <TableIcon>
+    <line x1="4" y1="9" x2="20" y2="9" />
+    <line x1="4" y1="15" x2="20" y2="15" />
+    <line x1="8" y1="8" x2="16" y2="16" />
+    <line x1="16" y1="8" x2="8" y2="16" />
+  </TableIcon>
+);
+/** "열 삭제" 전용 — 삽입 아이콘과 같은 세로줄=열 문법에, 지울 대상임을 나타내는 X를 더한다. */
+const ColumnDeleteIcon = () => (
+  <TableIcon>
+    <line x1="9" y1="4" x2="9" y2="20" />
+    <line x1="15" y1="4" x2="15" y2="20" />
+    <line x1="8" y1="8" x2="16" y2="16" />
+    <line x1="16" y1="8" x2="8" y2="16" />
+  </TableIcon>
+);
 const MergeCellsIcon = () => (
   <TableIcon>
     <rect x="3" y="5" width="7" height="14" rx="1" />
@@ -903,7 +928,14 @@ function TableToolbarButton({
   children: ReactNode;
 }) {
   return (
-    <Tooltip content={label}>
+    // P17-10: 이 툴바는 `sticky top-14`라 표를 스크롤하면 EditorShell의 본문 스크롤
+    // 컨테이너(`overflow-y-auto` — overflow-x/y가 둘 다 CSS 스펙상 auto로 강제됨,
+    // P14-3와 같은 클리핑 원인) 맨 위에 붙는다. 그 상태에서 기본값(side="top")인
+    // 툴팁은 버튼 위로 렌더링되는데, 위쪽 공간이 그 스크롤 컨테이너 경계 밖이라
+    // 대부분 잘려서 둥근 모서리도 글자도 없이 얇은 띠만 보였다(사용자 실사용 확인).
+    // 아래(side="bottom")는 표가 있어 항상 공간이 있으므로 구조적으로 이 클리핑이
+    // 생기지 않는다.
+    <Tooltip content={label} side="bottom">
       <Button
         type="button"
         variant="ghost"
@@ -989,7 +1021,7 @@ function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
         disabled={!tableState.canDeleteRow}
         onClick={() => editor.chain().focus().deleteRow().run()}
       >
-        <TrashIcon />
+        <RowDeleteIcon />
       </TableToolbarButton>
       {/* 행/열 조작과 셀 병합/분할은 서로 다른 조작 그룹이라 구분선으로 나눈다. */}
       <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
@@ -1012,7 +1044,7 @@ function TableToolbar({ editor, active }: { editor: Editor; active: boolean }) {
         disabled={!tableState.canDeleteColumn}
         onClick={() => editor.chain().focus().deleteColumn().run()}
       >
-        <TrashIcon />
+        <ColumnDeleteIcon />
       </TableToolbarButton>
       <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
       <TableToolbarButton

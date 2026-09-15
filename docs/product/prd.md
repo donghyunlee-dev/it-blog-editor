@@ -4,7 +4,18 @@
 
   
 
-> 전체 진행률: 117 / 126 항목 완료 (최근 갱신: 2026-09-15 — **P17-9**(사용자 추가 요청 —
+> 전체 진행률: 119 / 127 항목 완료 (최근 갱신: 2026-09-15 — **P17-10**(P17-3 리뷰 중
+사용자가 "표 툴바에 마우스 올리면 설명이 나왔으면 좋겠어. 마우스 오버 했을 때 top 라인의
+크기가 이상해. 버튼에 맞지 않고 크게 나와"라고 지적 — `EditorShell`의 실제 스크롤 컨테이너
+구조를 재현한 임시 디버그 페이지로 Browser pane에서 직접 재현·측정했다. 표 툴바가 `sticky
+top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, 툴팁 기본값(`side="top"`)이
+그 경계 밖으로 그려지려다 잘려 얇은 흰 띠만 남았다(P14-3과 같은 클리핑 원인) — `Tooltip`에
+`side="bottom"`을 지정해 구조적으로 해결). 이전 갱신: **P17-3**(표 툴바 "행 삭제"·
+"열 삭제"·"표 삭제" 버튼이 동일한 `TrashIcon`을 재사용해 Tooltip/aria-label 없이는 구분이
+안 된다는 지적 — 삽입 아이콘의 "가로줄=행/세로줄=열" 문법을 확장해 `RowDeleteIcon`(가로
+띠+X)·`ColumnDeleteIcon`(세로 띠+X)으로 분리했다. "표 삭제"는 유일하게 확인 Modal을 거치는
+가장 파괴적인 동작이라 기존 범용 휴지통 모양을 그대로 유지). 이전 갱신: **P17-9**(사용자
+추가 요청 —
 "이미지를 캡쳐 후 넣거나 슬래시 이미지로 넣을 때 아무 효과 없이 기다렸다가 들어가기 때문에
 작업이 진행 중인지 알 수가 없다"는 지적으로, 원래 Phase 17 목록에는 없던 항목을 추가했다.
 드래그앤드롭·붙여넣기·슬래시 메뉴 세 경로 모두 업로드 시작과 동시에 그 자리에 스피너(`@sfood/ui`
@@ -464,6 +475,13 @@
   수가 없다"는 지적으로, 원래 목록(P17-1~P17-8)에는 없던 항목을 이어서 추가했다 — 이미지
   업로드 진행 상태 표시(자리표시자 스피너). "가장 보편적으로 많이 사용하는 방식"으로 해달라는
   요청이라 별도로 정할 값 없이 바로 진행했다.
+- P17-3 적용 후속(2026-09-15, 사용자 추가 요청 — P17-10): P17-3 PR을 리뷰하던 중 "표 툴바에
+  마우스 올리면 설명이 나왔으면 좋겠어. 마우스 오버 했을 때 top 라인의 크기가 이상해. 버튼에
+  맞지 않고 크게 나와"라는 지적을 받아, 원래 목록에 없던 항목을 이어서 추가했다 — 표 툴바가
+  `sticky top-14`로 `EditorShell`의 `overflow-y-auto` 스크롤 컨테이너 맨 위에 붙을 때
+  기본값(`side="top"`) 툴팁이 그 경계 밖에서 잘리는 문제였다(P14-3과 같은 클리핑 원인).
+  임시 디버그 페이지로 Browser pane에서 직접 재현·측정한 뒤 `Tooltip`에 `side="bottom"`을
+  지정해 구조적으로 해결했다.
 
 ## ✅ 단계별 진행 체크리스트
 
@@ -796,9 +814,13 @@
   직접 단위 테스트했다. 산출물:
   `docs/superpowers/tasks/P17-1-2-slash-menu-image-doclink-unavailable/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
-- [ ] (P17-3) 표 툴바 행/열/표 삭제 아이콘 시각적 구분 — 현재 셋 다 동일한 `TrashIcon`을
-  재사용해 `Tooltip`/`aria-label`(마우스 오버·스크린리더)로만 구분되는 것을, 아이콘 모양
-  자체로도 구분되게 한다.
+- [x] (완료, P17-3) 표 툴바 행/열/표 삭제 아이콘 시각적 구분 — 셋 다 동일한 `TrashIcon`을
+  재사용해 `Tooltip`/`aria-label`로만 구분되던 것을, 삽입 아이콘의 "가로줄=행/세로줄=열"
+  문법을 확장해 `RowDeleteIcon`(가로 띠+X)·`ColumnDeleteIcon`(세로 띠+X)으로 분리했다.
+  "표 삭제"는 유일하게 확인 Modal을 거치는 가장 파괴적인 동작이라 기존 범용 휴지통
+  모양을 그대로 유지했다. 산출물:
+  `docs/superpowers/tasks/P17-3-table-toolbar-delete-icons/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
 - [ ] (P17-4) 인라인 코드 vs 코드 블록 시각적 구분 강화 — 둘 다 `.prose` 기본값만 써서 인라인
   코드가 본문과 거의 같은 색인 것을, 배경·테두리 등으로 한눈에 구분되게 한다(`@sfood/ui`
   토큰/CSS 변수 사용, 하드코딩 금지).
@@ -821,6 +843,18 @@
   안내 자리표시자를 바로 심고, 성공하면 실제 이미지로, 실패하면 자리표시자를 지우고 에러
   토스트를 띄운다(가장 보편적인 "로컬 자리표시자 → 결과로 치환" 패턴). 산출물:
   `docs/superpowers/tasks/P17-9-image-upload-progress-indicator/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
+- [x] (완료, P17-10 — 사용자 추가 요청, P17-3 리뷰 중 발견) 표 툴바 툴팁이 화면 상단에서
+  잘려 보이던 문제 수정 — "마우스 올리면 설명이 나왔으면 좋겠어. 마우스 오버 했을 때
+  top 라인의 크기가 이상해. 버튼에 맞지 않고 크게 나와"라는 지적으로, `EditorShell`의
+  실제 스크롤 컨테이너 구조를 재현한 임시 디버그 페이지에서 Browser pane으로 직접
+  재현·측정했다. 원인: 표 툴바가 `sticky top-14`라 스크롤하면 `EditorShell`의
+  `overflow-y-auto` 본문 스크롤 컨테이너 맨 위에 붙는데, 툴팁 기본값(`side="top"`)이
+  버튼 위(=컨테이너 경계 밖)로 그려지려다 그 컨테이너의 강제된 `overflow-x: auto`
+  (P14-3과 같은 CSS 스펙 동작)에 잘려 둥근 모서리·텍스트 없는 얇은 흰 띠만 남았다.
+  `TableToolbarButton`의 `Tooltip`에 `side="bottom"`을 지정해(버튼 아래는 항상 표
+  본문이 있어 구조적으로 클리핑이 없음) 해결했다. 산출물:
+  `docs/superpowers/tasks/P17-10-table-toolbar-tooltip-clipping/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
 
 
