@@ -928,7 +928,14 @@ function TableToolbarButton({
   children: ReactNode;
 }) {
   return (
-    <Tooltip content={label}>
+    // P17-10: 이 툴바는 `sticky top-14`라 표를 스크롤하면 EditorShell의 본문 스크롤
+    // 컨테이너(`overflow-y-auto` — overflow-x/y가 둘 다 CSS 스펙상 auto로 강제됨,
+    // P14-3와 같은 클리핑 원인) 맨 위에 붙는다. 그 상태에서 기본값(side="top")인
+    // 툴팁은 버튼 위로 렌더링되는데, 위쪽 공간이 그 스크롤 컨테이너 경계 밖이라
+    // 대부분 잘려서 둥근 모서리도 글자도 없이 얇은 띠만 보였다(사용자 실사용 확인).
+    // 아래(side="bottom")는 표가 있어 항상 공간이 있으므로 구조적으로 이 클리핑이
+    // 생기지 않는다.
+    <Tooltip content={label} side="bottom">
       <Button
         type="button"
         variant="ghost"

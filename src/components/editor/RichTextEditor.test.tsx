@@ -315,6 +315,36 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
     expect(rowDeleteIcon).not.toBe(tableDeleteIcon);
     expect(columnDeleteIcon).not.toBe(tableDeleteIcon);
   });
+
+  /**
+   * P17-10: 이 툴바는 `sticky top-14`라 표를 스크롤하면 `EditorShell`의 본문 스크롤
+   * 컨테이너(`overflow-y-auto`) 맨 위에 들러붙는다 — 그 상태에서 기본값(side="top")
+   * 툴팁은 버튼 위쪽으로 그려지는데, 그 공간이 스크롤 컨테이너 경계 밖이라 대부분
+   * 잘려서 둥근 모서리도 글자도 없이 얇은 흰 띠만 보이는 걸 실제로 재현해 확인했다
+   * (P14-3과 같은 "overflow-y-auto가 overflow-x까지 auto로 강제해 경계 밖 절대위치
+   * 요소를 자른다"는 클리핑 원인). 버튼 아래(side="bottom")는 항상 표 본문이 있어
+   * 구조적으로 이 문제가 생기지 않는다 — 툴팁이 실제로 `side="bottom"`으로 뜨는지
+   * 확인한다(className에 "top-full"이 있으면 아래, "bottom-full"이면 위).
+   */
+  it("표 툴바 버튼의 툴팁은 버튼 아래(side=bottom)에 뜬다", async () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    for (const label of ["행 추가(위)", "행 삭제", "표 삭제"]) {
+      const button = await screen.findByLabelText(label);
+      fireEvent.mouseEnter(button);
+
+      const tooltip = await screen.findByRole("tooltip");
+      expect(tooltip).toHaveTextContent(label);
+      expect(tooltip.className).toContain("top-full");
+      expect(tooltip.className).not.toContain("bottom-full");
+
+      fireEvent.mouseLeave(button);
+    }
+  });
 });
 
 describe("RichTextEditor 표 삭제(P2-4)", () => {
