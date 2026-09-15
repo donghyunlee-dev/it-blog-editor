@@ -204,12 +204,14 @@ describe("EditorSidebar", () => {
     );
   });
 
-  it("'새 문서' 링크는 문서 목록이 길어도 항상 보이도록 스크롤 컨테이너 하단에 고정된다(P15-3, sticky bottom-0)", () => {
+  it("'새 문서' 링크는 문서 목록의 스크롤 영역 바깥(형제)에 있어 목록 길이와 무관하게 항상 보인다(P15-4 — P15-3의 sticky는 목록이 짧으면 효과가 없어 이 구조로 교체됨)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
-    expect(screen.getByRole("link", { name: "새 문서" }).className).toMatch(
-      /\bsticky\b.*\bbottom-0\b/
-    );
+    const nav = screen.getByRole("navigation", { name: "문서 목록" });
+    const scrollArea = nav.querySelector(":scope > .overflow-y-auto") as HTMLElement;
+    expect(scrollArea).not.toBeNull();
+    expect(within(scrollArea).queryByRole("link", { name: "새 문서" })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "새 문서" })).toBeInTheDocument();
   });
 
   it("문서 검색 입력이 '새 문서' 링크보다 위(앞)에 있다(2026-09-11, 공간 효율화를 위한 레이아웃 재배치)", () => {
