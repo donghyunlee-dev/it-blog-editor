@@ -443,6 +443,29 @@ body {
 }
 
 /*
+ * P17-4: 인라인 코드와 코드 블록의 차이를 사용자가 구분하지 못했다 — 둘 다
+ * `--tw-prose-code`/`--tw-prose-pre-code`가 본문과 같은 `--color-foreground`라,
+ * 인라인 코드는 모노스페이스 폰트 말고는 본문 글자와 거의 구별되지 않았다(코드
+ * 블록은 `--tw-prose-pre-bg`로 이미 박스 배경이 있어 상대적으로 괜찮았음). 짧은
+ * 배경 칩(GitHub/Notion류 에디터의 표준 인라인 코드 표현)을 줘서 한눈에 "코드"임을
+ * 알아보게 하고, 코드 블록(전체 폭 박스+문법 강조)과도 형태로 명확히 구분되게 한다.
+ * `@tailwindcss/typography` 기본값은 인라인 코드 앞뒤에 백틱(`)을 글자로 넣는데,
+ * 배경 칩 자체가 이미 "코드"라는 신호를 주므로 백틱은 끈다(코드 블록 쪽은 플러그인
+ * 기본값이 이미 꺼둔 상태라 이 규칙이 사실상 인라인에만 영향을 준다).
+ */
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+
+.prose code:not(pre code) {
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-radius: 0.25rem;
+  padding: 0.15em 0.4em;
+}
+
+/*
  * 다크 배경(#030712에 가까움)에서는 --color-brand 자체만으로도 대비 약 4.91:1로
  * 이미 AA를 통과한다 — 오히려 더 짙은 brand-hover를 쓰면 다크 배경에서 대비가
  * 약 3.06:1로 나빠진다. 그래서 링크색은 라이트/다크에서 서로 다른 브랜드 톤을
