@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ToastProvider } from "@sfood/ui";
+import type { Editor, Range } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/react";
-import { RichTextEditor } from "./RichTextEditor";
+import { RichTextEditor, createImageSlashItem, createDocumentLinkSlashItem } from "./RichTextEditor";
 import * as imageUpload from "@/lib/editor/image-upload";
 
 // P10-1(문서 링크 카드)의 NodeView가 next/navigation의 useRouter를 쓴다 — AppRouterContext
@@ -410,6 +411,54 @@ describe("RichTextEditor 이미지 개수 상한(P0-4b)", () => {
       await screen.findByText("이미지는 문서당 최대 30장까지 첨부할 수 있습니다.")
     ).toBeInTheDocument();
     expect(uploadSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("슬래시 메뉴 이미지/문서 링크 항목 — 저장 전 pageId 없음 처리(P17-1, P17-2)", () => {
+  const RANGE: Range = { from: 1, to: 2 };
+
+  it("createImageSlashItem: pageId가 없으면 파일 선택 창을 열지 않고 안내 토스트만 알린다", () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    const notify = vi.fn();
+    const item = createImageSlashItem(undefined, notify);
+
+    item.run({} as Editor, RANGE);
+
+    expect(notify).toHaveBeenCalledWith("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+    expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("createImageSlashItem: pageId가 있으면 안내 없이 파일 선택 창을 연다", () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    const notify = vi.fn();
+    const item = createImageSlashItem("doc-1", notify);
+
+    item.run({} as Editor, RANGE);
+
+    expect(notify).not.toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("createDocumentLinkSlashItem: pageId가 없으면 피커를 열지 않고 안내 토스트만 알린다", () => {
+    const onOpen = vi.fn();
+    const notify = vi.fn();
+    const item = createDocumentLinkSlashItem(undefined, onOpen, notify);
+
+    item.run({} as Editor, RANGE);
+
+    expect(notify).toHaveBeenCalledWith("문서를 먼저 저장한 뒤에 문서 링크를 추가할 수 있습니다.", "info");
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("createDocumentLinkSlashItem: pageId가 있으면 안내 없이 피커를 연다", () => {
+    const onOpen = vi.fn();
+    const notify = vi.fn();
+    const item = createDocumentLinkSlashItem("doc-1", onOpen, notify);
+
+    item.run({} as Editor, RANGE);
+
+    expect(notify).not.toHaveBeenCalled();
+    expect(onOpen).toHaveBeenCalledWith(RANGE);
   });
 });
 

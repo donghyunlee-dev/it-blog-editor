@@ -51,6 +51,12 @@ import { DocumentLinkPickerModal } from "./DocumentLinkPickerModal";
 const MAX_IMAGES_PER_DOCUMENT = 30;
 const IMAGE_LIMIT_MESSAGE = `이미지는 문서당 최대 ${MAX_IMAGES_PER_DOCUMENT}장까지 첨부할 수 있습니다.`;
 
+// P17-1/P17-2: 신규 문서(저장 전, pageId 없음)에서 이미지·문서 링크를 시도했을 때 보여줄
+// 안내 문구. 드래그앤드롭/붙여넣기 경로가 이미 이 문구(이미지 쪽)로 안내하고 있어 그대로
+// 재사용하고, 문서 링크도 같은 문구 패턴으로 맞춘다.
+const NOT_SAVED_IMAGE_MESSAGE = "문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.";
+const NOT_SAVED_DOCUMENT_LINK_MESSAGE = "문서를 먼저 저장한 뒤에 문서 링크를 추가할 수 있습니다.";
+
 /** 현재 문서(ProseMirror doc)에 이미 삽입된 이미지 노드 수를 센다. */
 function countImageNodes(doc: ProseMirrorNode): number {
   let count = 0;
@@ -100,17 +106,23 @@ function insertUploadedImage(
 }
 
 /**
- * 슬래시 메뉴의 "이미지" 항목. pageId(저장된 문서)가 있어야 첨부 대상 페이지가 있으므로,
- * 드래그앤드롭/붙여넣기와 동일한 제약으로 pageId가 있을 때만 이 항목을 메뉴에 넣는다.
- * 파일 선택 다이얼로그는 숨긴 `<input type="file">`을 즉시 클릭해 띄운다.
+ * 슬래시 메뉴의 "이미지" 항목. pageId(저장된 문서)가 있어야 첨부 대상 페이지가 있다 —
+ * P17-1 이전에는 pageId가 없으면 이 항목 자체를 메뉴에서 뺐는데, 사용자에게는 "/이미지"를
+ * 쳐도 항목이 안 보이거나 "일치하는 항목 없음"만 떠서 "아무 반응 없음"으로 보였다. 이제는
+ * 메뉴에 항상 넣어두고, 클릭 시점에 pageId가 없으면 드래그앤드롭/붙여넣기와 같은 안내
+ * 토스트를 띄운다. 파일 선택 다이얼로그는 숨긴 `<input type="file">`을 즉시 클릭해 띄운다.
  */
-function createImageSlashItem(
-  pageId: string,
-  onError: (message: string) => void
+export function createImageSlashItem(
+  pageId: string | undefined,
+  notify: (message: string, variant?: "info" | "danger") => void
 ): CommandItem {
   return {
     title: "이미지",
     run: (editor, range) => {
+      if (!pageId) {
+        notify(NOT_SAVED_IMAGE_MESSAGE, "info");
+        return;
+      }
       const input = document.createElement("input");
       input.type = "file";
       input.accept = "image/png,image/jpeg,image/gif,image/webp";
@@ -119,7 +131,7 @@ function createImageSlashItem(
         if (!file) return;
 
         if (countImageNodes(editor.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
-          onError(IMAGE_LIMIT_MESSAGE);
+          notify(IMAGE_LIMIT_MESSAGE);
           return;
         }
 
@@ -129,7 +141,7 @@ function createImageSlashItem(
         uploadImage(pageId, file)
           .then((uploaded) => insertUploadedImage(editor.view, pos, uploaded))
           .catch((error) => {
-            onError(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
+            notify(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.");
           });
       });
       input.click();
@@ -141,12 +153,24 @@ function createImageSlashItem(
  * 슬래시 메뉴의 "문서 링크" 항목(P10-1). "이미지"와 달리 이 자리에서 바로 편집기를
  * 조작하지 않는다 — 어떤 문서를 링크할지 검색해서 골라야 하므로, 실제 삭제·삽입은
  * `onOpen`이 연 검색 피커 모달에서 문서를 고른 뒤(`RichTextEditor` 컴포넌트 안) 이뤄진다.
- * "이미지"와 같은 이유로 pageId가 있을 때만 메뉴에 노출한다(호출부에서 조건부로 넣음).
+ * P17-2 이전에는 "이미지"와 같은 이유로 pageId가 있을 때만 메뉴에 노출했는데, 그러면
+ * 저장 전 문서에서는 항목 자체가 안 보여 "아무 반응 없음"으로 느껴졌다 — 이제는 항상
+ * 노출하고, pageId가 없으면 피커를 열지 않고 안내 토스트만 띄운다.
  */
-function createDocumentLinkSlashItem(onOpen: (range: Range) => void): CommandItem {
+export function createDocumentLinkSlashItem(
+  pageId: string | undefined,
+  onOpen: (range: Range) => void,
+  notify: (message: string, variant?: "info" | "danger") => void
+): CommandItem {
   return {
     title: "문서 링크",
-    run: (_editor, range) => onOpen(range),
+    run: (_editor, range) => {
+      if (!pageId) {
+        notify(NOT_SAVED_DOCUMENT_LINK_MESSAGE, "info");
+        return;
+      }
+      onOpen(range);
+    },
   };
 }
 
@@ -1115,17 +1139,19 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       Placeholder.configure({
         placeholder: "내용을 입력하세요. '/'를 입력하면 서식을 빠르게 넣을 수 있어요.",
       }),
-      pageId
-        ? SlashCommandExtension.configure({
-            suggestion: {
-              items: ({ query }: { query: string }) =>
-                createSlashItems(query, [
-                  createImageSlashItem(pageId, (message) => toast(message, "danger")),
-                  createDocumentLinkSlashItem((range) => setDocumentLinkPicker({ range })),
-                ]),
-            },
-          })
-        : SlashCommandExtension,
+      SlashCommandExtension.configure({
+        suggestion: {
+          items: ({ query }: { query: string }) =>
+            createSlashItems(query, [
+              createImageSlashItem(pageId, (message, variant = "danger") => toast(message, variant)),
+              createDocumentLinkSlashItem(
+                pageId,
+                (range) => setDocumentLinkPicker({ range }),
+                (message, variant = "danger") => toast(message, variant)
+              ),
+            ]),
+        },
+      }),
     ],
     content,
     onUpdate: ({ editor: currentEditor }) => {
@@ -1146,7 +1172,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
         // 예전에는 아무 안내 없이 조용히 무시해서 "이미지가 안 된다"로만 보였다
         // (2026-08-26 실사용 확인) — 이유를 토스트로 알린다.
         if (!pageId) {
-          toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+          toast(NOT_SAVED_IMAGE_MESSAGE, "info");
           return true;
         }
         if (countImageNodes(view.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
@@ -1170,7 +1196,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
         event.preventDefault();
 
         if (!pageId) {
-          toast("문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.", "info");
+          toast(NOT_SAVED_IMAGE_MESSAGE, "info");
           return true;
         }
         if (countImageNodes(view.state.doc) >= MAX_IMAGES_PER_DOCUMENT) {
