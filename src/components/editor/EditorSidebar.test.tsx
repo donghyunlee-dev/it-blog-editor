@@ -204,6 +204,14 @@ describe("EditorSidebar", () => {
     );
   });
 
+  it("'새 문서' 링크는 문서 목록이 길어도 항상 보이도록 스크롤 컨테이너 하단에 고정된다(P15-3, sticky bottom-0)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.getByRole("link", { name: "새 문서" }).className).toMatch(
+      /\bsticky\b.*\bbottom-0\b/
+    );
+  });
+
   it("문서 검색 입력이 '새 문서' 링크보다 위(앞)에 있다(2026-09-11, 공간 효율화를 위한 레이아웃 재배치)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
