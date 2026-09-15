@@ -4,7 +4,12 @@
 
   
 
-> 전체 진행률: 117 / 126 항목 완료 (최근 갱신: 2026-09-15 — **P17-9**(사용자 추가 요청 —
+> 전체 진행률: 118 / 126 항목 완료 (최근 갱신: 2026-09-15 — **P17-3**(표 툴바 "행 삭제"·
+"열 삭제"·"표 삭제" 버튼이 동일한 `TrashIcon`을 재사용해 Tooltip/aria-label 없이는 구분이
+안 된다는 지적 — 삽입 아이콘의 "가로줄=행/세로줄=열" 문법을 확장해 `RowDeleteIcon`(가로
+띠+X)·`ColumnDeleteIcon`(세로 띠+X)으로 분리했다. "표 삭제"는 유일하게 확인 Modal을 거치는
+가장 파괴적인 동작이라 기존 범용 휴지통 모양을 그대로 유지). 이전 갱신: **P17-9**(사용자
+추가 요청 —
 "이미지를 캡쳐 후 넣거나 슬래시 이미지로 넣을 때 아무 효과 없이 기다렸다가 들어가기 때문에
 작업이 진행 중인지 알 수가 없다"는 지적으로, 원래 Phase 17 목록에는 없던 항목을 추가했다.
 드래그앤드롭·붙여넣기·슬래시 메뉴 세 경로 모두 업로드 시작과 동시에 그 자리에 스피너(`@sfood/ui`
@@ -796,9 +801,13 @@
   직접 단위 테스트했다. 산출물:
   `docs/superpowers/tasks/P17-1-2-slash-menu-image-doclink-unavailable/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
-- [ ] (P17-3) 표 툴바 행/열/표 삭제 아이콘 시각적 구분 — 현재 셋 다 동일한 `TrashIcon`을
-  재사용해 `Tooltip`/`aria-label`(마우스 오버·스크린리더)로만 구분되는 것을, 아이콘 모양
-  자체로도 구분되게 한다.
+- [x] (완료, P17-3) 표 툴바 행/열/표 삭제 아이콘 시각적 구분 — 셋 다 동일한 `TrashIcon`을
+  재사용해 `Tooltip`/`aria-label`로만 구분되던 것을, 삽입 아이콘의 "가로줄=행/세로줄=열"
+  문법을 확장해 `RowDeleteIcon`(가로 띠+X)·`ColumnDeleteIcon`(세로 띠+X)으로 분리했다.
+  "표 삭제"는 유일하게 확인 Modal을 거치는 가장 파괴적인 동작이라 기존 범용 휴지통
+  모양을 그대로 유지했다. 산출물:
+  `docs/superpowers/tasks/P17-3-table-toolbar-delete-icons/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
 - [ ] (P17-4) 인라인 코드 vs 코드 블록 시각적 구분 강화 — 둘 다 `.prose` 기본값만 써서 인라인
   코드가 본문과 거의 같은 색인 것을, 배경·테두리 등으로 한눈에 구분되게 한다(`@sfood/ui`
   토큰/CSS 변수 사용, 하드코딩 금지).

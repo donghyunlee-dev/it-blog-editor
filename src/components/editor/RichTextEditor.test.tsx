@@ -290,6 +290,31 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
     // 초기 선택은 문서 첫 표(A) 안에 있으므로, 두 표 중 정확히 하나의 컨트롤 세트만 보여야 한다.
     await waitFor(() => expect(screen.getAllByLabelText("행 추가(아래)")).toHaveLength(1));
   });
+
+  /**
+   * P17-3: "행 삭제"·"열 삭제"·"표 삭제" 버튼이 전부 같은 범용 휴지통 아이콘을 재사용해
+   * aria-label/Tooltip 없이는(마우스 오버·스크린리더 없이는) 구분이 안 된다는 지적을
+   * 받았다. 세 버튼의 실제 아이콘(SVG) 마크업이 서로 달라야 시각적으로도 구분된다 —
+   * label 텍스트만으로는 이 회귀를 잡을 수 없어, 버튼 내부 SVG의 innerHTML을 직접 비교한다.
+   */
+  it("행 삭제·열 삭제·표 삭제 버튼은 서로 다른 아이콘을 쓴다", async () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const rowDeleteIcon = (await screen.findByLabelText("행 삭제")).querySelector("svg")?.innerHTML;
+    const columnDeleteIcon = (await screen.findByLabelText("열 삭제")).querySelector("svg")?.innerHTML;
+    const tableDeleteIcon = (await screen.findByLabelText("표 삭제")).querySelector("svg")?.innerHTML;
+
+    expect(rowDeleteIcon).toBeTruthy();
+    expect(columnDeleteIcon).toBeTruthy();
+    expect(tableDeleteIcon).toBeTruthy();
+    expect(rowDeleteIcon).not.toBe(columnDeleteIcon);
+    expect(rowDeleteIcon).not.toBe(tableDeleteIcon);
+    expect(columnDeleteIcon).not.toBe(tableDeleteIcon);
+  });
 });
 
 describe("RichTextEditor 표 삭제(P2-4)", () => {
