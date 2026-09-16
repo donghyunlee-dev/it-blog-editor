@@ -376,34 +376,54 @@ body {
 
 /*
  * P17-11(코드 블록 IDE 스타일 다크 테마): 사용자 피드백 — "코드 블록은 개발자가 보는
- * 건데 단순 회색 배경은 별로다, IDE 느낌이 나면 좋겠다"는 요청으로, 코드 블록만은
- * 앱의 라이트/다크 테마 선택과 무관하게 항상 어두운 배경으로 고정한다(대부분의 코드
- * 에디터·문서 도구가 코드 블록을 별도 팔레트로 다루는 것과 같은 관례). 커스텀 색상을
- * 하드코딩하지 않는다는 규칙은 지키되, 시맨틱 토큰(`--color-surface-subtle` 등, 테마에
- * 따라 값이 바뀜) 대신 그 아래 기본 팔레트 토큰(`--gray-900` 등, `@sfood/ui`의
- * `tokens/base.css`가 테마와 무관하게 고정으로 제공)을 직접 참조해 "항상 다크"를
- * 구현한다 — 임의의 hex를 새로 만든 게 아니라 디자인 시스템이 이미 갖고 있는 다크
- * 톤(다크 테마에서 실제로 쓰는 것과 같은 회색 스케일)을 그대로 재사용한다.
- * `.prose pre`에서 `--tw-prose-pre-bg`/`--tw-prose-pre-code`를 이 고정 값으로
- * 덮어쓰고, 아래 `.hljs-*` 규칙이 참조하는 `--color-secondary`/`--color-muted`도 같은
- * 방식으로 고정한다 — `--color-brand`/`--color-success`/`--color-warning`/
- * `--color-info`/`--color-danger`는 애초에 라이트/다크 테마 간 값이 바뀌지 않는
- * 토큰이라(semantic.css 확인) 별도 처리가 필요 없다.
+ * 건데 단순 회색 배경은 별로다, IDE 느낌이 나면 좋겠다"는 요청으로, 코드 내용을
+ * 보여주는 본문(`<pre>`)은 앱의 라이트/다크 테마 선택과 무관하게 항상 어두운 배경을
+ * 쓴다(대부분의 코드 에디터·문서 도구가 코드 본문을 별도 팔레트로 다루는 것과 같은
+ * 관례).
  *
- * 같은 요청의 "줄 번호" 부분 — `<pre>`를 flex로 바꿔 `CodeBlockView`(RichTextEditor.tsx)
- * 가 `<code>` 앞에 심는 줄 번호 거터(`.code-block-gutter`, contentEditable=false라
+ * P17-5c 리뷰 중 구조 변경("나중에 디자인이 바뀌면 문제 있지 않냐"는 지적): 처음엔
+ * 헤더(언어 선택·복사 버튼)까지 포함해 코드 블록 전체를 항상 다크로 고정했다. 그러자
+ * 헤더 안의 Select/Button처럼 앱의 일반 컴포넌트를 그대로 쓰는 조작 UI까지 강제로
+ * 다크 배색을 써야 했고, 라이트 테마의 hover 배경이 남아 있거나 네이티브 select
+ * 팝업이 다크 배색을 따르지 않는 등 매번 개별 컴포넌트를 손으로 맞춰야 했다(각
+ * 사건은 git 이력의 "P17-11 후속", "P17-5c 후속" 커밋 참고). 실제 코드 에디터/문서
+ * 도구의 관례를 따라 역할을 나눈다 — "조작 UI를 담는 헤더"(`.code-block-header`,
+ * 아래)는 앱의 일반 컴포넌트와 똑같이 테마를 그대로 따르고, "코드 내용을 보여주는
+ * 본문(`<pre>`)"만 항상 다크를 유지한다. 헤더가 테마를 그대로 따르면 그 안의
+ * Select/Button은 디자인 시스템이 이미 보장하는 배경·글자·hover색 짝을 그대로
+ * 쓰므로 별도로 맞출 필요가 전혀 없다 — "강제로 다크를 씌운 위에 개별 컴포넌트를
+ * 다시 맞추는" 이전 방식의 문제를 구조적으로 없앤다.
+ *
+ * `<pre>`(`CodeBlockView`, RichTextEditor.tsx)에 `data-theme="dark"`를 직접
+ * 지정한다 — `@sfood/ui`의 다크 테마 값은 `:root`가 아니라 순수 속성 선택자
+ * (`[data-theme="dark"]`, `tokens/semantic.css` 확인)로 정의돼 있어 임의 요소에도
+ * 적용되고, 커스텀 프로퍼티는 DOM을 타고 자식에 상속되므로 `<pre>` 안의 글자색·
+ * 문법 강조(`--color-secondary`/`--color-muted`, 아래 `.hljs-*`)·줄 번호가 모두
+ * 앱의 실제 다크 테마 값을 자동으로 상속받는다. 디자인 시스템이 다크 팔레트를
+ * 바꾸면 이 코드 블록 본문도 자동으로 따라간다 — 개별 토큰을 gray-* 값으로 복제해
+ * 둘 필요가 없다. `--tw-prose-pre-bg`/`--tw-prose-pre-code`는 `@sfood/ui` 토큰이
+ * 아니라 Tailwind Typography 플러그인 자체 변수라 이 상속 대상이 아니므로, 이미
+ * 상속받은 `--color-surface`/`--color-foreground`를 그대로 참조한다.
+ *
+ * 헤더와 본문을 시각적으로 하나의 블록처럼 붙여 보이도록, 본문의 위쪽 모서리
+ * 둥글기를 없애고(아래쪽은 Typography 플러그인 기본값 유지) 위 여백은 헤더를 포함한
+ * `.code-block-wrapper` 쪽으로 옮긴다.
+ *
+ * "줄 번호" 거터 — `<pre>`를 flex로 바꿔 `CodeBlockView`(RichTextEditor.tsx)가
+ * `<code>` 앞에 심는 줄 번호 거터(`.code-block-gutter`, contentEditable=false라
  * 편집 대상이 아님)와 나란히 놓는다. `<pre>`의 padding이 두 자식(거터·코드) 바깥
  * 테두리에 공통으로 적용되고 둘 다 같은 line-height를 쓰므로, 줄 바꿈 없이(코드
  * 블록은 원래 `white-space: pre`라 자동 줄바꿈이 없음) 줄마다 번호가 자연히 맞는다.
  */
 .prose pre {
-  --tw-prose-pre-bg: var(--gray-900);
-  --tw-prose-pre-code: var(--gray-50);
-  --color-secondary: var(--gray-300);
-  --color-muted: var(--gray-400);
+  --tw-prose-pre-bg: var(--color-surface);
+  --tw-prose-pre-code: var(--color-foreground);
   display: flex;
   align-items: flex-start;
   gap: 1em;
+  margin-top: 0;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .code-block-gutter {
@@ -420,8 +440,9 @@ body {
  * `hljs-*` 클래스를 붙인 <span>으로 감싼다. 기성 하이라이트 테마(예: github/atom-one)를
  * 그대로 가져오면 하드코딩된 hex 색상이 섞여 들어와 이 프로젝트 규칙(커스텀 색상은
  * CSS Variables로만 참조)과 어긋난다 — 대신 이미 있는 시맨틱 토큰(brand/success/warning/
- * danger/info/secondary/muted)에 토큰 종류를 의미상 매핑한다. P17-11부터는 위 오버라이드로
- * secondary/muted도 코드 블록 안에서는 항상 다크 테마 값으로 고정된다. 표준 highlight.js
+ * danger/info/secondary/muted)에 토큰 종류를 의미상 매핑한다. P17-11부터는 `<pre>`의
+ * `data-theme="dark"` 상속으로 secondary/muted도 코드 블록 안에서는 항상 다크 테마
+ * 값이 된다(위 `.prose pre` 주석 참고). 표준 highlight.js
  * 테마들의 일반적인 역할 배정(키워드=강조색, 문자열=success, 주석=muted 등)을 그대로 따랐다.
  */
 .hljs-comment,
@@ -507,64 +528,38 @@ body {
 }
 
 /*
- * P17-5b(코드 블록 언어 선택 UI): 코드 블록(`RichTextEditor.tsx`의 `CodeBlockView`
- * NodeView) 오른쪽 위에 언어 선택 드롭다운(`@sfood/ui`의 `Select`)을 겹쳐 띄운다 —
- * GitHub/VSCode류 에디터가 코드 블록 헤더에 언어 표시를 두는 것과 같은 위치 관례.
- * `<pre>` 자체의 배경/패딩(Tailwind Typography의 `--tw-prose-pre-bg`)은 그대로 두고
- * 겹쳐 그리는 방식이라 별도 레이아웃 변경이 필요 없다. `Select`의 배경·크기 조정은
- * `CodeBlockView`에서 `className`으로 직접 오버라이드한다(디자인 시스템 컴포넌트를
- * 그대로 쓰되 이 좁은 자리에 맞게 폼필드 크기를 줄이고 배경을 투명하게 함).
+ * P17-5b(코드 블록 언어 선택 UI) → P17-5c 리뷰 중 구조 변경(위 `.prose pre` 주석
+ * 참고): 코드 블록(`RichTextEditor.tsx`의 `CodeBlockView` NodeView) 본문(`<pre>`)
+ * 바로 위에 실제 헤더 바(`.code-block-header`)를 두고 그 안에 언어 선택 드롭다운·
+ * 복사 버튼을 놓는다 — 예전(P17-5b~P17-11)처럼 `<pre>` 위에 절대위치로 겹쳐 그리지
+ * 않는다. 헤더는 앱의 일반 테마를 그대로 따르므로(다크 오버라이드 없음), 라이트
+ * 테마에서는 밝은 헤더 위에 밝은 UI가, 다크 테마에서는 어두운 헤더 위에 어두운
+ * UI가 자연스럽게 짝을 이룬다 — "강제로 고정한 다크 배경 위에 테마별로 바뀌는
+ * 라이트 글자/hover색이 남는" 부류의 버그(P17-11 후속, P17-5c 후속 커밋 참고)가
+ * 구조적으로 발생할 수 없다. `color-scheme`/`<option>` 배경색 강제 지정도 필요
+ * 없다 — 네이티브 select 팝업도 앱이 실제로 켜 둔 라이트/다크 배색을 그대로 따르면
+ * 되기 때문이다.
  *
- * P17-11 버그 수정: `Select`는 `text-foreground`/`border-border` 유틸리티를 그대로
- * 쓰는데, 이 값은 테마에 따라 바뀐다 — 라이트 테마에서 `--color-foreground`는
- * 어두운 회색(gray-900)이라, 위에서 코드 블록 배경을 항상 어둡게(gray-900) 고정한
- * 뒤로는 "어두운 글자 위에 같은 색 배경"이 되어 드롭다운 글자가 실제로 안 보이는
- * 회귀가 생겼다(라이트 테마에서 실측 확인). `.prose pre`에서 한 것과 같은 방식으로,
- * 이 영역 안에서만 `--color-foreground`/`--color-border`/`--color-muted`를 다크
- * 테마 값으로 고정해 그 안의 어떤 디자인 시스템 컴포넌트를 쓰든(향후 P17-5c의 복사
- * 버튼 포함) 항상 올바른 대비를 갖게 한다.
- *
- * P17-11 후속 버그 수정: 위 조치로 "닫혀 있는" select 상자의 글자색은 고쳤지만,
- * 클릭해서 펼치는 옵션 목록(브라우저가 그리는 네이티브 팝업)은 별개다 — 그 팝업의
- * 배경색은 우리 CSS가 아니라 OS/브라우저의 라이트·다크 배색(color-scheme)을 따른다.
- * `color-scheme: dark`만으로 고쳤더니 실사용 확인 결과 선택된 항목(브라우저가 별도
- * 강조 배경을 얹는 행)만 보이고 나머지 옵션은 여전히 안 보였다 — 이 프로젝트가 쓰는
- * 브라우저/OS 조합에서는 `color-scheme`이 옵션 팝업의 "기본" 행 배경까지는 다크로
- * 바꾸지 않는 것으로 보인다. `color-scheme`에만 기대지 않고, `<option>`에
- * 배경색·글자색을 직접 지정한다 — 이 두 속성은 네이티브 select 팝업에서 브라우저가
- * 실제로 반영해 주는 몇 안 되는 스타일이라 더 안정적이다.
- *
- * P17-5c 버그 수정: 복사 버튼(`Button variant="ghost"`)을 추가한 뒤, 라이트 테마에서
- * 마우스 오버 시 배경이 밝아져(`hover:bg-surface-raised` — `@sfood/ui`
- * dist/index.js 확인, 라이트 테마의 `--color-surface-raised`는 `--white`) 항상
- * 어두운 이 툴바 위에서 튀어 보이는 문제가 있었다. `--color-foreground` 등과 같은
- * 방식으로 `--color-surface`/`--color-surface-raised`/`--color-surface-subtle`/
- * `--color-surface-overlay`도 다크 테마 값(semantic.css의 `[data-theme="dark"]`
- * 블록 기준)으로 고정해, 여기 놓인 어떤 디자인 시스템 컴포넌트의 hover/active 배경도
- * 항상 다크 테마처럼 보이게 한다.
+ * `Select`의 배경·크기 조정은 `CodeBlockView`에서 `className`으로 직접
+ * 오버라이드한다(디자인 시스템 컴포넌트를 그대로 쓰되 이 좁은 자리에 맞게 폼필드
+ * 크기를 줄이고 배경을 투명하게 함 — `bg-transparent`만으론 부족해 `appearance-
+ * none`도 함께 쓴 이유는 `CodeBlockView`의 주석 참고).
  */
 .code-block-wrapper {
-  position: relative;
+  margin: 1.25em 0;
 }
 
-.code-block-toolbar {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  z-index: 1;
-  color-scheme: dark;
-  --color-foreground: var(--gray-50);
-  --color-border: var(--gray-700);
-  --color-muted: var(--gray-400);
-  --color-surface: var(--gray-900);
-  --color-surface-raised: var(--gray-800);
-  --color-surface-overlay: var(--gray-800);
-  --color-surface-subtle: var(--gray-800);
-}
-
-.code-block-toolbar select option {
-  background-color: var(--gray-900);
-  color: var(--gray-50);
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-surface-subtle);
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-top-left-radius: 0.25rem;
+  border-top-right-radius: 0.25rem;
 }
 
 /*

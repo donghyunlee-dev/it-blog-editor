@@ -62,5 +62,29 @@
   "설정 없음" 경고만 뜨고 에러는 없다(정상).
 - `npm run build` — 성공.
 
+## P17-5c 두 번째 후속 검증(같은 PR, 헤더/본문 구조 분리)
+사용자 요청: "고정했어? 방법이 없나? 나중에 디자인 수정할 때 문제 있지 않아?" →
+"차라리 헤더를 만들어서 테마에 영향을 받게 수정해줘. 헤더와 코드 영역을 나누고 코드
+영역은 전문성 있게 배경을 하고 헤더는 스타일 따라가게 하면 지금처럼 강제로 할 필요가
+없을 것 같아."
+
+- 헤더(`.code-block-header`)와 본문(`<pre data-theme="dark">`)을 구조적으로 분리했다
+  (자세한 설계는 result.md 참고).
+- Browser pane에서 `data-theme`을 `light`/`dark`로 각각 강제한 뒤
+  `getComputedStyle`로 확인:
+  - 라이트: `headerBg: rgb(243, 244, 246)`, `preBg: rgb(17, 24, 39)`,
+    `preColor: rgb(249, 250, 251)`, `pre[data-theme]: "dark"`,
+    복사 버튼의 `--color-surface-raised: "#fff"`, select `color: rgb(17, 24, 39)`.
+  - 다크: `headerBg: rgb(31, 41, 55)`, `preBg: rgb(17, 24, 39)`(동일, 항상 고정),
+    복사 버튼의 `--color-surface-raised: "#1f2937"`, select `color: rgb(249, 250, 251)`.
+  - 두 테마 모두 헤더 안 컴포넌트의 배경·글자·hover색이 항상 서로 올바르게 짝지어짐을
+    확인했다 — 더 이상 어떤 토큰도 수동으로 오버라이드하지 않는다.
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 65개 전부 통과.
+- `npx eslint` 대상 파일 — 0 errors.
+- `npm run build` — 성공.
+- 이 세션의 헤드리스 브라우저 스크린샷 도구가 이전과 같은 이유로(렌더링 타임아웃)
+  시각적 스크린샷 자체는 찍지 못했지만, computed style로 라이트/다크 각 테마에서
+  기대한 정확한 색상값이 나옴을 확인했으므로 충분한 근거로 판단했다.
+
 ## 새로운 결정 사항
 없음.
