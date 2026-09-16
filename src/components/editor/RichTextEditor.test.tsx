@@ -650,6 +650,52 @@ describe("RichTextEditor 코드 블록 언어 선택(P17-5b)", () => {
 });
 
 /**
+ * P17-11: 사용자 피드백 — "코드 블록이니까 IDE 느낌이면 좋겠다"는 요청 중 줄 번호
+ * 부분. 코드가 몇 줄인지에 맞춰 거터에 그만큼의 줄 번호가 순서대로 보이는지, 코드가
+ * 바뀌면(줄 추가/삭제) 그 수도 함께 바뀌는지 확인한다.
+ */
+describe("RichTextEditor 코드 블록 줄 번호(P17-11)", () => {
+  it("코드 블록의 줄 수만큼 거터에 줄 번호가 순서대로 보인다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "codeBlock", content: [{ type: "text", text: "a\nb\nc" }] }],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const gutter = await waitFor(() => {
+      const el = container.querySelector(".code-block-gutter");
+      if (!el) throw new Error("줄 번호 거터가 아직 렌더링되지 않았습니다.");
+      return el;
+    });
+    expect(Array.from(gutter.children).map((el) => el.textContent)).toEqual(["1", "2", "3"]);
+  });
+
+  it("빈 코드 블록에는 줄 번호가 1개만 보인다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "codeBlock" }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const gutter = await waitFor(() => {
+      const el = container.querySelector(".code-block-gutter");
+      if (!el) throw new Error("줄 번호 거터가 아직 렌더링되지 않았습니다.");
+      return el;
+    });
+    expect(Array.from(gutter.children).map((el) => el.textContent)).toEqual(["1"]);
+  });
+});
+
+/**
  * P17-5a: `CodeBlockLowlight`의 `enableTabIndentation`이 기본값 false라 코드 블록
  * 안에서 Tab을 눌러도 무시되고 포커스가 에디터 밖으로 빠져나갔다 — "코드 블록 편집이
  * 불편하다"는 지적 중 하나. 옵션을 켠 뒤 실제로 Tab이 들여쓰기(공백 4칸 삽입)로

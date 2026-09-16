@@ -1253,6 +1253,10 @@ function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | 
     () => languages.map((language) => ({ value: language, label: language })),
     [languages]
   );
+  // P17-11: 줄 번호 거터 — 코드 블록은 `white-space: pre`라 자동 줄바꿈이 없으므로
+  // `\n` 개수로 줄 수를 그대로 셀 수 있다(긴 줄이 화면 폭에 맞춰 다시 줄바꿈되는
+  // 경우는 없음 — 대신 `<pre>`가 가로 스크롤된다).
+  const lineCount = node.textContent.split("\n").length;
 
   return (
     <NodeViewWrapper className="code-block-wrapper">
@@ -1270,7 +1274,12 @@ function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | 
         </span>
       </div>
       <pre>
-        <NodeViewContent<"code"> as="code" />
+        <div contentEditable={false} className="code-block-gutter" aria-hidden="true">
+          {Array.from({ length: lineCount }, (_, index) => (
+            <div key={index}>{index + 1}</div>
+          ))}
+        </div>
+        <NodeViewContent<"code"> as="code" className="min-w-0 flex-1" />
       </pre>
     </NodeViewWrapper>
   );
