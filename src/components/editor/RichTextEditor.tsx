@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
 
@@ -55,6 +55,7 @@ const IMAGE_LIMIT_MESSAGE = `이미지는 문서당 최대 ${MAX_IMAGES_PER_DOCU
 // 안내 문구. 드래그앤드롭/붙여넣기 경로가 이미 이 문구(이미지 쪽)로 안내하고 있어 그대로
 // 재사용하고, 문서 링크도 같은 문구 패턴으로 맞춘다.
 const NOT_SAVED_IMAGE_MESSAGE = "문서를 먼저 저장한 뒤에 이미지를 추가할 수 있습니다.";
+const NOT_SAVED_IMAGE_REUPLOAD_MESSAGE = "문서를 먼저 저장한 뒤에 이미지를 다시 업로드할 수 있습니다.";
 const NOT_SAVED_DOCUMENT_LINK_MESSAGE = "문서를 먼저 저장한 뒤에 문서 링크를 추가할 수 있습니다.";
 
 /** 현재 문서(ProseMirror doc)에 이미 삽입된 이미지 노드 수를 센다. */
@@ -152,6 +153,18 @@ function removeUploadPlaceholder(view: EditorView, uploadId: string) {
   const match = findUploadPlaceholder(view.state.doc, uploadId);
   if (!match) return;
   view.dispatch(view.state.tr.delete(match.pos, match.pos + match.node.nodeSize));
+}
+
+/**
+ * P17-8: "다시 업로드" 실패 시 쓴다 — 이번엔 새로 삽입된 자리표시자가 아니라 이미
+ * 있던 이미지를 잠시 업로드 중 상태로 바꿔둔 것이므로, 실패했다고 `removeUploadPlaceholder`
+ * 처럼 노드를 지워버리면 사용자의 기존 이미지가 통째로 사라진다. 재업로드 시작 전
+ * attrs를 그대로 복원해 원래 이미지로 되돌린다.
+ */
+function revertUploadPlaceholder(view: EditorView, uploadId: string, previousAttrs: Record<string, unknown>) {
+  const match = findUploadPlaceholder(view.state.doc, uploadId);
+  if (!match) return;
+  view.dispatch(view.state.tr.setNodeMarkup(match.pos, undefined, previousAttrs));
 }
 
 /**
@@ -279,6 +292,15 @@ const AttachmentImage = TiptapImage.extend({
     return ReactNodeViewRenderer(ImageView);
   },
 });
+
+/**
+ * P17-8: `ImageView`/`ImageBubbleMenu`(재업로드)는 `pageId`가 있어야 업로드 대상
+ * 페이지를 알 수 있는데, 이 둘은 `RichTextEditor` 컴포넌트 밖(NodeView·BubbleMenu로
+ * 별도 렌더링)이라 props로 직접 못 받는다. `CodeBlockView`가 `useToast()`를 직접
+ * 호출하는 것과 같은 이유(포털로 렌더져도 같은 React 트리라 컨텍스트가 정상 동작)로,
+ * Context를 하나 두고 `RichTextEditor`가 `<EditorContent>`를 감싸며 값을 제공한다.
+ */
+const ImagePageIdContext = createContext<string | undefined>(undefined);
 
 /** 업로드 중인 이미지 자리표시자 — 스피너 + 안내 문구로 "진행 중"임을 보여준다(P17-9). */
 function ImageView({ node }: Pick<NodeViewProps, "node">) {
@@ -809,15 +831,100 @@ function ImageBubbleMenu({ editor }: { editor: Editor | null }) {
     selector: ({ editor: currentEditor }) =>
       !!currentEditor?.isActive("image") && !currentEditor.getAttributes("image").uploading,
   });
+  const { toast } = useToast();
+  const pageId = useContext(ImagePageIdContext);
 
   if (!editor || !isImageActive) return null;
+
+  // P17-8: 이미지 노드에는 alt 텍스트 입력 외에 삭제·다시 업로드 동작이 없었다 —
+  // 잘못 올린 이미지를 지우거나 바꾸려면 alt 팝오버 옆에 아무 버튼도 없어 커서를
+  // 옮겨 Backspace를 누르는 것 말고는 방법이 없었다(발견하기 어려움). 같은 alt
+  // 팝오버 옆에 나란히 둔다 — 사용자가 이미 "이미지를 클릭하면 뜨는 메뉴"로 학습한
+  // 자리다.
+  function handleDelete() {
+    if (!editor) return;
+    editor.chain().focus().deleteSelection().run();
+  }
+
+  function handleReupload() {
+    if (!editor) return;
+    if (!pageId) {
+      toast(NOT_SAVED_IMAGE_REUPLOAD_MESSAGE, "info");
+      return;
+    }
+    // 실패 시 되돌릴 수 있도록, 새 파일을 고르기 전 지금 이미지의 attrs를 미리 잡아둔다.
+    const previousAttrs = editor.getAttributes("image");
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/gif,image/webp";
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const uploadId = crypto.randomUUID();
+      // P17-9와 같은 자리표시자 패턴을 재사용한다 — 다만 새로 삽입하는 대신 지금
+      // 선택된 이미지 노드 자체를 "업로드 중"으로 바꿔 같은 자리에서 스피너가 뜨게
+      // 한다(updateAttributes는 지정한 키만 덮어써 기존 src/alt는 그대로 남는다).
+      editor.chain().focus().updateAttributes("image", { uploading: true, uploadId, filename: file.name }).run();
+
+      uploadImage(pageId, file)
+        .then((uploaded) => resolveUploadPlaceholder(editor.view, uploadId, uploaded))
+        .catch((error) => {
+          revertUploadPlaceholder(editor.view, uploadId, previousAttrs);
+          toast(error instanceof Error ? error.message : "이미지 업로드에 실패했습니다.", "danger");
+        });
+    });
+    input.click();
+  }
 
   return (
     <BubbleMenu editor={editor} options={{ placement: "bottom" }}>
       <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
         <ImageAltPopoverForm editor={editor} />
+        <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label="이미지 다시 업로드"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={handleReupload}
+        >
+          <ImageReuploadIcon />
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label="이미지 삭제"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={handleDelete}
+        >
+          <TrashIcon />
+        </Button>
       </div>
     </BubbleMenu>
+  );
+}
+
+/** P17-8: 다시 업로드 버튼 아이콘 — 기존 `TrashIcon`(표 삭제)과 같은 시각 스타일. */
+function ImageReuploadIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
   );
 }
 
@@ -1498,7 +1605,7 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
   });
 
   return (
-    <>
+    <ImagePageIdContext.Provider value={pageId}>
       {editor && <EditorBubbleMenu editor={editor} />}
       {editor && <ImageBubbleMenu editor={editor} />}
       {/*
@@ -1537,6 +1644,6 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
           setDocumentLinkPicker(null);
         }}
       />
-    </>
+    </ImagePageIdContext.Provider>
   );
 }
