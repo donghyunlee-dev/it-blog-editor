@@ -467,10 +467,12 @@ body {
 
 /*
  * P17-5b(코드 블록 언어 선택 UI): 코드 블록(`RichTextEditor.tsx`의 `CodeBlockView`
- * NodeView) 오른쪽 위에 언어 선택 드롭다운을 겹쳐 띄운다 — GitHub/VSCode류 에디터가
- * 코드 블록 헤더에 언어 표시를 두는 것과 같은 위치 관례. `<pre>` 자체의 배경/패딩
- * (Tailwind Typography의 `--tw-prose-pre-bg`)은 그대로 두고 겹쳐 그리는 방식이라
- * 별도 레이아웃 변경이 필요 없다.
+ * NodeView) 오른쪽 위에 언어 선택 드롭다운(`@sfood/ui`의 `Select`)을 겹쳐 띄운다 —
+ * GitHub/VSCode류 에디터가 코드 블록 헤더에 언어 표시를 두는 것과 같은 위치 관례.
+ * `<pre>` 자체의 배경/패딩(Tailwind Typography의 `--tw-prose-pre-bg`)은 그대로 두고
+ * 겹쳐 그리는 방식이라 별도 레이아웃 변경이 필요 없다. `Select`의 배경·크기 조정은
+ * `CodeBlockView`에서 `className`으로 직접 오버라이드한다(디자인 시스템 컴포넌트를
+ * 그대로 쓰되 이 좁은 자리에 맞게 폼필드 크기를 줄이고 배경을 투명하게 함).
  */
 .code-block-wrapper {
   position: relative;
@@ -481,15 +483,6 @@ body {
   top: 0.5rem;
   right: 0.5rem;
   z-index: 1;
-}
-
-.code-block-language-select {
-  background: var(--color-surface);
-  color: var(--color-foreground);
-  border: 1px solid var(--color-border);
-  border-radius: 0.25rem;
-  padding: 0.15rem 0.4rem;
-  font-size: 0.75rem;
 }
 
 /*

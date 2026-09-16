@@ -27,7 +27,7 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Modal, Popover, Spinner, Tooltip, useToast } from "@sfood/ui";
+import { Button, Modal, Popover, Select, Spinner, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -1238,24 +1238,36 @@ const lowlight = createLowlight(common);
  * 보여준다 — 번들 밖 언어를 추가하는 것은 범위 밖(task.md 참고).
  */
 function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
+  // @sfood/ui의 Select 기본 스타일(`w-full`, `bg-surface`, `text-sm` 등)은 폼 필드용
+  // 크기라 코드 블록 헤더에 넣기엔 크고, `bg-surface`(앱 배경, 라이트 테마에서 흰색에
+  // 가까움)가 코드 블록 배경(`--tw-prose-pre-bg` = surface-subtle)과 달라 "떠 있는
+  // 흰 상자"처럼 분리돼 보였다(사용자 지적). `bg-transparent`만으로는 부족했다 —
+  // `<select>`는 기본이 `appearance: auto`라 브라우저가 배경색 지정과 무관하게 자체
+  // 네이티브 상자를 그 위에 그린다(널리 알려진 CSS 한계). `appearance-none`으로
+  // 네이티브 껍데기 자체를 없애야 우리가 지정한 투명 배경이 실제로 적용되고, 그러면서
+  // 사라지는 기본 화살표를 작은 글자(▾)로 직접 대체한다. 폭·패딩·글자 크기는 이 좁은
+  // 자리에 맞게 줄이고, 나머지(테두리·포커스 링·모서리 반경)는 디자인 시스템 기본값을
+  // 그대로 따른다.
   const languages = useMemo(() => lowlight.listLanguages(), []);
+  const languageOptions = useMemo(
+    () => languages.map((language) => ({ value: language, label: language })),
+    [languages]
+  );
 
   return (
     <NodeViewWrapper className="code-block-wrapper">
-      <div contentEditable={false} className="code-block-toolbar">
-        <select
+      <div contentEditable={false} className="code-block-toolbar relative inline-block">
+        <Select
           aria-label="코드 언어"
-          className="code-block-language-select"
+          className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
           value={node.attrs.language ?? ""}
           onChange={(event) => updateAttributes({ language: event.target.value || null })}
-        >
-          <option value="">자동 감지</option>
-          {languages.map((language) => (
-            <option key={language} value={language}>
-              {language}
-            </option>
-          ))}
-        </select>
+          options={languageOptions}
+          placeholder="자동 감지"
+        />
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
+          ▾
+        </span>
       </div>
       <pre>
         <NodeViewContent<"code"> as="code" />

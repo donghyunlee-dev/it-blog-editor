@@ -47,5 +47,26 @@ pane에서 확인했다.
 - **조치**: `<NodeViewContent<"code"> as="code" />`로 제네릭 타입 인자를 명시.
 - **재검증**: `npm run build` 통과.
 
+## P17-5b 적용 후속 검증(같은 PR, 사용자 리뷰 피드백 반영)
+사용자 지적: "드롭다운 디자인이 디자인 시스템에 있는 토큰을 가져와서 한거야? 너무
+거칠고 투박스런 디자인인데. 백그라운드 컬러도 단순 화이트라서 코드 블록과 분리되어
+보여."
+
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 60개 전부 통과
+  (`Select`로 교체 후에도 회귀 없음 — `aria-label`/`options`/`placeholder`가 그대로
+  네이티브 select에 반영돼 기존 테스트가 수정 없이 통과).
+- `npx eslint src/components/editor/RichTextEditor.tsx` — 0 errors.
+- `npm run build` — 성공.
+- Browser pane 개발자 도구로 확인: `getComputedStyle(select)`가
+  `backgroundColor: "rgba(0, 0, 0, 0)"`, `appearance: "none"`을 반환해 CSS가 의도대로
+  적용됨을 확인했다. `select`의 `getBoundingClientRect()`가 `<pre>`의 배경 영역
+  (`rgb(31, 41, 55)`, 어두운 surface-subtle) 안에 완전히 들어있음도 좌표로 확인했다.
+- 다만 Browser pane 스크린샷에서는 컴퓨티드 스타일이 명백히 올바른데도 select가
+  여전히 흰 상자로 보였다 — P17-5b 최초 작업 때 관찰한 것과 같은 종류의 네이티브
+  `<select>` 스크린샷 컴포지팅 불일치로 판단한다(`appearance-none` +
+  `background: transparent`는 표준 CSS 조합으로 실제 브라우저에서는 신뢰할 수 있게
+  동작한다). **이 세션에서는 완전한 시각적 확인이 불가능해, 실제 브라우저에서 최종
+  확인을 요청한다.**
+
 ## 새로운 결정 사항
 없음.
