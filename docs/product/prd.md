@@ -4,7 +4,10 @@
 
   
 
-> 전체 진행률: 121 / 127 항목 완료 (최근 갱신: 2026-09-16 — **P17-5a**(코드 블록 편집이
+> 전체 진행률: 122 / 127 항목 완료 (최근 갱신: 2026-09-16 — **P17-5b**(코드 블록 편집이
+불편하다는 지적 중 언어 선택 항목 — 코드 블록마다 오른쪽 위에 lowlight `common` 번들
+기준 언어 선택 드롭다운을 추가했다. `language` attrs·강제 강조 로직 모두 라이브러리에
+이미 있던 것을 그대로 활용해 UI만 새로 얹었다). 이전 갱신: **P17-5a**(코드 블록 편집이
 불편하다는 지적 중 Tab 들여쓰기 항목 — `CodeBlockLowlight.configure()`의
 `enableTabIndentation`이 기본값 false라 Tab을 눌러도 무시되고 포커스가 밖으로 빠졌다.
 라이브러리에 이미 구현된 Tab/Shift-Tab 핸들러를 옵션으로 켜기만 해서 해결). 이전 갱신:
@@ -840,8 +843,14 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   (라이브러리에 이미 구현된 핸들러를 옵션으로 활성화). 산출물:
   `docs/superpowers/tasks/P17-5a-codeblock-tab-indentation/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
-- [ ] (P17-5b) 코드 블록 언어 선택 UI — lowlight `common` 번들(`lowlight.listLanguages()`)
-  기준으로 코드 블록마다 언어를 직접 고를 수 있는 UI를 추가한다.
+- [x] (완료, P17-5b) 코드 블록 언어 선택 UI — `CodeBlockView` NodeView가 코드 블록
+  오른쪽 위에 lowlight `common` 번들(`lowlight.listLanguages()`) 기준 언어 선택
+  드롭다운을 띄운다. `language` attrs는 라이브러리가 이미 갖고 있던 필드를 그대로
+  써서(값 지정 시 그 언어로 강제 강조, "자동 감지" 선택 시 기존 `highlightAuto()`로
+  복귀) 새 로직 없이 UI만 추가했다. 산출물:
+  `docs/superpowers/tasks/P17-5b-codeblock-language-selector/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
+  src/app/globals.css
 - [ ] (P17-5c) 코드 블록 복사 버튼 — 코드 블록에 노드뷰를 추가해 클릭 한 번으로 코드 전체를
   클립보드에 복사하는 버튼을 얹는다(복사 성공/실패는 `Toast`).
 - [ ] (P17-6) 슬래시 메뉴 항목 아이콘 추가 — `CommandItem`에 아이콘 필드를 추가하고 렌더러가

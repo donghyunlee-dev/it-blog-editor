@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
 
@@ -1227,6 +1227,49 @@ export interface RichTextEditorProps {
 // 없고, `useEditor`의 extensions 배열도 최초 마운트 시에만 실제로 쓰인다.
 const lowlight = createLowlight(common);
 
+/**
+ * P17-5b: 코드 블록마다 언어를 직접 고를 수 있는 UI. 자동 추정(P1-7c)은 대부분의 경우
+ * 충분하지만, lowlight의 언어 추정이 짧거나 모호한 코드에서는 틀릴 수 있어 사용자가
+ * 직접 바로잡을 방법이 없었다("언어 선택이 없다"는 지적). `language` attrs는 이미
+ * `@tiptap/extension-code-block` 스키마에 있던 필드를 그대로 쓴다 — 값을 지정하면
+ * `LowlightPlugin`이 `lowlight.highlight(language, text)`로 그 언어를 강제하고, 비우면
+ * (null) 기존처럼 `highlightAuto()`로 자동 추정한다(node_modules 확인). 목록은 이
+ * 프로젝트가 이미 쓰는 `common` 번들에 등록된 언어(`lowlight.listLanguages()`)만
+ * 보여준다 — 번들 밖 언어를 추가하는 것은 범위 밖(task.md 참고).
+ */
+function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
+  const languages = useMemo(() => lowlight.listLanguages(), []);
+
+  return (
+    <NodeViewWrapper className="code-block-wrapper">
+      <div contentEditable={false} className="code-block-toolbar">
+        <select
+          aria-label="코드 언어"
+          className="code-block-language-select"
+          value={node.attrs.language ?? ""}
+          onChange={(event) => updateAttributes({ language: event.target.value || null })}
+        >
+          <option value="">자동 감지</option>
+          {languages.map((language) => (
+            <option key={language} value={language}>
+              {language}
+            </option>
+          ))}
+        </select>
+      </div>
+      <pre>
+        <NodeViewContent<"code"> as="code" />
+      </pre>
+    </NodeViewWrapper>
+  );
+}
+
+const CodeBlockWithLanguagePicker = CodeBlockLowlight.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+});
+
 export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
   const { toast } = useToast();
   const [documentLinkPicker, setDocumentLinkPicker] = useState<{ range: Range } | null>(null);
@@ -1241,15 +1284,15 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       }),
       // 언어를 지정하지 않아도 lowlight가 내용을 보고 자동으로 언어를 추정해 강조한다
       // (node_modules/@tiptap/extension-code-block-lowlight 확인 — language 속성이
-      // 없으면 lowlight.highlightAuto()로 폴백) — 이번 범위는 "문법 강조 추가"까지라
-      // 언어를 직접 고르는 UI는 범위 밖으로 뒀다(자동 추정으로 대부분의 경우 충분).
+      // 없으면 lowlight.highlightAuto()로 폴백). 언어를 직접 고르는 UI는 P17-5b에서
+      // `CodeBlockWithLanguagePicker`(위 정의)로 추가했다.
       //
       // P17-5a: `enableTabIndentation`이 기본값 false라 코드 블록 안에서 Tab을 눌러도
       // 무시되고 포커스가 에디터 밖(다음 버튼 등)으로 빠져나갔다 — "코드 블록 편집이
       // 불편하다"는 지적 중 하나. 옵션만 켜면 Tab/Shift-Tab이 각각 들여쓰기/내어쓰기로
       // 동작한다(node_modules/@tiptap/extension-code-block 확인 — 핸들러는 이미 구현돼
       // 있고 이 플래그로만 켜고 끔). `tabSize`는 기본값(4칸)을 그대로 둔다.
-      CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true }),
+      CodeBlockWithLanguagePicker.configure({ lowlight, enableTabIndentation: true }),
       TextStyle,
       Color,
       FontSize,
