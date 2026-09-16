@@ -1237,11 +1237,34 @@ const lowlight = createLowlight(common);
  * 프로젝트가 이미 쓰는 `common` 번들에 등록된 언어(`lowlight.listLanguages()`)만
  * 보여준다 — 번들 밖 언어를 추가하는 것은 범위 밖(task.md 참고).
  */
+/**
+ * P17-5c: 복사 버튼 아이콘. `@sfood/ui`의 `Icon`은 `search`/`comment`만 제공해(위
+ * `TableIcon` 주석 참고) 이번에도 같은 시각 스타일(viewBox 0 0 24 24, stroke
+ * currentColor, strokeWidth 2, h-4 w-4)로 직접 그린다.
+ */
+function CodeCopyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
   // @sfood/ui의 Select 기본 스타일(`w-full`, `bg-surface`, `text-sm` 등)은 폼 필드용
-  // 크기라 코드 블록 헤더에 넣기엔 크고, `bg-surface`(앱 배경, 라이트 테마에서 흰색에
-  // 가까움)가 코드 블록 배경(`--tw-prose-pre-bg` = surface-subtle)과 달라 "떠 있는
-  // 흰 상자"처럼 분리돼 보였다(사용자 지적). `bg-transparent`만으로는 부족했다 —
+  // 크기라 코드 블록 헤더에 넣기엔 크고, `bg-surface`가 헤더 배경(`.code-block-header`
+  // = surface-subtle)과 달라 "떠 있는 흰 상자"처럼 분리돼 보였다(사용자 지적).
+  // `bg-transparent`만으로는 부족했다 —
   // `<select>`는 기본이 `appearance: auto`라 브라우저가 배경색 지정과 무관하게 자체
   // 네이티브 상자를 그 위에 그린다(널리 알려진 CSS 한계). `appearance-none`으로
   // 네이티브 껍데기 자체를 없애야 우리가 지정한 투명 배경이 실제로 적용되고, 그러면서
@@ -1258,22 +1281,55 @@ function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | 
   // 경우는 없음 — 대신 `<pre>`가 가로 스크롤된다).
   const lineCount = node.textContent.split("\n").length;
 
+  // P17-5c: `DocumentLinkView`가 이미 NodeView 안에서 `useRouter()`를 직접 호출하는
+  // 선례가 있다 — 포털로 렌더링돼도 같은 React 트리라 컨텍스트/훅이 정상 동작하므로,
+  // toast 콜백을 부모로부터 prop으로 내려받을 필요 없이 여기서 바로 `useToast()`를 쓴다.
+  const { toast } = useToast();
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(node.textContent);
+      toast("코드를 클립보드에 복사했습니다.", "success");
+    } catch {
+      toast("코드 복사에 실패했습니다.", "danger");
+    }
+  };
+
   return (
     <NodeViewWrapper className="code-block-wrapper">
-      <div contentEditable={false} className="code-block-toolbar relative inline-block">
-        <Select
-          aria-label="코드 언어"
-          className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
-          value={node.attrs.language ?? ""}
-          onChange={(event) => updateAttributes({ language: event.target.value || null })}
-          options={languageOptions}
-          placeholder="자동 감지"
-        />
-        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
-          ▾
-        </span>
+      {/*
+       * P17-5c 리뷰 중 구조 변경: 처음엔 헤더까지 포함해 코드 블록 전체를 항상
+       * 다크로 고정했는데, 그러면 언어 선택·복사 버튼처럼 앱의 일반 UI와 같은
+       * 상호작용 컴포넌트도 강제로 다크 배색을 써야 해서 hover 배경·select 팝업
+       * 배색 등을 매번 개별로 다시 맞춰야 했다(자세한 경위는 globals.css 주석
+       * 참고). 대신 역할을 나눈다 — "조작 UI를 담는 헤더"는 앱의 일반 컴포넌트와
+       * 똑같이 라이트/다크 테마를 그대로 따르고(별도 오버라이드 없음), "코드
+       * 내용을 보여주는 본문(`<pre>`)"만 `data-theme="dark"`로 항상 다크 배경을
+       * 유지한다. 헤더가 테마를 그대로 따르면 그 안의 Select/Button은 디자인
+       * 시스템이 이미 보장하는 배경·글자·hover색 짝을 그대로 쓰므로 별도로 맞출
+       * 필요가 없다.
+       */}
+      <div contentEditable={false} className="code-block-header">
+        <div className="relative inline-block">
+          <Select
+            aria-label="코드 언어"
+            className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
+            value={node.attrs.language ?? ""}
+            onChange={(event) => updateAttributes({ language: event.target.value || null })}
+            options={languageOptions}
+            placeholder="자동 감지"
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
+            ▾
+          </span>
+        </div>
+        <Button type="button" variant="ghost" size="sm" aria-label="코드 복사" onClick={handleCopy}>
+          <CodeCopyIcon />
+        </Button>
       </div>
-      <pre>
+      {/* data-theme="dark": tokens/semantic.css의 [data-theme="dark"]는 :root가 아닌
+          순수 속성 선택자라 임의 요소에 적용되고 자식에게 상속된다 — 이 <pre> 안의
+          글자색·문법 강조·줄 번호가 모두 앱의 실제 다크 테마 값을 그대로 상속받는다. */}
+      <pre data-theme="dark">
         <div contentEditable={false} className="code-block-gutter" aria-hidden="true">
           {Array.from({ length: lineCount }, (_, index) => (
             <div key={index}>{index + 1}</div>

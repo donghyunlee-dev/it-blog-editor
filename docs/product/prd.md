@@ -4,7 +4,16 @@
 
   
 
-> 전체 진행률: 123 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-11**(P17-5b 리뷰 중
+> 전체 진행률: 124 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-5c**(코드 블록 복사
+버튼 — 언어 선택 드롭다운과 나란히 복사 버튼을 추가했다. 클릭하면
+`navigator.clipboard.writeText`로 코드 블록의 순수 텍스트를 복사하고, 성공/실패를
+`Toast`로 안내한다. 리뷰 중 "라이트 테마에서 마우스 오버 시 배경이 밝아 보인다"는
+지적과 "나중에 디자인이 바뀌면 문제 있지 않냐"는 재지적을 받아, 코드 블록을 헤더
+(`.code-block-header` — 언어 선택·복사 버튼, 앱의 일반 테마를 그대로 따름)와 본문
+(`<pre data-theme="dark">` — 항상 다크)으로 구조를 나눴다. `@sfood/ui`의 다크 테마
+토큰이 `:root`가 아닌 순수 속성 선택자로 정의돼 있어 임의 요소에 적용 가능하다는 점을
+이용해, 본문만 `data-theme="dark"`를 지정하고 그 안의 모든 시맨틱 토큰이 상속되게 해
+개별 토큰을 고정값으로 복제해 둘 필요가 없앴다). 이전 갱신: **P17-11**(P17-5b 리뷰 중
 사용자가 "코드 블록은 개발자가 쓰는 건데 단순 회색 배경은 별로다, 다크톤에 IDE 느낌
 (줄 번호 등)이 나면 좋겠다"고 지적 — 원래 Phase 17 목록에 없던 항목을 추가했다. 코드
 블록 배경·글자색을 `@sfood/ui`의 고정 팔레트 토큰(`--gray-*`, 테마와 무관하게 고정)으로
@@ -874,8 +883,16 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-11-codeblock-ide-dark-theme-line-numbers/{task,plan,result,test}.md`,
   src/app/globals.css, src/components/editor/RichTextEditor.tsx,
   src/components/editor/RichTextEditor.test.tsx
-- [ ] (P17-5c) 코드 블록 복사 버튼 — 코드 블록에 노드뷰를 추가해 클릭 한 번으로 코드 전체를
-  클립보드에 복사하는 버튼을 얹는다(복사 성공/실패는 `Toast`).
+- [x] (완료, P17-5c) 코드 블록 복사 버튼 — `CodeBlockView`의 헤더(언어 선택 드롭다운)
+  옆에 복사 버튼을 추가했다. 클릭 시 `navigator.clipboard.writeText`로 코드 블록의
+  순수 텍스트(`node.textContent`)를 복사하고, 성공/실패를 `Toast`로 안내한다. 리뷰
+  중 "라이트 테마에서 마우스 오버 시 배경이 밝아 보인다"는 지적, 이어 "나중에 디자인이
+  바뀌면 문제 있지 않냐"는 지적을 받아 코드 블록 구조를 헤더(`.code-block-header` —
+  앱의 일반 테마를 그대로 따름)와 본문(`<pre data-theme="dark">` — 항상 다크)으로
+  나눴다. 산출물:
+  `docs/superpowers/tasks/P17-5c-codeblock-copy-button/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
+  src/app/globals.css
 - [ ] (P17-6) 슬래시 메뉴 항목 아이콘 추가 — `CommandItem`에 아이콘 필드를 추가하고 렌더러가
   텍스트 앞에 아이콘을 함께 그리도록 한다(버블 메뉴의 "B"/"I"/"</>" 글자 아이콘과는 별개로,
   각 블록 타입을 나타내는 아이콘 사용).
