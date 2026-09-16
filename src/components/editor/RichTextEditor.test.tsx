@@ -650,6 +650,80 @@ describe("RichTextEditor 코드 블록 언어 선택(P17-5b)", () => {
 });
 
 /**
+ * P17-5c: 코드 블록 전체를 클립보드에 복사하는 버튼. jsdom엔 `navigator.clipboard`가
+ * 없어 각 테스트에서 `writeText`를 직접 모킹한다.
+ */
+describe("RichTextEditor 코드 블록 복사 버튼(P17-5c)", () => {
+  function codeBlockDoc(text = "print('hi')") {
+    return { type: "doc", content: [{ type: "codeBlock", content: [{ type: "text", text }] }] } as JSONContent;
+  }
+
+  function mockClipboard(writeText: (text: string) => Promise<void>) {
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: vi.fn(writeText) },
+      configurable: true,
+    });
+  }
+
+  it("복사 버튼을 클릭하면 코드 블록의 텍스트가 클립보드에 복사되고 성공 토스트가 뜬다", async () => {
+    mockClipboard(() => Promise.resolve());
+    render(
+      <ToastProvider>
+        <RichTextEditor content={codeBlockDoc("print('hi')")} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const button = await screen.findByLabelText("코드 복사");
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("print('hi')");
+    });
+    expect(await screen.findByText("코드를 클립보드에 복사했습니다.")).toBeInTheDocument();
+  });
+
+  it("클립보드 복사가 실패하면 실패 토스트가 뜬다", async () => {
+    mockClipboard(() => Promise.reject(new Error("denied")));
+    render(
+      <ToastProvider>
+        <RichTextEditor content={codeBlockDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const button = await screen.findByLabelText("코드 복사");
+    fireEvent.click(button);
+
+    expect(await screen.findByText("코드 복사에 실패했습니다.")).toBeInTheDocument();
+  });
+
+  it("코드 블록이 여러 개일 때 각 복사 버튼은 자신의 코드만 복사한다", async () => {
+    mockClipboard(() => Promise.resolve());
+    render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              { type: "codeBlock", content: [{ type: "text", text: "first" }] },
+              { type: "codeBlock", content: [{ type: "text", text: "second" }] },
+            ],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const buttons = await screen.findAllByLabelText("코드 복사");
+    expect(buttons).toHaveLength(2);
+
+    fireEvent.click(buttons[1]);
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith("second");
+    });
+  });
+});
+
+/**
  * P17-11: 사용자 피드백 — "코드 블록이니까 IDE 느낌이면 좋겠다"는 요청 중 줄 번호
  * 부분. 코드가 몇 줄인지에 맞춰 거터에 그만큼의 줄 번호가 순서대로 보이는지, 코드가
  * 바뀌면(줄 추가/삭제) 그 수도 함께 바뀌는지 확인한다.

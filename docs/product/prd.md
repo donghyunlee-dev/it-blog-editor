@@ -4,7 +4,10 @@
 
   
 
-> 전체 진행률: 123 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-11**(P17-5b 리뷰 중
+> 전체 진행률: 124 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-5c**(코드 블록 복사
+버튼 — 기존 `.code-block-toolbar`에 언어 선택 드롭다운과 나란히 복사 버튼을 추가했다.
+클릭하면 `navigator.clipboard.writeText`로 코드 블록의 순수 텍스트를 복사하고, 성공/
+실패를 `Toast`로 안내한다). 이전 갱신: **P17-11**(P17-5b 리뷰 중
 사용자가 "코드 블록은 개발자가 쓰는 건데 단순 회색 배경은 별로다, 다크톤에 IDE 느낌
 (줄 번호 등)이 나면 좋겠다"고 지적 — 원래 Phase 17 목록에 없던 항목을 추가했다. 코드
 블록 배경·글자색을 `@sfood/ui`의 고정 팔레트 토큰(`--gray-*`, 테마와 무관하게 고정)으로
@@ -874,8 +877,12 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-11-codeblock-ide-dark-theme-line-numbers/{task,plan,result,test}.md`,
   src/app/globals.css, src/components/editor/RichTextEditor.tsx,
   src/components/editor/RichTextEditor.test.tsx
-- [ ] (P17-5c) 코드 블록 복사 버튼 — 코드 블록에 노드뷰를 추가해 클릭 한 번으로 코드 전체를
-  클립보드에 복사하는 버튼을 얹는다(복사 성공/실패는 `Toast`).
+- [x] (완료, P17-5c) 코드 블록 복사 버튼 — 기존 `CodeBlockView`의 `.code-block-toolbar`에
+  언어 선택 드롭다운과 나란히 복사 버튼을 추가했다. 클릭 시 `navigator.clipboard.writeText`
+  로 코드 블록의 순수 텍스트(`node.textContent`)를 복사하고, 성공/실패를 `Toast`로
+  안내한다. 산출물:
+  `docs/superpowers/tasks/P17-5c-codeblock-copy-button/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
 - [ ] (P17-6) 슬래시 메뉴 항목 아이콘 추가 — `CommandItem`에 아이콘 필드를 추가하고 렌더러가
   텍스트 앞에 아이콘을 함께 그리도록 한다(버블 메뉴의 "B"/"I"/"</>" 글자 아이콘과는 별개로,
   각 블록 타입을 나타내는 아이콘 사용).

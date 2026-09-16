@@ -1237,6 +1237,29 @@ const lowlight = createLowlight(common);
  * 프로젝트가 이미 쓰는 `common` 번들에 등록된 언어(`lowlight.listLanguages()`)만
  * 보여준다 — 번들 밖 언어를 추가하는 것은 범위 밖(task.md 참고).
  */
+/**
+ * P17-5c: 복사 버튼 아이콘. `@sfood/ui`의 `Icon`은 `search`/`comment`만 제공해(위
+ * `TableIcon` 주석 참고) 이번에도 같은 시각 스타일(viewBox 0 0 24 24, stroke
+ * currentColor, strokeWidth 2, h-4 w-4)로 직접 그린다.
+ */
+function CodeCopyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
   // @sfood/ui의 Select 기본 스타일(`w-full`, `bg-surface`, `text-sm` 등)은 폼 필드용
   // 크기라 코드 블록 헤더에 넣기엔 크고, `bg-surface`(앱 배경, 라이트 테마에서 흰색에
@@ -1258,20 +1281,38 @@ function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | 
   // 경우는 없음 — 대신 `<pre>`가 가로 스크롤된다).
   const lineCount = node.textContent.split("\n").length;
 
+  // P17-5c: `DocumentLinkView`가 이미 NodeView 안에서 `useRouter()`를 직접 호출하는
+  // 선례가 있다 — 포털로 렌더링돼도 같은 React 트리라 컨텍스트/훅이 정상 동작하므로,
+  // toast 콜백을 부모로부터 prop으로 내려받을 필요 없이 여기서 바로 `useToast()`를 쓴다.
+  const { toast } = useToast();
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(node.textContent);
+      toast("코드를 클립보드에 복사했습니다.", "success");
+    } catch {
+      toast("코드 복사에 실패했습니다.", "danger");
+    }
+  };
+
   return (
     <NodeViewWrapper className="code-block-wrapper">
-      <div contentEditable={false} className="code-block-toolbar relative inline-block">
-        <Select
-          aria-label="코드 언어"
-          className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
-          value={node.attrs.language ?? ""}
-          onChange={(event) => updateAttributes({ language: event.target.value || null })}
-          options={languageOptions}
-          placeholder="자동 감지"
-        />
-        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
-          ▾
-        </span>
+      <div contentEditable={false} className="code-block-toolbar flex items-center gap-1">
+        <div className="relative inline-block">
+          <Select
+            aria-label="코드 언어"
+            className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
+            value={node.attrs.language ?? ""}
+            onChange={(event) => updateAttributes({ language: event.target.value || null })}
+            options={languageOptions}
+            placeholder="자동 감지"
+          />
+          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
+            ▾
+          </span>
+        </div>
+        <Button type="button" variant="ghost" size="sm" aria-label="코드 복사" onClick={handleCopy}>
+          <CodeCopyIcon />
+        </Button>
       </div>
       <pre>
         <div contentEditable={false} className="code-block-gutter" aria-hidden="true">
