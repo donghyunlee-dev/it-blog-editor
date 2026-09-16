@@ -1,7 +1,7 @@
 # P17-5b: 코드 블록 언어 선택 UI — 결과
 
 ## 커밋
-- (커밋 후 기록 — 아래 "산출물" 참고)
+- `c684b63` feat: 코드 블록마다 언어를 직접 고를 수 있는 선택 UI 추가 (P17-5b)
 
 ## 변경 파일
 - `src/components/editor/RichTextEditor.tsx`
