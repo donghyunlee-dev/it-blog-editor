@@ -523,6 +523,15 @@ body {
  * 이 영역 안에서만 `--color-foreground`/`--color-border`/`--color-muted`를 다크
  * 테마 값으로 고정해 그 안의 어떤 디자인 시스템 컴포넌트를 쓰든(향후 P17-5c의 복사
  * 버튼 포함) 항상 올바른 대비를 갖게 한다.
+ *
+ * P17-11 후속 버그 수정: 위 조치로 "닫혀 있는" select 상자의 글자색은 고쳤지만,
+ * 클릭해서 펼치는 옵션 목록(브라우저가 그리는 네이티브 팝업)은 별개다 — 그 팝업의
+ * 배경색은 우리 CSS가 아니라 OS/브라우저의 라이트·다크 배색(color-scheme)을 따른다.
+ * 이 페이지 전체는 `color-scheme`을 지정하지 않아 브라우저가 기본값(라이트, 흰
+ * 배경)으로 그리는데, 거기에 우리가 강제로 밝게 만든 글자색이 얹히면 "흰 배경 위에
+ * 흰 글자"가 되어 옵션 목록 자체가 안 보인다(사용자 실사용 확인). `color-scheme:
+ * dark`를 지정하면 이 컨테이너 안의 네이티브 컨트롤(옵션 팝업 포함)이 다크 배색으로
+ * 그려져, 별도 배경색 지정 없이도 옵션 목록이 어두운 배경 위에 밝은 글자로 보인다.
  */
 .code-block-wrapper {
   position: relative;
@@ -533,6 +542,7 @@ body {
   top: 0.5rem;
   right: 0.5rem;
   z-index: 1;
+  color-scheme: dark;
   --color-foreground: var(--gray-50);
   --color-border: var(--gray-700);
   --color-muted: var(--gray-400);

@@ -44,5 +44,24 @@ pane에서 확인했다.
   `--color-muted`를 고정 오버라이드.
 - **재검증**: Browser pane에서 라이트/다크 둘 다 정상 표시 확인(위 3·4번).
 
+## P17-11 후속 검증(같은 PR, 사용자 실사용 확인 후 리포트)
+사용자 지적: "수정하면서 언어 감지가 이상해졌네. 위로 드롭다운이 생기고, 폰트 컬러가
+화이트라서 안보여."
+
+- 개발자 도구로 확인: `getComputedStyle(toolbar).colorScheme`/
+  `getComputedStyle(select).colorScheme`이 모두 `"dark"`로 정상 상속됨을 확인했다.
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 62개 전부 통과
+  (회귀 없음 — `color-scheme`은 CSS뿐이라 기존 테스트에 영향 없음).
+- `npm run build` — 성공.
+- Browser pane으로 select를 클릭해 옵션 팝업을 열어보려 했으나, 이전에도 관찰한
+  헤드리스 브라우저의 네이티브 `<select>` 팝업 렌더링 한계로 팝업 자체가 스크린샷에
+  잡히지 않았다 — `color-scheme: dark`는 Chrome/Edge/Firefox 모두에서 네이티브 폼
+  컨트롤(옵션 팝업 포함)의 배색을 결정하는 표준 CSS 속성이라, computed style로 정상
+  적용을 확인한 것으로 충분하다고 판단했다. 실제 브라우저에서 옵션 목록이 어두운
+  배경 + 밝은 글자로 보이는지 최종 확인 부탁드린다.
+- "위로 드롭다운이 생긴다"는 부분은 네이티브 select가 남은 화면 공간을 보고 자체
+  결정하는 동작으로, CSS로 방향을 지정할 방법이 없다 — 버그가 아니라 정상 동작으로
+  안내했다(자세한 설명은 result.md 참고).
+
 ## 새로운 결정 사항
 없음.
