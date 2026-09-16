@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ToastProvider } from "@sfood/ui";
 import type { Editor, Range } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/react";
@@ -367,6 +367,32 @@ describe("RichTextEditor 표 행/열 컨트롤(P1-7a)", () => {
       expect(tooltip.className).not.toContain("bottom-full");
 
       fireEvent.mouseLeave(button);
+    }
+  });
+
+  /**
+   * P17-12(사용자 추가 요청): 표 툴바 버튼은 `<table>`의 `contentDOM`(tbody) 밖에
+   * 있는 별도 슬롯에 렌더링된다(위 파일 상단 `createStickyTableView` 주석 참고) —
+   * `onMouseDown`으로 기본 동작을 막지 않으면, 버튼을 누르는 순간 브라우저가 기존
+   * 에디터 선택(사용자가 마지막으로 클릭해 둔 행/셀)을 표의 첫 셀로 되돌려 버려
+   * "행 추가가 항상 1행 기준으로 된다"/"셀 병합 버튼은 활성화되는데 눌러도 아무
+   * 일도 안 일어난다"는 두 증상으로 이어졌다(사용자가 실제 브라우저에서 직접
+   * 재현·진단 — 이 프로젝트의 jsdom 테스트 환경은 이 브라우저 고유의 선택-되돌림
+   * 동작 자체를 재현하지 않아, 여기서는 "버튼이 mousedown의 기본 동작을 막는다"는
+   * 핸들러 자체의 존재만 회귀 방지로 고정한다).
+   */
+  it("표 툴바 버튼은 mousedown의 기본 동작을 막아 에디터 선택이 바뀌지 않게 한다", async () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={tableFirstDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    for (const label of ["행 추가(위)", "행 추가(아래)", "행 삭제", "열 추가(왼쪽)", "열 추가(오른쪽)", "열 삭제"]) {
+      const button = await screen.findByLabelText(label);
+      const event = createEvent.mouseDown(button);
+      fireEvent(button, event);
+      expect(event.defaultPrevented, `"${label}" 버튼의 mousedown이 preventDefault되지 않았습니다`).toBe(true);
     }
   });
 });

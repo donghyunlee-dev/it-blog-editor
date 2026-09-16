@@ -4,12 +4,17 @@
 
   
 
-> 전체 진행률: 126 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-7**(표 행/열 삭제
-확인 절차 일관성 재검토 — 표 전체 삭제만 `Modal` 확인, 행/열 삭제는 즉시 실행이라는
-비일관성을 발견해 재검토했으나, "행/열 삭제도 Modal을 거칠지"를 사용자에게 직접
-확인한 결과 현재 동작을 그대로 유지하기로 결정했다(Notion/Google Docs/Excel과 같은
-관례 — 파괴성이 훨씬 큰 표 전체 삭제만 확인을 요구). 코드 변경 없이 재검토 결론만
-문서화했다). 이전 갱신: **P17-6**(슬래시 메뉴
+
+> 전체 진행률: 126 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-12**(사용자 추가
+요청 — 표 툴바 버튼이 클릭 시 에디터 선택을 표 첫 셀로 되돌려버리는 문제. 원인은
+`TableToolbarButton`이 `onMouseDown`으로 기본 동작을 막지 않아, 버튼을 누르는
+순간 브라우저가 기존 선택(커서 위치·셀 범위)을 되돌린 것 — "행 추가가 항상 1행
+기준", "병합 버튼은 활성화되는데 눌러도 아무 일도 안 일어난다"는 서로 다른 증상이
+같은 원인에서 나왔다. 리치 텍스트 에디터 툴바의 표준 패턴(`onMouseDown`에서
+`preventDefault`)으로 고쳤다. 함께 발견된 별개 문제 — 다중 셀 선택 시 배경색
+등 시각적 표시가 전혀 없던 것도 `prosemirror-tables`의 `selectedCell` 클래스에
+CSS를 추가해 고쳤다). 이전 갱신: **P17-6**(슬래시 메뉴
+
 항목 아이콘 추가 — `CommandItem`에 `icon?: string` 필드를 추가하고, 기본 13개 항목
 + 동적 2개(이미지·문서 링크) 전부에 블록 타입을 나타내는 아이콘을 지정했다. 패널
 3종은 새로 그리지 않고 이미 있던 `DEFAULT_PANEL_ICONS` 이모지를 재사용했다). 이전
@@ -923,6 +928,18 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-7-table-row-column-delete-confirmation/{task,plan,result,test}.md`
 - [ ] (P17-8, 조사 중 추가 발견) 이미지 노드 삭제/재업로드 버튼 — 이미지 블록에 alt 텍스트
   입력 외에 삭제·다시 업로드 동작이 없는 것을 보완한다.
+- [x] (완료, P17-12 — 사용자 추가 요청) 표 툴바 버튼이 에디터 선택을 되돌리는 문제 —
+  `TableToolbarButton`(행/열 추가·삭제, 병합, 분할, 표 삭제 버튼)이 `onMouseDown`으로
+  기본 동작을 막지 않아, 버튼을 누르는 순간 브라우저가 기존 선택(커서 위치·셀 범위)을
+  표 첫 셀로 되돌려 버렸다 — "행 추가가 항상 1행 기준", "병합 버튼은 활성화되는데
+  눌러도 아무 일도 안 일어난다"는 서로 다른 증상이 사용자가 실제 브라우저에서 직접
+  진단한 대로 같은 원인에서 나왔다. 리치 텍스트 에디터 툴바의 표준 패턴
+  (`onMouseDown`에서 `preventDefault`)으로 고쳤다. 함께 발견된 별개 문제 — 다중 셀
+  선택 시 배경색 등 시각적 표시가 전혀 없던 것도 `prosemirror-tables`의
+  `selectedCell` 클래스에 CSS(`--color-brand-subtle`)를 추가해 고쳤다. 산출물:
+  `docs/superpowers/tasks/P17-12-table-toolbar-selection-reset/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
+  src/app/globals.css
 - [x] (완료, P17-9 — 사용자 추가 요청) 이미지 업로드 진행 상태 표시 — 드래그앤드롭·붙여넣기·
   슬래시 메뉴 세 경로 모두 업로드가 끝날 때까지 아무 표시가 없어 "진행 중인지 알 수 없다"는
   지적을 받았다. 업로드 시작과 동시에 그 위치에 스피너(`@sfood/ui`의 `Spinner`) + 파일명
