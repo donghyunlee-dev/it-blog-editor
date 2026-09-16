@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
 
@@ -27,7 +27,7 @@ import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button, Modal, Popover, Spinner, Tooltip, useToast } from "@sfood/ui";
+import { Button, Modal, Popover, Select, Spinner, Tooltip, useToast } from "@sfood/ui";
 import { SlashCommandExtension, createSlashItems, type CommandItem } from "./SlashCommandExtension";
 import { uploadImage } from "@/lib/editor/image-upload";
 import { isSafeLinkHref } from "@/lib/editor/tiptap-to-storage";
@@ -1227,6 +1227,70 @@ export interface RichTextEditorProps {
 // 없고, `useEditor`의 extensions 배열도 최초 마운트 시에만 실제로 쓰인다.
 const lowlight = createLowlight(common);
 
+/**
+ * P17-5b: 코드 블록마다 언어를 직접 고를 수 있는 UI. 자동 추정(P1-7c)은 대부분의 경우
+ * 충분하지만, lowlight의 언어 추정이 짧거나 모호한 코드에서는 틀릴 수 있어 사용자가
+ * 직접 바로잡을 방법이 없었다("언어 선택이 없다"는 지적). `language` attrs는 이미
+ * `@tiptap/extension-code-block` 스키마에 있던 필드를 그대로 쓴다 — 값을 지정하면
+ * `LowlightPlugin`이 `lowlight.highlight(language, text)`로 그 언어를 강제하고, 비우면
+ * (null) 기존처럼 `highlightAuto()`로 자동 추정한다(node_modules 확인). 목록은 이
+ * 프로젝트가 이미 쓰는 `common` 번들에 등록된 언어(`lowlight.listLanguages()`)만
+ * 보여준다 — 번들 밖 언어를 추가하는 것은 범위 밖(task.md 참고).
+ */
+function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
+  // @sfood/ui의 Select 기본 스타일(`w-full`, `bg-surface`, `text-sm` 등)은 폼 필드용
+  // 크기라 코드 블록 헤더에 넣기엔 크고, `bg-surface`(앱 배경, 라이트 테마에서 흰색에
+  // 가까움)가 코드 블록 배경(`--tw-prose-pre-bg` = surface-subtle)과 달라 "떠 있는
+  // 흰 상자"처럼 분리돼 보였다(사용자 지적). `bg-transparent`만으로는 부족했다 —
+  // `<select>`는 기본이 `appearance: auto`라 브라우저가 배경색 지정과 무관하게 자체
+  // 네이티브 상자를 그 위에 그린다(널리 알려진 CSS 한계). `appearance-none`으로
+  // 네이티브 껍데기 자체를 없애야 우리가 지정한 투명 배경이 실제로 적용되고, 그러면서
+  // 사라지는 기본 화살표를 작은 글자(▾)로 직접 대체한다. 폭·패딩·글자 크기는 이 좁은
+  // 자리에 맞게 줄이고, 나머지(테두리·포커스 링·모서리 반경)는 디자인 시스템 기본값을
+  // 그대로 따른다.
+  const languages = useMemo(() => lowlight.listLanguages(), []);
+  const languageOptions = useMemo(
+    () => languages.map((language) => ({ value: language, label: language })),
+    [languages]
+  );
+  // P17-11: 줄 번호 거터 — 코드 블록은 `white-space: pre`라 자동 줄바꿈이 없으므로
+  // `\n` 개수로 줄 수를 그대로 셀 수 있다(긴 줄이 화면 폭에 맞춰 다시 줄바꿈되는
+  // 경우는 없음 — 대신 `<pre>`가 가로 스크롤된다).
+  const lineCount = node.textContent.split("\n").length;
+
+  return (
+    <NodeViewWrapper className="code-block-wrapper">
+      <div contentEditable={false} className="code-block-toolbar relative inline-block">
+        <Select
+          aria-label="코드 언어"
+          className="w-auto appearance-none bg-transparent px-2 py-0.5 pr-6 text-xs"
+          value={node.attrs.language ?? ""}
+          onChange={(event) => updateAttributes({ language: event.target.value || null })}
+          options={languageOptions}
+          placeholder="자동 감지"
+        />
+        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted" aria-hidden="true">
+          ▾
+        </span>
+      </div>
+      <pre>
+        <div contentEditable={false} className="code-block-gutter" aria-hidden="true">
+          {Array.from({ length: lineCount }, (_, index) => (
+            <div key={index}>{index + 1}</div>
+          ))}
+        </div>
+        <NodeViewContent<"code"> as="code" className="min-w-0 flex-1" />
+      </pre>
+    </NodeViewWrapper>
+  );
+}
+
+const CodeBlockWithLanguagePicker = CodeBlockLowlight.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+});
+
 export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
   const { toast } = useToast();
   const [documentLinkPicker, setDocumentLinkPicker] = useState<{ range: Range } | null>(null);
@@ -1241,15 +1305,15 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       }),
       // 언어를 지정하지 않아도 lowlight가 내용을 보고 자동으로 언어를 추정해 강조한다
       // (node_modules/@tiptap/extension-code-block-lowlight 확인 — language 속성이
-      // 없으면 lowlight.highlightAuto()로 폴백) — 이번 범위는 "문법 강조 추가"까지라
-      // 언어를 직접 고르는 UI는 범위 밖으로 뒀다(자동 추정으로 대부분의 경우 충분).
+      // 없으면 lowlight.highlightAuto()로 폴백). 언어를 직접 고르는 UI는 P17-5b에서
+      // `CodeBlockWithLanguagePicker`(위 정의)로 추가했다.
       //
       // P17-5a: `enableTabIndentation`이 기본값 false라 코드 블록 안에서 Tab을 눌러도
       // 무시되고 포커스가 에디터 밖(다음 버튼 등)으로 빠져나갔다 — "코드 블록 편집이
       // 불편하다"는 지적 중 하나. 옵션만 켜면 Tab/Shift-Tab이 각각 들여쓰기/내어쓰기로
       // 동작한다(node_modules/@tiptap/extension-code-block 확인 — 핸들러는 이미 구현돼
       // 있고 이 플래그로만 켜고 끔). `tabSize`는 기본값(4칸)을 그대로 둔다.
-      CodeBlockLowlight.configure({ lowlight, enableTabIndentation: true }),
+      CodeBlockWithLanguagePicker.configure({ lowlight, enableTabIndentation: true }),
       TextStyle,
       Color,
       FontSize,

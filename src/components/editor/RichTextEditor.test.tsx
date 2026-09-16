@@ -553,7 +553,7 @@ describe("RichTextEditor 코드블록 문법 강조(P1-7c)", () => {
    * (예: "const"가 keyword로 분류되는지)는 lowlight/highlight.js 내부 언어 추정 로직에
    * 달려 있어 이 프로젝트가 검증할 대상이 아니다 — "강조 자체가 동작하는가"만 확인한다.
    */
-  it("코드블록 안의 코드에 문법 강조 토큰(hljs-*)이 붙는다", () => {
+  it("코드블록 안의 코드에 문법 강조 토큰(hljs-*)이 붙는다", async () => {
     const { container } = render(
       <ToastProvider>
         <RichTextEditor
@@ -571,9 +571,127 @@ describe("RichTextEditor 코드블록 문법 강조(P1-7c)", () => {
       </ToastProvider>
     );
 
-    const codeEl = container.querySelector("pre code");
-    expect(codeEl).toBeInTheDocument();
-    expect(codeEl?.querySelector('[class^="hljs-"]')).not.toBeNull();
+    // P17-5b에서 코드 블록에 NodeView(언어 선택 UI)가 생기면서, 그 안의 <pre><code>는
+    // TipTap의 ReactNodeViewRenderer가 별도 React 렌더 사이클로 마운트한다 — 최초
+    // render() 직후 동기적으로는 아직 없을 수 있어 waitFor로 기다린다.
+    const codeEl = await waitFor(() => {
+      const el = container.querySelector("pre code");
+      if (!el) throw new Error("코드 블록이 아직 렌더링되지 않았습니다.");
+      return el;
+    });
+    expect(codeEl.querySelector('[class^="hljs-"]')).not.toBeNull();
+  });
+});
+
+/**
+ * P17-5b: 코드 블록마다 언어를 직접 고를 수 있는 UI가 없어 lowlight의 자동 추정이
+ * 틀려도 바로잡을 방법이 없었다 — `CodeBlockView` NodeView가 코드 블록 오른쪽 위에
+ * 언어 선택 드롭다운을 띄우고, 고른 값이 `codeBlock` 노드의 `language` attrs로
+ * 반영되는지 확인한다.
+ */
+describe("RichTextEditor 코드 블록 언어 선택(P17-5b)", () => {
+  function codeBlockDoc(text = "print('hi')") {
+    return { type: "doc", content: [{ type: "codeBlock", content: [{ type: "text", text }] }] } as JSONContent;
+  }
+
+  it("코드 블록마다 언어 선택 드롭다운이 보이고, lowlight가 지원하는 언어 목록을 담고 있다", async () => {
+    render(
+      <ToastProvider>
+        <RichTextEditor content={codeBlockDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const select = await screen.findByLabelText("코드 언어");
+    const options = Array.from(select.querySelectorAll("option")).map((o) => o.textContent);
+    expect(options).toContain("자동 감지");
+    expect(options).toContain("javascript");
+    expect(options).toContain("python");
+  });
+
+  it("드롭다운에서 언어를 고르면 codeBlock 노드의 language attrs가 그 값으로 바뀐다", async () => {
+    const onChange = vi.fn();
+    render(
+      <ToastProvider>
+        <RichTextEditor content={codeBlockDoc()} onChange={onChange} />
+      </ToastProvider>
+    );
+
+    const select = await screen.findByLabelText("코드 언어");
+    fireEvent.change(select, { target: { value: "python" } });
+
+    await waitFor(() => {
+      const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+      expect(lastDoc.content?.[0]?.attrs?.language).toBe("python");
+    });
+  });
+
+  it("'자동 감지'를 다시 고르면 language attrs가 null로 돌아간다", async () => {
+    const onChange = vi.fn();
+    render(
+      <ToastProvider>
+        <RichTextEditor content={codeBlockDoc()} onChange={onChange} />
+      </ToastProvider>
+    );
+
+    const select = await screen.findByLabelText("코드 언어");
+    fireEvent.change(select, { target: { value: "python" } });
+    await waitFor(() => {
+      const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+      expect(lastDoc.content?.[0]?.attrs?.language).toBe("python");
+    });
+
+    fireEvent.change(select, { target: { value: "" } });
+
+    await waitFor(() => {
+      const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+      expect(lastDoc.content?.[0]?.attrs?.language).toBeNull();
+    });
+  });
+});
+
+/**
+ * P17-11: 사용자 피드백 — "코드 블록이니까 IDE 느낌이면 좋겠다"는 요청 중 줄 번호
+ * 부분. 코드가 몇 줄인지에 맞춰 거터에 그만큼의 줄 번호가 순서대로 보이는지, 코드가
+ * 바뀌면(줄 추가/삭제) 그 수도 함께 바뀌는지 확인한다.
+ */
+describe("RichTextEditor 코드 블록 줄 번호(P17-11)", () => {
+  it("코드 블록의 줄 수만큼 거터에 줄 번호가 순서대로 보인다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "codeBlock", content: [{ type: "text", text: "a\nb\nc" }] }],
+          }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const gutter = await waitFor(() => {
+      const el = container.querySelector(".code-block-gutter");
+      if (!el) throw new Error("줄 번호 거터가 아직 렌더링되지 않았습니다.");
+      return el;
+    });
+    expect(Array.from(gutter.children).map((el) => el.textContent)).toEqual(["1", "2", "3"]);
+  });
+
+  it("빈 코드 블록에는 줄 번호가 1개만 보인다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "codeBlock" }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    const gutter = await waitFor(() => {
+      const el = container.querySelector(".code-block-gutter");
+      if (!el) throw new Error("줄 번호 거터가 아직 렌더링되지 않았습니다.");
+      return el;
+    });
+    expect(Array.from(gutter.children).map((el) => el.textContent)).toEqual(["1"]);
   });
 });
 
