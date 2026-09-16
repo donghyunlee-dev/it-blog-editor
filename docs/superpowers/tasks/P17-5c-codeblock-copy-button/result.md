@@ -111,6 +111,32 @@
   것 외에는 텍스트/속성 검증 대상 테스트에 영향 없음).
 - `npm run build` — 성공.
 
+## P17-5c 세 번째 후속(같은 PR, 옵션 팝업 글자색 회귀 수정)
+사용자 지적: "다크로 했을 때 언어 폰트 컬러가 반전이 안됐어."
+
+- **원인**: 헤더/본문 구조 분리(위 "두 번째 후속") 당시 "헤더가 테마를 그대로 따르니
+  `<option>` 전용 오버라이드가 필요 없다"고 판단해 `.code-block-toolbar select
+  option` 규칙을 완전히 지웠다. 하지만 닫혀 있는 select 상자(현재 선택된 값 표시)와
+  클릭해서 펼치는 옵션 목록(브라우저가 그리는 네이티브 팝업)은 렌더링 경로가 다르다
+  — 이미 P17-11에서 한 번 확인한 대로, 팝업은 조상의 `color`를 상속만으로는 반영하지
+  않고 `<option>`에 직접 선언된 배경색·글자색만 안정적으로 반영한다. 닫힌 상자는
+  Browser pane에서 실제 다크 테마 토글(ThemeToggle 컴포넌트, `document.body.style.zoom`
+  으로 확대 스크린샷) 후 확인 결과 정상적으로 반전됐지만(하얀 "javascript"/"자동 감지"
+  글자가 다크 헤더 위에 선명하게 보임), 옵션 목록 전용 규칙이 없어 실제 팝업에서는
+  반전되지 않았을 것으로 판단했다.
+- **조치**: `.code-block-header select option`에 `background-color: var(--color-
+  surface); color: var(--color-foreground);`를 다시 추가했다 — 이전(P17-11)처럼
+  고정된 `--gray-*` 값이 아니라, 헤더 자체가 참조하는 시맨틱 토큰을 그대로 참조해
+  라이트/다크 테마를 그대로 따르게 한다(헤더 구조 자체는 그대로 유지 — 본문만
+  `data-theme="dark"`로 고정하는 원칙은 변하지 않았다).
+- **검증**: Browser pane에서 실제 `ThemeToggle` 버튼을 클릭해 시스템→라이트→다크로
+  전환한 뒤(속성 강제가 아닌 실제 UI 조작), `document.body.style.zoom`으로 확대한
+  스크린샷으로 닫힌 select 상자의 "javascript"/"자동 감지" 텍스트가 다크 헤더 위에
+  하얗게 잘 보임을 확인했다. 옵션 팝업 자체는 이 세션의 헤드리스 브라우저가 네이티브
+  팝업을 스크린샷에 담지 못하는 기존 한계(P17-11 산출물 참고)로 시각적으로 재확인하지
+  못했지만, `<option>`에 직접 선언한 배경색·글자색 방식은 P17-11에서 이미 실사용
+  확인까지 거친 방식과 동일하다.
+
 ## 산출물
 - `docs/superpowers/tasks/P17-5c-codeblock-copy-button/{task,plan,result,test}.md`
 - `src/components/editor/RichTextEditor.tsx`, `RichTextEditor.test.tsx`

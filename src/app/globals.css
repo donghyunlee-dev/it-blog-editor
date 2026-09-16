@@ -536,14 +536,23 @@ body {
  * 테마에서는 밝은 헤더 위에 밝은 UI가, 다크 테마에서는 어두운 헤더 위에 어두운
  * UI가 자연스럽게 짝을 이룬다 — "강제로 고정한 다크 배경 위에 테마별로 바뀌는
  * 라이트 글자/hover색이 남는" 부류의 버그(P17-11 후속, P17-5c 후속 커밋 참고)가
- * 구조적으로 발생할 수 없다. `color-scheme`/`<option>` 배경색 강제 지정도 필요
- * 없다 — 네이티브 select 팝업도 앱이 실제로 켜 둔 라이트/다크 배색을 그대로 따르면
- * 되기 때문이다.
+ * 구조적으로 발생할 수 없다.
  *
  * `Select`의 배경·크기 조정은 `CodeBlockView`에서 `className`으로 직접
  * 오버라이드한다(디자인 시스템 컴포넌트를 그대로 쓰되 이 좁은 자리에 맞게 폼필드
  * 크기를 줄이고 배경을 투명하게 함 — `bg-transparent`만으론 부족해 `appearance-
  * none`도 함께 쓴 이유는 `CodeBlockView`의 주석 참고).
+ *
+ * P17-5c 세 번째 후속 버그 수정: "다크로 했을 때 언어 폰트 컬러가 반전이 안 됐다"는
+ * 지적 — 닫혀 있는 select 상자 자체는(`text-foreground`가 헤더의 실제 테마를 그대로
+ * 따르므로) 문제없이 반전됐지만, 클릭해서 펼치는 옵션 목록(브라우저가 그리는 네이티브
+ * 팝업)은 P17-11에서 이미 한 번 겪은 것과 같은 이유로 별개다 — 그 팝업은 조상 요소의
+ * `color`를 상속만으로는 반영하지 않고, `<option>`에 직접 선언된 배경색·글자색만
+ * 안정적으로 반영한다(네이티브 select 팝업의 잘 알려진 렌더링 특성). 헤더를 통째로
+ * 다크로 고정했던 이전 버전엔 그래서 `<option>` 전용 규칙이 있었는데, 이번 구조
+ * 변경 때 "헤더가 테마를 따르니 필요 없다"고 잘못 판단해 지웠다 — 다시 추가하되, 이번엔
+ * 고정된 `--gray-*` 값이 아니라 헤더와 같은 시맨틱 토큰(`--color-surface`/
+ * `--color-foreground`)을 그대로 참조해 라이트/다크 테마를 그대로 따르게 한다.
  */
 .code-block-wrapper {
   margin: 1.25em 0;
@@ -560,6 +569,11 @@ body {
   border-bottom: none;
   border-top-left-radius: 0.25rem;
   border-top-right-radius: 0.25rem;
+}
+
+.code-block-header select option {
+  background-color: var(--color-surface);
+  color: var(--color-foreground);
 }
 
 /*

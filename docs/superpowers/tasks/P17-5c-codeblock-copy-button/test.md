@@ -86,5 +86,23 @@
   시각적 스크린샷 자체는 찍지 못했지만, computed style로 라이트/다크 각 테마에서
   기대한 정확한 색상값이 나옴을 확인했으므로 충분한 근거로 판단했다.
 
+## P17-5c 세 번째 후속 검증(같은 PR, 옵션 팝업 글자색 회귀 수정)
+사용자 지적: "다크로 했을 때 언어 폰트 컬러가 반전이 안됐어."
+
+- 원인·조치는 result.md 참고 — `.code-block-header select option`에
+  `var(--color-surface)`/`var(--color-foreground)` 참조를 다시 추가했다.
+- Browser pane에서 실제 `ThemeToggle` 버튼을 클릭해(속성 강제가 아닌 실제 UI 조작)
+  시스템 → 라이트 → 다크로 전환한 뒤, `document.body.style.zoom = '4'`로 확대해
+  스크린샷으로 확인 — 닫힌 select 상자의 "javascript"(언어 지정 시)/"자동 감지"
+  (미지정 시) 텍스트가 다크 헤더 배경 위에 하얗게 선명히 보였다(수정 전에도 닫힌
+  상자 자체는 `getComputedStyle`상 정상이었지만, 옵션 팝업 전용 규칙이 빠져 있었다는
+  게 이번에 발견한 문제).
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 65개 전부 통과.
+- `npx eslint`/`npm run build` — 정상.
+- 옵션 팝업 자체(네이티브 렌더링 표면)는 이 세션의 헤드리스 브라우저가 스크린샷에
+  담지 못하는 기존 한계(P17-11 산출물 참고)로 이번에도 시각적으로 재확인하지 못했다
+  — 다만 이번에 적용한 `<option>` 직접 선언 방식은 P17-11에서 실사용 확인까지 거쳐
+  검증된 것과 동일한 기법이다.
+
 ## 새로운 결정 사항
 없음.
