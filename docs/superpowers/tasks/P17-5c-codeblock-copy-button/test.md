@@ -40,5 +40,27 @@
   환경의 한계로 판단했다(위 3번). 실제 사용자 브라우저(Chrome/Edge 등)는 `localhost`/
   `https` 컨텍스트에서 `clipboard-write`를 프롬프트 없이 허용하는 것이 표준 동작이다.
 
+## P17-5c 후속 검증(같은 PR, `hover:bg-surface-raised` 라이트 배경 수정)
+사용자 지적: "라이트 모드일 때 마우스 오버하면 라이트 백그라운드가 되어서 잘 안보여.
+전체적으로 다크톤인데 마우스 오버할 때 다크모드 처럼 CSS가 적용되어야 해."
+
+- `.code-block-toolbar`에 `--color-surface`/`--color-surface-raised`/
+  `--color-surface-overlay`/`--color-surface-subtle`를 다크 테마 값으로 고정
+  오버라이드했다(원인·조치는 result.md 참고).
+- Browser pane에서 `document.documentElement.setAttribute('data-theme', 'light')`로
+  라이트 테마를 강제한 뒤, `getComputedStyle(toolbar).getPropertyValue('--color-surface-
+  raised')`가 `#1f2937`(gray-800)로 나오는지 확인 — 정확히 일치했다(수정 전이었다면
+  `#ffffff`). 복사 버튼의 `className`에 `hover:bg-surface-raised`가 포함돼 있음도
+  확인해, 이 값이 실제로 마우스 오버 배경에 쓰인다는 것을 재확인했다.
+- 이 세션의 헤드리스 브라우저에서는 스크린샷/실제 `:hover` 트리거가 이전에도 불안정했던
+  것과 같은 이유로(P17-11 산출물 참고) 마우스를 올린 상태의 스크린샷 자체는 찍지
+  못했다 — 대신 CSS 커스텀 프로퍼티가 실제로 다크 값으로 해석됨을 계산된 스타일로
+  직접 확인했다(위와 동일한 근거로 충분하다고 판단).
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 65개 전부 통과
+  (회귀 없음 — CSS만 바뀌어 기존 테스트에 영향 없음).
+- `npx eslint src/app/globals.css` — 이 프로젝트는 CSS에 대한 ESLint 설정이 없어
+  "설정 없음" 경고만 뜨고 에러는 없다(정상).
+- `npm run build` — 성공.
+
 ## 새로운 결정 사항
 없음.

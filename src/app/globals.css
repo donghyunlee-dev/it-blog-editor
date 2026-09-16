@@ -533,6 +533,15 @@ body {
  * 바꾸지 않는 것으로 보인다. `color-scheme`에만 기대지 않고, `<option>`에
  * 배경색·글자색을 직접 지정한다 — 이 두 속성은 네이티브 select 팝업에서 브라우저가
  * 실제로 반영해 주는 몇 안 되는 스타일이라 더 안정적이다.
+ *
+ * P17-5c 버그 수정: 복사 버튼(`Button variant="ghost"`)을 추가한 뒤, 라이트 테마에서
+ * 마우스 오버 시 배경이 밝아져(`hover:bg-surface-raised` — `@sfood/ui`
+ * dist/index.js 확인, 라이트 테마의 `--color-surface-raised`는 `--white`) 항상
+ * 어두운 이 툴바 위에서 튀어 보이는 문제가 있었다. `--color-foreground` 등과 같은
+ * 방식으로 `--color-surface`/`--color-surface-raised`/`--color-surface-subtle`/
+ * `--color-surface-overlay`도 다크 테마 값(semantic.css의 `[data-theme="dark"]`
+ * 블록 기준)으로 고정해, 여기 놓인 어떤 디자인 시스템 컴포넌트의 hover/active 배경도
+ * 항상 다크 테마처럼 보이게 한다.
  */
 .code-block-wrapper {
   position: relative;
@@ -547,6 +556,10 @@ body {
   --color-foreground: var(--gray-50);
   --color-border: var(--gray-700);
   --color-muted: var(--gray-400);
+  --color-surface: var(--gray-900);
+  --color-surface-raised: var(--gray-800);
+  --color-surface-overlay: var(--gray-800);
+  --color-surface-subtle: var(--gray-800);
 }
 
 .code-block-toolbar select option {

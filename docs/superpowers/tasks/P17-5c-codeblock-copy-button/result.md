@@ -42,6 +42,30 @@
   `https`/`localhost` 컨텍스트에서 클립보드 쓰기 권한을 기본 허용하므로 이 제약은
   이 세션의 도구 환경에 국한된 것으로 판단한다.
 
+## P17-5c 후속 버그 수정(같은 PR, 사용자 실사용 확인 후 리포트)
+사용자 지적: "라이트 모드일 때 마우스 오버하면 라이트 백그라운드가 되어서 잘 안보여.
+전체적으로 다크톤인데 마우스 오버할 때 다크모드 처럼 CSS가 적용되어야 해."
+
+- **원인**: 복사 버튼은 `@sfood/ui`의 `Button variant="ghost"`를 쓰는데, 이 variant는
+  `hover:bg-surface-raised`로 마우스 오버 배경을 표시한다(`node_modules/@sfood/ui/dist/
+  index.js` 확인). `--color-surface-raised`는 라이트 테마에서 `var(--white)`(`tokens/
+  semantic.css`) — 코드 블록 배경을 항상 어둡게 고정해 둔(P17-11) 이 툴바 위에서, 라이트
+  테마일 때만 마우스를 올리면 흰 배경이 튀어나와 보였다. P17-11에서 `--color-foreground`/
+  `--color-border`/`--color-muted`는 이미 다크로 고정했지만 `--color-surface*` 계열은
+  빠져 있었다.
+- **조치**: `.code-block-toolbar`에 `--color-surface`/`--color-surface-raised`/
+  `--color-surface-overlay`/`--color-surface-subtle`를 semantic.css의
+  `[data-theme="dark"]` 값(`--gray-900`/`--gray-800`/`--gray-800`/`--gray-800`)으로
+  고정 오버라이드했다 — 기존 `--color-foreground` 등과 같은 패턴이라 이 툴바 안에
+  놓이는 어떤 디자인 시스템 컴포넌트의 hover/active 배경도 자동으로 항상 다크 테마
+  값을 쓰게 된다.
+- **재검증**: Browser pane에서 페이지를 라이트 테마(`data-theme="light"`)로 강제한 뒤,
+  복사 버튼을 감싸는 `.code-block-toolbar`의 `getComputedStyle`로
+  `--color-surface-raised`가 `#1f2937`(gray-800, 다크 테마 값과 동일)로 해석됨을
+  확인했다 — 수정 전이었다면 `#ffffff`(white)였을 값이다. 버튼의 실제 클래스에
+  `hover:bg-surface-raised`가 포함돼 있음도 함께 확인했다(이 값을 그대로 참조하므로
+  마우스 오버 시 어두운 배경이 적용된다).
+
 ## 산출물
 - `docs/superpowers/tasks/P17-5c-codeblock-copy-button/{task,plan,result,test}.md`
 - `src/components/editor/RichTextEditor.tsx`, `RichTextEditor.test.tsx`
