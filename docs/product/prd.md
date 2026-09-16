@@ -4,6 +4,7 @@
 
   
 
+
 > 전체 진행률: 126 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-12**(사용자 추가
 요청 — 표 툴바 버튼이 클릭 시 에디터 선택을 표 첫 셀로 되돌려버리는 문제. 원인은
 `TableToolbarButton`이 `onMouseDown`으로 기본 동작을 막지 않아, 버튼을 누르는
@@ -13,6 +14,7 @@
 `preventDefault`)으로 고쳤다. 함께 발견된 별개 문제 — 다중 셀 선택 시 배경색
 등 시각적 표시가 전혀 없던 것도 `prosemirror-tables`의 `selectedCell` 클래스에
 CSS를 추가해 고쳤다). 이전 갱신: **P17-6**(슬래시 메뉴
+
 항목 아이콘 추가 — `CommandItem`에 `icon?: string` 필드를 추가하고, 기본 13개 항목
 + 동적 2개(이미지·문서 링크) 전부에 블록 타입을 나타내는 아이콘을 지정했다. 패널
 3종은 새로 그리지 않고 이미 있던 `DEFAULT_PANEL_ICONS` 이모지를 재사용했다). 이전
@@ -916,8 +918,14 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   src/components/editor/SlashCommandExtension.ts,
   src/components/editor/SlashCommandExtension.test.ts,
   src/components/editor/RichTextEditor.tsx
-- [ ] (P17-7, 조사 중 추가 발견) 표 행/열 삭제 확인 절차 일관성 — 표 전체 삭제만 `Modal` 확인을
-  거치고 행/열 삭제는 즉시 실행되는 파괴성 기준 비일관성을 재검토한다.
+- [x] (완료, P17-7, 조사 중 추가 발견) 표 행/열 삭제 확인 절차 일관성 — 표 전체
+  삭제만 `Modal` 확인을 거치고 행/열 삭제는 즉시 실행되는 파괴성 기준 비일관성을
+  재검토했다. "행/열 삭제도 Modal을 거칠지"를 사용자에게 직접 확인한 결과, 현재
+  동작(행/열은 즉시 실행, 표 전체 삭제만 확인)을 그대로 유지하기로 결정했다 —
+  Notion/Google Docs/Excel 등 대부분의 표 편집 도구가 따르는 관례이자, 파괴성이
+  훨씬 큰 표 전체 삭제와 자주 일어나는 행/열 삭제를 차등 처리하는 것이 의도된
+  설계였다고 판단했다. 코드 변경 없이 재검토 결론만 문서화했다. 산출물:
+  `docs/superpowers/tasks/P17-7-table-row-column-delete-confirmation/{task,plan,result,test}.md`
 - [ ] (P17-8, 조사 중 추가 발견) 이미지 노드 삭제/재업로드 버튼 — 이미지 블록에 alt 텍스트
   입력 외에 삭제·다시 업로드 동작이 없는 것을 보완한다.
 - [x] (완료, P17-12 — 사용자 추가 요청) 표 툴바 버튼이 에디터 선택을 되돌리는 문제 —
