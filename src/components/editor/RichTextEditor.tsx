@@ -946,12 +946,26 @@ function TableToolbarButton({
     // 대부분 잘려서 둥근 모서리도 글자도 없이 얇은 띠만 보였다(사용자 실사용 확인).
     // 아래(side="bottom")는 표가 있어 항상 공간이 있으므로 구조적으로 이 클리핑이
     // 생기지 않는다.
+    //
+    // P17-7 이후 버그 수정(사용자 실사용 확인 — "행이 무조건 첫 번째 행 기준으로
+    // 생긴다"): 이 버튼은 `contentDOM`(tbody) 밖, `<table>` 바로 앞에 꽂히는 툴바
+    // 슬롯 안에 있다(TableToolbar, 위 주석 참고) — 즉 에디터의 contenteditable
+    // 영역이 아니다. `onMouseDown`에서 `preventDefault()`를 안 하면, 버튼을
+    // mousedown하는 순간 브라우저가 "지금 에디터에 있던 선택을 그대로 둘지"를
+    // 자체적으로 처리하는데, 이 버튼이 DOM상 표 바로 앞에 있어서 브라우저가 선택을
+    // 표의 첫 번째 셀(=1행)로 되돌려 버렸다 — 그 뒤에 실행되는 `onClick`의
+    // `addRowBefore`/`addRowAfter` 등은 이미 망가진(1행으로 재설정된) 선택을 기준으로
+    // 동작하니 항상 1행 기준으로 삽입되는 것처럼 보였다. 리치 텍스트 에디터 툴바의
+    // 잘 알려진 패턴대로 `mousedown`에서 기본 동작을 막아, 버튼을 눌러도 에디터의
+    // 실제 선택(커서 위치)이 전혀 바뀌지 않게 한다 — `onClick`은 그대로 발생하므로
+    // 버튼 자체의 동작에는 영향이 없다.
     <Tooltip content={label} side="bottom">
       <Button
         type="button"
         variant="ghost"
         size="sm"
         disabled={disabled}
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onClick}
         aria-label={label}
       >
