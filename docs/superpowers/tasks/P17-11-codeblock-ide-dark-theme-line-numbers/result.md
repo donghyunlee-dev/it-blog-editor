@@ -64,6 +64,20 @@
   전후로 이 계산 방식 자체가 달라지지 않았다 — 다만 그동안은 글자가 안 보여 "이상하게
   동작한다"고 느껴졌을 가능성이 크다. 색상 수정 후 재확인이 필요하다.
 
+## P17-11 두 번째 후속 버그 수정(같은 PR, `color-scheme` 조치로도 안 고쳐짐)
+사용자 재확인: "안고쳐졌어. 드롭다운은 선택된 언어만 컬러가 보이고 나머지는 안보여."
+
+`color-scheme: dark`만으로는 부족했다 — 선택된 항목은 브라우저가 별도의 강조(하이라이트)
+배경을 얹어 그 위에서는 밝은 글자가 보였지만, 나머지(선택되지 않은) 옵션들은 여전히
+기본 배경(다크로 안 바뀜)이라 안 보였다. 이 프로젝트가 검증에 쓰는 브라우저/OS
+조합에서는 `color-scheme`이 옵션 팝업의 "기본 행" 배경까지는 바꾸지 않는 것으로
+보인다. `color-scheme`에만 기대지 않고 `<option>` 각각에 `background-color`/`color`를
+직접 지정했다 — 이 두 속성은 네이티브 select 팝업에서 브라우저가 실제로 반영해 주는
+몇 안 되는 스타일이라(`color-scheme`보다 더 널리 지원됨) 더 안정적이다. Browser
+pane에서 `getComputedStyle(option)`으로 `background-color: rgb(17, 24, 39)`
+(gray-900), `color: rgb(249, 250, 251)`(gray-50)이 각 옵션에 실제로 적용됨을
+확인했다.
+
 ## 산출물
 - `docs/superpowers/tasks/P17-11-codeblock-ide-dark-theme-line-numbers/{task,plan,result,test}.md`
 - `src/app/globals.css`

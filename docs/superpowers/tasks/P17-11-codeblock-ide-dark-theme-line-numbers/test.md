@@ -63,5 +63,22 @@ pane에서 확인했다.
   결정하는 동작으로, CSS로 방향을 지정할 방법이 없다 — 버그가 아니라 정상 동작으로
   안내했다(자세한 설명은 result.md 참고).
 
+## P17-11 두 번째 후속 검증(같은 PR, `color-scheme` 조치로도 안 고쳐짐)
+사용자 재확인: "안고쳐졌어. 드롭다운은 선택된 언어만 컬러가 보이고 나머지는 안보여."
+
+- `color-scheme: dark`는 선택된 옵션(브라우저가 강조 배경을 얹어 대비가 생김)만
+  가려줬을 뿐, 나머지 옵션의 기본 행 배경은 바꾸지 못한 것으로 판단했다.
+- `<option>`에 `background-color`/`color`를 직접 지정하는 방식으로 바꿨다.
+- Browser pane 개발자 도구로 확인: `getComputedStyle(document.querySelector('select
+  option'))`가 `backgroundColor: "rgb(17, 24, 39)"`(gray-900), `color: "rgb(249, 250,
+  251)"`(gray-50)을 반환 — 모든 옵션에 CSS가 정확히 적용됨을 확인했다.
+- `npx vitest run src/components/editor/RichTextEditor.test.tsx` — 62개 전부 통과.
+- `npm run build` — 성공.
+- 여전히 실제 팝업 자체는 이 세션의 헤드리스 브라우저 스크린샷 도구로 캡처되지
+  않는다(기존에 관찰한 네이티브 select 렌더링 한계) — `background-color`/`color`는
+  `color-scheme`보다 브라우저가 더 폭넓게 반영해 주는 속성이라 이번에는 실제 사용자
+  환경에서 정상 동작할 가능성이 높다고 판단하지만, 이 문제가 이미 두 차례 재발했으므로
+  실사용 최종 확인을 다시 요청한다.
+
 ## 새로운 결정 사항
 없음.
