@@ -4,7 +4,11 @@
 
   
 
-> 전체 진행률: 124 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-5c**(코드 블록 복사
+> 전체 진행률: 125 / 128 항목 완료 (최근 갱신: 2026-09-16 — **P17-6**(슬래시 메뉴
+항목 아이콘 추가 — `CommandItem`에 `icon?: string` 필드를 추가하고, 기본 13개 항목
++ 동적 2개(이미지·문서 링크) 전부에 블록 타입을 나타내는 아이콘을 지정했다. 패널
+3종은 새로 그리지 않고 이미 있던 `DEFAULT_PANEL_ICONS` 이모지를 재사용했다). 이전
+갱신: **P17-5c**(코드 블록 복사
 버튼 — 언어 선택 드롭다운과 나란히 복사 버튼을 추가했다. 클릭하면
 `navigator.clipboard.writeText`로 코드 블록의 순수 텍스트를 복사하고, 성공/실패를
 `Toast`로 안내한다. 리뷰 중 "라이트 테마에서 마우스 오버 시 배경이 밝아 보인다"는
@@ -893,9 +897,17 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-5c-codeblock-copy-button/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
   src/app/globals.css
-- [ ] (P17-6) 슬래시 메뉴 항목 아이콘 추가 — `CommandItem`에 아이콘 필드를 추가하고 렌더러가
-  텍스트 앞에 아이콘을 함께 그리도록 한다(버블 메뉴의 "B"/"I"/"</>" 글자 아이콘과는 별개로,
-  각 블록 타입을 나타내는 아이콘 사용).
+- [x] (완료, P17-6) 슬래시 메뉴 항목 아이콘 추가 — `CommandItem`에 `icon?: string` 필드를
+  추가하고 렌더러(`createSlashMenuRenderer`)가 `aria-hidden` 아이콘을 텍스트 앞에 함께
+  그리도록 했다. 기본 13개 항목(제목1/2/3·글머리 목록·번호 목록·인용구·구분선·표·
+  코드블록·인라인 코드·패널 3종) + 동적 2개(이미지·문서 링크) 전부에 블록 타입을
+  나타내는 아이콘을 지정했다(버블 메뉴의 "B"/"I"/"</>" 글자 아이콘과 달리 블록 구조를
+  나타냄 — 패널 3종은 새로 그리지 않고 이미 있던 `DEFAULT_PANEL_ICONS` 이모지를
+  재사용). 산출물:
+  `docs/superpowers/tasks/P17-6-slash-menu-icons/{task,plan,result,test}.md`,
+  src/components/editor/SlashCommandExtension.ts,
+  src/components/editor/SlashCommandExtension.test.ts,
+  src/components/editor/RichTextEditor.tsx
 - [ ] (P17-7, 조사 중 추가 발견) 표 행/열 삭제 확인 절차 일관성 — 표 전체 삭제만 `Modal` 확인을
   거치고 행/열 삭제는 즉시 실행되는 파괴성 기준 비일관성을 재검토한다.
 - [ ] (P17-8, 조사 중 추가 발견) 이미지 노드 삭제/재업로드 버튼 — 이미지 블록에 alt 텍스트

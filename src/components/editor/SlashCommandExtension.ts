@@ -41,16 +41,55 @@ import { DEFAULT_PANEL_ICONS } from "@/lib/editor/panel-icons";
 
 export interface CommandItem {
   title: string;
+  /**
+   * P17-6: 항목 앞에 그릴 장식용 아이콘 — SVG 마크업 또는 이모지 문자열. 렌더러
+   * (`createSlashMenuRenderer`)가 `document.createElement`로 직접 DOM을 만드는
+   * 순수 TS 모듈이라 React 컴포넌트가 아니라 문자열로 전달한다. optional이라 이
+   * 필드가 없는 기존 `CommandItem`(테스트 픽스처 등)도 아이콘 없이 그대로 렌더링된다.
+   */
+  icon?: string;
   run: (editor: Editor, range: Range) => void;
 }
+
+/**
+ * P17-6: 각 블록 타입을 나타내는 아이콘 — 버블 메뉴의 "B"/"I"/"</>" 글자 아이콘(인라인
+ * 서식 마크를 나타냄)과는 별개로, 여기는 슬래시 메뉴가 삽입하는 블록 구조를 나타낸다.
+ * 기존 `TableIcon`/`CodeCopyIcon`(RichTextEditor.tsx)과 같은 시각 스타일(viewBox
+ * 0 0 24 24, stroke=currentColor, stroke-width=2, round cap/join, 24x24 기준
+ * h-4 w-4 크기)로 직접 그린다 — 새 아이콘 라이브러리를 추가하지 않는다. 제목 1/2/3은
+ * Notion·Coda 등 대부분의 문서 도구가 쓰는 관례대로 "H1"/"H2"/"H3" 텍스트 배지를
+ * 쓴다 — 버블 메뉴의 B/I와 달리 이건 인라인 서식 마크가 아니라 헤딩 레벨 자체를
+ * 나타내는 값이라 겹치지 않는다.
+ */
+const ICON = {
+  heading1: '<span class="text-[11px] font-bold leading-none">H1</span>',
+  heading2: '<span class="text-[11px] font-bold leading-none">H2</span>',
+  heading3: '<span class="text-[11px] font-bold leading-none">H3</span>',
+  bulletList:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4"><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/></svg>',
+  orderedList:
+    '<svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><text x="2" y="8.5" font-size="7" font-family="sans-serif" stroke="none">1</text><text x="2" y="14.5" font-size="7" font-family="sans-serif" stroke="none">2</text><text x="2" y="20.5" font-size="7" font-family="sans-serif" stroke="none">3</text><g stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/></g></svg>',
+  quote:
+    '<svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4"><path d="M7 8c-2 0-3 1.5-3 4v4h4v-4H6c0-1.5.5-2 2-2V8Zm9 0c-2 0-3 1.5-3 4v4h4v-4h-2c0-1.5.5-2 2-2V8Z"/></svg>',
+  horizontalRule:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" class="h-4 w-4"><line x1="4" y1="12" x2="20" y2="12"/></svg>',
+  table:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="h-4 w-4"><rect x="3" y="4" width="18" height="16" rx="1"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="3" y1="16" x2="21" y2="16"/><line x1="9" y1="4" x2="9" y2="20"/><line x1="15" y1="4" x2="15" y2="20"/></svg>',
+  codeBlock:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M9 4c-2 0-2 2-2 4s0 3-2 4c2 1 2 2 2 4s0 4 2 4"/><path d="M15 4c2 0 2 2 2 4s0 3 2 4c-2 1-2 2-2 4s0 4-2 4"/></svg>',
+  inlineCode:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><polyline points="9 8 4 12 9 16"/><polyline points="15 8 20 12 15 16"/></svg>',
+} as const;
 
 const ITEMS: CommandItem[] = [
   {
     title: "제목 1",
+    icon: ICON.heading1,
     run: (editor, range) => editor.chain().focus().deleteRange(range).setNode("heading", { level: 1 }).run(),
   },
   {
     title: "제목 2",
+    icon: ICON.heading2,
     run: (editor, range) => editor.chain().focus().deleteRange(range).setNode("heading", { level: 2 }).run(),
   },
   {
@@ -58,14 +97,17 @@ const ITEMS: CommandItem[] = [
     // 스키마상 이미 켜져 있었지만, "제목 1"/"제목 2"와 달리 슬래시 메뉴 항목이 없어 발견이
     // 불가능했다 — 그 둘과 완전히 같은 패턴으로 추가한다.
     title: "제목 3",
+    icon: ICON.heading3,
     run: (editor, range) => editor.chain().focus().deleteRange(range).setNode("heading", { level: 3 }).run(),
   },
   {
     title: "글머리 목록",
+    icon: ICON.bulletList,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleBulletList().run(),
   },
   {
     title: "번호 목록",
+    icon: ICON.orderedList,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleOrderedList().run(),
   },
   {
@@ -73,6 +115,7 @@ const ITEMS: CommandItem[] = [
     // 같은 블록 레벨 토글이라(선택 텍스트를 서식화하는 마크가 아니라 블록 구조 자체를
     // 바꾸는 명령) 버블 툴바가 아니라 슬래시 메뉴 항목으로 추가한다.
     title: "인용구",
+    icon: ICON.quote,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleBlockquote().run(),
   },
   {
@@ -80,22 +123,27 @@ const ITEMS: CommandItem[] = [
     // "삽입형" 명령이라(선택 영역을 서식화하는 게 아니라 새 블록을 끼워 넣음) 버블 툴바에는
     // 애초에 맞지 않아 슬래시 메뉴 항목으로만 추가한다.
     title: "구분선",
+    icon: ICON.horizontalRule,
     run: (editor, range) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
   {
     title: "표",
+    icon: ICON.table,
     run: (editor, range) => editor.chain().focus().deleteRange(range).insertTable({ rows: 2, cols: 2 }).run(),
   },
   {
     title: "코드블록",
+    icon: ICON.codeBlock,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
   },
   {
     title: "인라인 코드",
+    icon: ICON.inlineCode,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleCode().run(),
   },
   {
     title: "정보 패널",
+    icon: DEFAULT_PANEL_ICONS.info,
     run: (editor, range) =>
       editor
         .chain()
@@ -110,6 +158,7 @@ const ITEMS: CommandItem[] = [
   },
   {
     title: "경고 패널",
+    icon: DEFAULT_PANEL_ICONS.warning,
     run: (editor, range) =>
       editor
         .chain()
@@ -124,6 +173,7 @@ const ITEMS: CommandItem[] = [
   },
   {
     title: "노트 패널",
+    icon: DEFAULT_PANEL_ICONS.note,
     run: (editor, range) =>
       editor
         .chain()
@@ -205,11 +255,23 @@ function createSlashMenuRenderer() {
       button.id = optionId(index);
       button.setAttribute("role", "option");
       button.setAttribute("aria-selected", index === selectedIndex ? "true" : "false");
-      button.textContent = item.title;
       button.className = [
-        "block w-full rounded px-2 py-1 text-left text-sm",
+        "flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm",
         index === selectedIndex ? "bg-brand-subtle text-brand" : "hover:bg-surface-subtle",
       ].join(" ");
+      // P17-6: 아이콘은 장식용이라 aria-hidden으로 감싼다 — 버튼의 접근성 이름은
+      // title 텍스트 노드만으로 계속 결정된다. icon이 없는 CommandItem(하위 호환)은
+      // 아이콘 span 자체를 만들지 않는다.
+      if (item.icon) {
+        const icon = document.createElement("span");
+        icon.className = "flex h-4 w-4 shrink-0 items-center justify-center";
+        icon.setAttribute("aria-hidden", "true");
+        icon.innerHTML = item.icon;
+        button.appendChild(icon);
+      }
+      const label = document.createElement("span");
+      label.textContent = item.title;
+      button.appendChild(label);
       button.addEventListener("mouseenter", () => {
         selectedIndex = index;
         renderItems();

@@ -59,6 +59,15 @@ describe("createSlashItems", () => {
     expect(createSlashItems("", [extra]).at(-1)).toBe(extra);
     expect(createSlashItems("이미지", [extra])).toEqual([extra]);
   });
+
+  // P17-6: 아이콘을 깜빡 빠뜨린 항목이 있어도 타입 체크만으로는 잡히지 않는다
+  // (icon이 optional이라 아예 안 써도 컴파일된다) — 기본 13개 전부가 실제로
+  // non-empty 아이콘을 갖는지 런타임에서 확인한다.
+  it("기본 13개 항목 전부가 non-empty 아이콘을 갖는다", () => {
+    for (const item of createSlashItems("")) {
+      expect(item.icon, `"${item.title}" 항목에 아이콘이 없습니다`).toBeTruthy();
+    }
+  });
 });
 
 describe("기본 슬래시 항목의 run 커맨드 체인", () => {
@@ -166,6 +175,37 @@ describe("createSlashMenuRenderer(SlashCommandExtension 내부)", () => {
     const menuEl = mount.mock.calls[0][0] as HTMLElement;
     const buttons = Array.from(menuEl.querySelectorAll("button"));
     expect(buttons.map((b) => b.textContent)).toEqual(["항목1", "항목2"]);
+  });
+
+  // P17-6: icon이 없는 CommandItem(위 makeItems, 하위 호환 픽스처)은 아이콘 요소
+  // 자체가 생기지 않아야 한다 — 위 테스트에서 이미 textContent가 title과 정확히
+  // 같음을 확인했지만, "아이콘 span이 아예 없다"는 더 구체적인 사실도 함께 고정한다.
+  it("icon이 없으면 아이콘 요소 없이 항목당 자식 1개(텍스트)만 렌더링한다", () => {
+    const items = makeItems();
+    const { mount } = makeMount();
+
+    renderer.onStart(makeProps(items, mount));
+
+    const menuEl = mount.mock.calls[0][0] as HTMLElement;
+    const button = menuEl.querySelectorAll("button")[0];
+    expect(button.children).toHaveLength(1);
+  });
+
+  // P17-6: icon이 있으면 aria-hidden 아이콘 span이 텍스트 앞에 추가되고, 버튼의
+  // 접근성 이름에 해당하는 텍스트(label span)는 title 그대로 유지된다.
+  it("icon이 있으면 aria-hidden 아이콘 span과 별도의 텍스트 span을 렌더링한다", () => {
+    const items: CommandItem[] = [{ title: "이미지", icon: '<svg data-testid="img-icon"></svg>', run: vi.fn() }];
+    const { mount } = makeMount();
+
+    renderer.onStart(makeProps(items, mount));
+
+    const menuEl = mount.mock.calls[0][0] as HTMLElement;
+    const button = menuEl.querySelectorAll("button")[0];
+    expect(button.children).toHaveLength(2);
+    const [iconSpan, labelSpan] = Array.from(button.children);
+    expect(iconSpan.getAttribute("aria-hidden")).toBe("true");
+    expect(iconSpan.querySelector('[data-testid="img-icon"]')).not.toBeNull();
+    expect(labelSpan.textContent).toBe("이미지");
   });
 
   it("항목이 없으면 '일치하는 항목이 없습니다'를 렌더링한다", () => {
