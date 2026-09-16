@@ -161,12 +161,22 @@ function removeUploadPlaceholder(view: EditorView, uploadId: string) {
  * 메뉴에 항상 넣어두고, 클릭 시점에 pageId가 없으면 드래그앤드롭/붙여넣기와 같은 안내
  * 토스트를 띄운다. 파일 선택 다이얼로그는 숨긴 `<input type="file">`을 즉시 클릭해 띄운다.
  */
+// P17-6: 슬래시 메뉴 항목 아이콘 — 기존 `TableIcon`/`CodeCopyIcon`과 같은 시각
+// 스타일(viewBox 0 0 24 24, stroke=currentColor, stroke-width=2, h-4 w-4)이지만,
+// `CommandItem.icon`은 문자열(SVG 마크업)이라 여기서는 JSX가 아니라 템플릿 문자열로
+// 정의한다(`SlashCommandExtension.ts`의 순수 DOM 렌더러가 그대로 innerHTML로 꽂는다).
+const IMAGE_SLASH_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><polyline points="21 15 15 9 5 19"/></svg>';
+const DOCUMENT_LINK_SLASH_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M9 15l6-6"/><path d="M11 6l1-1a3 3 0 0 1 4 4l-1 1"/><path d="M13 18l-1 1a3 3 0 0 1-4-4l1-1"/></svg>';
+
 export function createImageSlashItem(
   pageId: string | undefined,
   notify: (message: string, variant?: "info" | "danger") => void
 ): CommandItem {
   return {
     title: "이미지",
+    icon: IMAGE_SLASH_ICON,
     run: (editor, range) => {
       if (!pageId) {
         notify(NOT_SAVED_IMAGE_MESSAGE, "info");
@@ -216,6 +226,7 @@ export function createDocumentLinkSlashItem(
 ): CommandItem {
   return {
     title: "문서 링크",
+    icon: DOCUMENT_LINK_SLASH_ICON,
     run: (_editor, range) => {
       if (!pageId) {
         notify(NOT_SAVED_DOCUMENT_LINK_MESSAGE, "info");
