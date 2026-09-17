@@ -50,6 +50,28 @@
   않은 블록 단위 삭제는 즉시 실행"이라는 선례에서 직접 도출했다 — 사용자가 다시
   확인이 필요하다고 판단하면 후속 요청으로 처리한다.
 
+## P17-8 후속 버그 수정(같은 PR, 사용자 실사용 확인 후 리포트)
+사용자 지적: "이미지 캡션 저장은 누를때마다 랜덤하게 컴포넌트가 나오고"(→ 정확히는
+"이미지를 선택해도 alt 입력/삭제/재업로드 버블 메뉴가 뜰 때도 있고 안 뜰 때도
+있다"는 뜻으로 확인).
+
+- **재현**: Browser pane에서 이미지를 선택 → 바깥 클릭으로 선택 해제 → 다시 이미지
+  선택을 반복했더니, 같은 동작인데도 버블 메뉴가 뜨는 경우와 안 뜨는 경우가 섞여
+  나왔다(둘 다 `ProseMirror-selectednode` 클래스로 확인한 결과 이미지 자체는
+  정상적으로 선택돼 있었음에도).
+- **원인**: `@tiptap/extension-bubble-menu`(node_modules 확인)의 기본
+  `updateDelay`가 250ms다 — 선택 변화를 250ms만큼 디바운스한 뒤에야 버블 메뉴를
+  다시 계산한다. "선택 해제 → 곧바로 재선택"처럼 250ms 안에 선택이 여러 번 바뀌면
+  디바운스 타이머들이 서로 경합해 최종적으로 "보여야 한다"는 계산 결과가 매번
+  일관되게 적용되지 않았다.
+- **조치**: `ImageBubbleMenu`의 `<BubbleMenu>`에 `updateDelay={0}`을 추가해 디바운스
+  자체를 껐다 — 선택이 바뀔 때마다 즉시 다시 계산한다. 같은 근본 원인이 텍스트
+  서식 버블 메뉴(`EditorBubbleMenu`)에도 있어 그쪽도 함께 고쳤다(다른 PR —
+  `feat/hyperlink-open-on-click`, P18-1 — 에서 함께 다룬다. 이 PR은 이미지 관련
+  버블 메뉴만 수정한다).
+- **재검증**: Browser pane에서 "바깥 클릭 → 이미지 클릭"을 5회 연속 반복해 매번
+  버블 메뉴가 정상적으로 뜸을 확인했다(수정 전에는 같은 반복에서 재현됨).
+
 ## 산출물
 - `docs/superpowers/tasks/P17-8-image-delete-reupload/{task,plan,result,test}.md`
 - `src/components/editor/RichTextEditor.tsx`, `RichTextEditor.test.tsx`

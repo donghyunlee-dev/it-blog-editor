@@ -878,7 +878,15 @@ function ImageBubbleMenu({ editor }: { editor: Editor | null }) {
   }
 
   return (
-    <BubbleMenu editor={editor} options={{ placement: "bottom" }}>
+    // P17-8 후속(사용자 지적 — "이미지 캡션 저장은 누를때마다 랜덤하게 컴포넌트가
+    // 나오고"): 이미지를 선택했다 해제했다 반복하면 버블 메뉴가 보였다 안 보였다
+    // 하는 걸 실제로 재현했다 — `@tiptap/extension-bubble-menu`의 기본
+    // `updateDelay`(250ms)가 선택 변화를 디바운스하는데, "선택 해제 → 곧바로 다시
+    // 선택"처럼 250ms 안에 선택이 여러 번 바뀌면 이 디바운스 타이머들이 서로
+    // 경합해 마지막 표시 여부가 일관되지 않았다(node_modules 확인 — 여러 차례
+    // 반복 클릭으로 직접 재현·측정). `updateDelay={0}`으로 디바운스를 꺼서 선택이
+    // 바뀔 때마다 즉시 다시 계산하게 한다.
+    <BubbleMenu editor={editor} updateDelay={0} options={{ placement: "bottom" }}>
       <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
         <ImageAltPopoverForm editor={editor} />
         <div className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
