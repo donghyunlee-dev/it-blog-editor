@@ -23,6 +23,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { Color, FontSize, TextStyle } from "@tiptap/extension-text-style";
 import Highlight from "@tiptap/extension-highlight";
 import TiptapImage from "@tiptap/extension-image";
+import { Link } from "@tiptap/extension-link";
 import { CodeBlockLowlight } from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 import { Table, TableCell, TableHeader, TableRow, TableView } from "@tiptap/extension-table";
@@ -611,6 +612,12 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
   const { toast } = useToast();
   const [href, setHref] = useState(editor.getAttributes("link").href ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+  // P18-1: 편집 중 실수로 페이지가 이동되는 걸 막으려고 `link: { openOnClick: false }`로
+  // 꺼뒀는데(RichTextEditor.tsx의 useEditor 설정), 그러면서 링크를 열 수 있는 다른
+  // 방법이 아예 없어 "링크가 안 열린다"는 지적을 받았다. 지금 이미 적용된 링크가 있을
+  // 때만(마운트 시점의 href로 판단 — 새로 만드는 중이면 아직 열 대상이 없다) "열기"
+  // 버튼을 보여준다.
+  const hasExistingLink = href.trim().length > 0;
 
   // Popover는 열려 있을 때만 children을 마운트하므로, 마운트 시점에 포커스를 주면
   // 열릴 때마다 자연스럽게 입력에 커서가 놓인다(기존 window.prompt()가 주던 것과
@@ -631,6 +638,11 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
       return;
     }
     editor.chain().focus().setLink({ href }).run();
+  }
+
+  function openLink() {
+    const url = editor.getAttributes("link").href;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -654,6 +666,17 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
       <Button type="submit" variant="primary" size="sm">
         적용
       </Button>
+      {hasExistingLink && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openLink}
+        >
+          열기
+        </Button>
+      )}
     </form>
   );
 }
@@ -674,7 +697,12 @@ function EditorBubbleMenu({ editor }: { editor: Editor | null }) {
   if (!editor || isImageActive) return null;
 
   return (
-    <BubbleMenu editor={editor} options={{ placement: "top" }}>
+    // P18-1 후속(사용자 지적 — 이미지 버블 메뉴에서 재현된 것과 같은 문제, P17-8
+    // 참고): `@tiptap/extension-bubble-menu`의 기본 `updateDelay`(250ms)가 짧은
+    // 시간 안에 여러 번 바뀌는 선택 변화를 디바운스하며 서로 경합해, 서식 버블
+    // 메뉴도 뜰 때·안 뜰 때가 갈릴 수 있다. 디바운스를 꺼서 선택이 바뀔 때마다
+    // 즉시 다시 계산하게 한다.
+    <BubbleMenu editor={editor} updateDelay={0} options={{ placement: "top" }}>
       <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1 shadow-md">
         <ToggleButton
           active={editor.isActive("bold")}
@@ -1487,6 +1515,31 @@ const CodeBlockWithLanguagePicker = CodeBlockLowlight.extend({
   },
 });
 
+const LINK_OPEN_HINT = "Ctrl(Windows)/Cmd(Mac)+클릭하여 링크 열기";
+
+/**
+ * P18-1 후속(사용자 지적 — "링크는 컨트롤 누르면 기능이 되지만 화면 상 되는 지
+ * 알수가 없어. 대부분 마우스 포인터에 변화가 없으니까 어떤 동작이 될 거란 생각이
+ * 안 들어"): Ctrl/Cmd+클릭으로 열리는 기능 자체는 이미 있었지만 아무 시각적 힌트가
+ * 없어 발견할 수 없었다. `title`은 브라우저가 호버 시 자동으로 띄워 주는 네이티브
+ * 툴팁이라 별도 포지셔닝 로직 없이 힌트를 줄 수 있다(마우스 포인터 모양은
+ * globals.css의 `.prose a`에서 함께 바꾼다) — 그런데 `Link.configure({
+ * HTMLAttributes: { title } })`로는 실제 DOM에 반영되지 않았다(실측 확인: 같은
+ * 방식으로 넣은 `class`는 반영되는데 `title`만 빠짐 — target/rel/class는 이
+ * 확장의 schema attrs로 이미 등록돼 있어 렌더링되지만, schema attrs로 등록되지
+ * 않은 임의의 `HTMLAttributes` 키는 최종 DOM에 반영되지 않는 것으로 보인다).
+ * 그래서 `title`을 이 확장 자체의 attrs로 직접 등록해 매 링크 마크에 고정값으로
+ * 렌더링되게 한다.
+ */
+const LinkWithOpenHint = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      title: { default: LINK_OPEN_HINT },
+    };
+  },
+});
+
 export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProps) {
   const { toast } = useToast();
   const [documentLinkPicker, setDocumentLinkPicker] = useState<{ range: Range } | null>(null);
@@ -1495,10 +1548,14 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
     extensions: [
       StarterKit.configure({
         heading: { levels: [1, 2, 3] },
-        link: { openOnClick: false },
+        // P18-1 후속: 아래 `LinkWithOpenHint`로 직접 대체하므로 StarterKit 기본
+        // link는 끈다(codeBlock을 CodeBlockWithLanguagePicker로 대체하는 것과
+        // 같은 패턴).
+        link: false,
         // 문법 강조가 있는 CodeBlockLowlight로 교체하므로 StarterKit 기본 codeBlock은 끈다.
         codeBlock: false,
       }),
+      LinkWithOpenHint.configure({ openOnClick: false }),
       // 언어를 지정하지 않아도 lowlight가 내용을 보고 자동으로 언어를 추정해 강조한다
       // (node_modules/@tiptap/extension-code-block-lowlight 확인 — language 속성이
       // 없으면 lowlight.highlightAuto()로 폴백). 언어를 직접 고르는 UI는 P17-5b에서
@@ -1553,6 +1610,25 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       // 캡쳐와 나란히 비교했을 때 유독 지저분해 보였다(2026-08-26, 사용자 피드백).
       attributes: { spellcheck: "false" },
       transformPastedHTML: stripPastedInlineStyles,
+      // P18-1: `link: { openOnClick: false }`(아래 StarterKit 설정)는 편집 중 실수로
+      // 페이지가 이동되는 걸 막으려고 일반 클릭으로는 링크가 안 열리게 해뒀다 — 그런데
+      // 열 수 있는 다른 방법이 전혀 없어 "링크가 아예 안 열린다"는 지적을 받았다.
+      // Notion/Google Docs와 같은 관례대로 Ctrl/Cmd+클릭만 새 탭에서 열리게 한다
+      // (일반 클릭은 그대로 커서 배치용으로 남는다 — `@tiptap/extension-link`의 기본
+      // 클릭 핸들러는 `openOnClick`이 꺼져 있으면 아무 조건에서도 안 열어 준다,
+      // node_modules 확인). 버블 메뉴의 "열기" 버튼(`LinkPopoverForm`)과 함께 두 가지
+      // 방법 다 제공한다.
+      handleClick: (view, _pos, event) => {
+        if (!(event.ctrlKey || event.metaKey)) return false;
+        const target = event.target as HTMLElement | null;
+        const link = target?.closest("a");
+        if (!link || !view.dom.contains(link)) return false;
+        const href = link.getAttribute("href");
+        if (!href || !isSafeLinkHref(href)) return false;
+        event.preventDefault();
+        window.open(href, "_blank", "noopener,noreferrer");
+        return true;
+      },
       handleDrop: (view, event) => {
         const file = event.dataTransfer?.files?.[0];
         if (!file || !file.type.startsWith("image/")) return false;
