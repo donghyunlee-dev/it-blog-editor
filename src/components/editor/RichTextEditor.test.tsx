@@ -1323,6 +1323,136 @@ describe("RichTextEditor 이미지 업로드 진행 상태 표시(P17-9)", () =>
 });
 
 /**
+ * P17-8(조사 중 추가 발견): 이미지 노드에는 alt 텍스트 입력 외에 삭제·다시 업로드
+ * 동작이 없었다 — 잘못 올린 이미지를 지우거나 바꾸려면 커서를 옮겨 Backspace를
+ * 누르는 것 말고는 방법이 없어 발견하기 어려웠다. alt 텍스트 팝오버가 뜨는 같은
+ * 버블 메뉴(이미지를 클릭해 선택하면 나타남)에 두 버튼을 추가한다.
+ */
+describe("RichTextEditor 이미지 삭제/다시 업로드(P17-8)", () => {
+  function imageDoc(): JSONContent {
+    return {
+      type: "doc",
+      content: [{ type: "image", attrs: { src: "https://example.com/old.png", filename: "old.png", alt: "설명" } }],
+    };
+  }
+
+  /**
+   * `@tiptap/extension-bubble-menu`의 기본 `shouldShow`는 `view.hasFocus()`를
+   * 요구한다(node_modules 확인) — 실제 브라우저는 편집 불가 NodeView를 클릭해도
+   * 가장 가까운 편집 가능 조상으로 포커스를 자동으로 옮기지만, jsdom/happy-dom은
+   * 이 자동 포커스 이동을 흉내 내지 않는다. 위쪽 "서식 버블 메뉴" 테스트의
+   * `selectText` 헬퍼와 같은 이유로, 이미지를 클릭하기 전에 `.ProseMirror`를 먼저
+   * 명시적으로 focus한다.
+   */
+  async function selectImage(container: HTMLElement) {
+    (container.querySelector(".ProseMirror") as HTMLElement).focus();
+    fireEvent.click(await screen.findByRole("img"));
+  }
+
+  it("이미지를 클릭해 선택하면 삭제·다시 업로드 버튼이 있는 버블 메뉴가 뜬다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageDoc()} onChange={vi.fn()} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    await selectImage(container);
+
+    expect(await screen.findByLabelText("이미지 삭제")).toBeInTheDocument();
+    expect(await screen.findByLabelText("이미지 다시 업로드")).toBeInTheDocument();
+  });
+
+  it("삭제 버튼을 누르면 이미지 노드가 문서에서 사라지고 onChange에 반영된다", async () => {
+    const onChange = vi.fn();
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageDoc()} onChange={onChange} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    await selectImage(container);
+    fireEvent.click(await screen.findByLabelText("이미지 삭제"));
+
+    await waitFor(() => expect(screen.queryByRole("img")).not.toBeInTheDocument());
+    const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    expect(lastDoc.content?.some((n) => n.type === "image")).toBe(false);
+  });
+
+  it("문서 저장 전(pageId 없음)에 다시 업로드를 누르면 안내 토스트만 뜨고 파일 선택 창을 열지 않는다", async () => {
+    const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(() => {});
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    await selectImage(container);
+    fireEvent.click(await screen.findByLabelText("이미지 다시 업로드"));
+
+    expect(
+      await screen.findByText("문서를 먼저 저장한 뒤에 이미지를 다시 업로드할 수 있습니다.")
+    ).toBeInTheDocument();
+    expect(clickSpy).not.toHaveBeenCalled();
+  });
+
+  it("다시 업로드가 성공하면 새 이미지로 교체되고 onChange에 반영된다", async () => {
+    vi.spyOn(imageUpload, "uploadImage").mockResolvedValue({
+      url: "https://example.com/new.png",
+      filename: "new.png",
+    });
+    let capturedInput: HTMLInputElement | null = null;
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
+      capturedInput = this;
+    });
+    const onChange = vi.fn();
+
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageDoc()} onChange={onChange} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    await selectImage(container);
+    fireEvent.click(await screen.findByLabelText("이미지 다시 업로드"));
+
+    expect(capturedInput).not.toBeNull();
+    Object.defineProperty(capturedInput!, "files", { value: [makeImageFile("new.png")], configurable: true });
+    fireEvent.change(capturedInput!);
+
+    await waitFor(() =>
+      expect(container.querySelector(".ProseMirror img")).toHaveAttribute("src", "https://example.com/new.png")
+    );
+    const lastDoc = onChange.mock.calls.at(-1)?.[0] as JSONContent;
+    const imageNode = lastDoc.content?.find((n) => n.type === "image");
+    expect(imageNode?.attrs?.src).toBe("https://example.com/new.png");
+  });
+
+  it("다시 업로드가 실패하면 원래 이미지로 되돌아가고 에러 토스트가 뜬다", async () => {
+    vi.spyOn(imageUpload, "uploadImage").mockRejectedValue(new Error("업로드 실패!"));
+    let capturedInput: HTMLInputElement | null = null;
+    vi.spyOn(HTMLInputElement.prototype, "click").mockImplementation(function (this: HTMLInputElement) {
+      capturedInput = this;
+    });
+
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={imageDoc()} onChange={vi.fn()} pageId="doc-1" />
+      </ToastProvider>
+    );
+
+    await selectImage(container);
+    fireEvent.click(await screen.findByLabelText("이미지 다시 업로드"));
+
+    expect(capturedInput).not.toBeNull();
+    Object.defineProperty(capturedInput!, "files", { value: [makeImageFile("new.png")], configurable: true });
+    fireEvent.change(capturedInput!);
+
+    await waitFor(() => expect(screen.getByText("업로드 실패!")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror img")).toHaveAttribute("src", "https://example.com/old.png");
+  });
+});
+
+/**
  * P2-5: 사용자가 "표 안 텍스트의 색상·폰트 서식을 바꿀 방법이 없다"고 보고해 조사했다.
  * `EditorBubbleMenu`는 `shouldShow`를 오버라이드하지 않아 `@tiptap/extension-bubble-menu`의
  * 기본 구현을 그대로 쓰는데, 그 기본 구현은 표 셀 여부를 전혀 구분하지 않는다(포커스·비어있지
