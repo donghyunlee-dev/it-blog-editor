@@ -1232,6 +1232,113 @@ describe("RichTextEditor 서식 버블 메뉴(P1-9e)", () => {
   });
 });
 
+/**
+ * P18-1: "링크를 넣어서 주소를 입력했는데, 언더바와 색상은 변경되는데 글자를 눌러도
+ * 링크의 url이 열리거나 이동이 되지 않아"라는 지적. `link: { openOnClick: false }`
+ * (편집 중 실수로 페이지가 이동되는 걸 막기 위한 의도적 설정)가 원인이었는데, 대신 열
+ * 수 있는 방법이 아예 없었다. Ctrl/Cmd+클릭(Notion/Google Docs와 같은 관례)과 버블
+ * 메뉴의 "열기" 버튼, 두 가지 방법을 추가한다.
+ */
+describe("RichTextEditor 하이퍼링크 열기(P18-1)", () => {
+  function linkDoc(href = "https://example.com"): JSONContent {
+    return {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "안녕하세요", marks: [{ type: "link", attrs: { href } }] }],
+        },
+      ],
+    };
+  }
+
+  /**
+   * `@tiptap/core`(prosemirror-view)의 클릭 감지는 네이티브 `click` 이벤트가 아니라
+   * 자체 `mousedown`→(짧은 시간·가까운 위치의) `mouseup` 시퀀스로 "이게 클릭이었는지"를
+   * 판단해 `editorProps.handleClick`을 호출한다(node_modules 확인) — `fireEvent.click()`
+   * 하나만으로는 이 핸들러가 아예 호출되지 않는다. 실제 클릭과 같은 이벤트 시퀀스를
+   * 그대로 재현한다.
+   */
+  function clickLink(link: HTMLElement, options?: { ctrlKey?: boolean }) {
+    fireEvent.mouseDown(link, options);
+    fireEvent.mouseUp(link, options);
+  }
+
+  it("링크 텍스트를 일반 클릭하면 새 탭이 열리지 않는다(편집 중 실수 방지)", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={linkDoc()} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const link = container.querySelector(".ProseMirror a") as HTMLAnchorElement;
+    clickLink(link);
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("Ctrl/Cmd+클릭하면 새 탭에서 링크가 열린다", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={linkDoc("https://example.com/path")} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const link = container.querySelector(".ProseMirror a") as HTMLAnchorElement;
+    clickLink(link, { ctrlKey: true });
+
+    expect(openSpy).toHaveBeenCalledWith("https://example.com/path", "_blank", "noopener,noreferrer");
+  });
+
+  it("안전하지 않은 스킴(javascript:)이 저장돼 있으면 Ctrl+클릭해도 열리지 않는다", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={linkDoc("javascript:alert(1)")} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+
+    const link = container.querySelector(".ProseMirror a") as HTMLAnchorElement;
+    clickLink(link, { ctrlKey: true });
+
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("링크 버블 메뉴의 '열기' 버튼을 누르면 새 탭에서 링크가 열린다", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor content={linkDoc("https://example.com")} onChange={vi.fn()} />
+      </ToastProvider>
+    );
+    selectText(container, "안녕");
+
+    fireEvent.click(await screen.findByLabelText("링크"));
+    fireEvent.click(await screen.findByRole("button", { name: "열기" }));
+
+    expect(openSpy).toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
+  });
+
+  it("아직 적용된 링크가 없는 새 링크 팝오버에는 '열기' 버튼이 보이지 않는다", async () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "안녕하세요" }] }] }}
+          onChange={vi.fn()}
+        />
+      </ToastProvider>
+    );
+    selectText(container, "안녕");
+
+    fireEvent.click(await screen.findByLabelText("링크"));
+    await screen.findByLabelText("링크 URL");
+
+    expect(screen.queryByRole("button", { name: "열기" })).not.toBeInTheDocument();
+  });
+});
+
 describe("RichTextEditor 이미지 업로드 성공 경로(P1-9e)", () => {
   it("드래그앤드롭 업로드가 끝나면 실제로 이미지 노드가 삽입되고 onChange에 반영된다", async () => {
     vi.spyOn(imageUpload, "uploadImage").mockResolvedValue({

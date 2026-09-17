@@ -589,6 +589,12 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
   const { toast } = useToast();
   const [href, setHref] = useState(editor.getAttributes("link").href ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+  // P18-1: 편집 중 실수로 페이지가 이동되는 걸 막으려고 `link: { openOnClick: false }`로
+  // 꺼뒀는데(RichTextEditor.tsx의 useEditor 설정), 그러면서 링크를 열 수 있는 다른
+  // 방법이 아예 없어 "링크가 안 열린다"는 지적을 받았다. 지금 이미 적용된 링크가 있을
+  // 때만(마운트 시점의 href로 판단 — 새로 만드는 중이면 아직 열 대상이 없다) "열기"
+  // 버튼을 보여준다.
+  const hasExistingLink = href.trim().length > 0;
 
   // Popover는 열려 있을 때만 children을 마운트하므로, 마운트 시점에 포커스를 주면
   // 열릴 때마다 자연스럽게 입력에 커서가 놓인다(기존 window.prompt()가 주던 것과
@@ -609,6 +615,11 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
       return;
     }
     editor.chain().focus().setLink({ href }).run();
+  }
+
+  function openLink() {
+    const url = editor.getAttributes("link").href;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -632,6 +643,17 @@ function LinkPopoverForm({ editor }: { editor: Editor }) {
       <Button type="submit" variant="primary" size="sm">
         적용
       </Button>
+      {hasExistingLink && (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={openLink}
+        >
+          열기
+        </Button>
+      )}
     </form>
   );
 }
@@ -1438,6 +1460,25 @@ export function RichTextEditor({ content, onChange, pageId }: RichTextEditorProp
       // 캡쳐와 나란히 비교했을 때 유독 지저분해 보였다(2026-08-26, 사용자 피드백).
       attributes: { spellcheck: "false" },
       transformPastedHTML: stripPastedInlineStyles,
+      // P18-1: `link: { openOnClick: false }`(아래 StarterKit 설정)는 편집 중 실수로
+      // 페이지가 이동되는 걸 막으려고 일반 클릭으로는 링크가 안 열리게 해뒀다 — 그런데
+      // 열 수 있는 다른 방법이 전혀 없어 "링크가 아예 안 열린다"는 지적을 받았다.
+      // Notion/Google Docs와 같은 관례대로 Ctrl/Cmd+클릭만 새 탭에서 열리게 한다
+      // (일반 클릭은 그대로 커서 배치용으로 남는다 — `@tiptap/extension-link`의 기본
+      // 클릭 핸들러는 `openOnClick`이 꺼져 있으면 아무 조건에서도 안 열어 준다,
+      // node_modules 확인). 버블 메뉴의 "열기" 버튼(`LinkPopoverForm`)과 함께 두 가지
+      // 방법 다 제공한다.
+      handleClick: (view, _pos, event) => {
+        if (!(event.ctrlKey || event.metaKey)) return false;
+        const target = event.target as HTMLElement | null;
+        const link = target?.closest("a");
+        if (!link || !view.dom.contains(link)) return false;
+        const href = link.getAttribute("href");
+        if (!href || !isSafeLinkHref(href)) return false;
+        event.preventDefault();
+        window.open(href, "_blank", "noopener,noreferrer");
+        return true;
+      },
       handleDrop: (view, event) => {
         const file = event.dataTransfer?.files?.[0];
         if (!file || !file.type.startsWith("image/")) return false;
