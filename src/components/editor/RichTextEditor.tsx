@@ -333,6 +333,23 @@ export function clampResizeWidth(width: number, maxWidth: number, minWidth = RES
 }
 
 /**
+ * P18-2 후속(사용자 지적 — "사이즈 조절은 되는데 랜덤하게 또 보이네"): 핸들을
+ * 드래그하면 그때마다 이미지가 `ImageBubbleMenu`(캡션 입력·다시 업로드·삭제
+ * 버튼)와 함께 선택된 상태로 남는 버그가 있었다.
+ *
+ * 원인: 이미지처럼 `contentEditable=false`인 원자적 노드 위에서 mousedown 후
+ * 누른 채로 움직이면(mousemove), 브라우저는 기본 동작으로 그 원자적 블록 전체를
+ * 네이티브 선택 영역으로 잡는다(개발자 도구로 `window.getSelection()`을 찍어
+ * 직접 확인 — 드래그 도중 이미 `Range`가 `.ProseMirror` 컨테이너를 앵커로 잡고
+ * 있었다). ProseMirror는 `selectionchange`를 구독해 이 네이티브 선택을 자신의
+ * `NodeSelection`으로 그대로 반영하므로, 우리가 만든 리사이즈 로직과 전혀
+ * 무관하게 이미지가 선택돼버린다. `mousedown`에서만 `preventDefault`를 부르는
+ * 걸로는 부족하다 — 이 "선택 영역 확장" 기본 동작은 각 `mousemove`/`mouseup`
+ * 이벤트 자체의 기본 동작이라, 그 이벤트들에도 각각 `preventDefault`를 불러야
+ * 막을 수 있다(처음엔 ProseMirror의 클릭 감지 자체가 원인이라고 잘못 짚어
+ * NodeView `stopEvent` 콜백으로 막으려 했으나, 실제로 그 경로는 전혀 호출되지
+ * 않았다 — 계측으로 확인 후 걷어냈다).
+ *
  * 드래그 시작 시 콜백을 등록하는 순수 이벤트 배선 훅 — "지금 몇 px 움직였는지"만
  * 계산해 호출부에 넘긴다. `phase: "preview"`는 마우스가 움직이는 동안(매번), `phase:
  * "commit"`은 마우스를 뗀 시점(한 번)에 호출된다 — 실제 attrs 반영은 commit에서만
@@ -345,9 +362,11 @@ function useDragResize(onDelta: (deltaX: number, phase: "preview" | "commit") =>
     event.stopPropagation();
     const startX = event.clientX;
     function handleMouseMove(moveEvent: MouseEvent) {
+      moveEvent.preventDefault();
       onDelta(moveEvent.clientX - startX, "preview");
     }
     function handleMouseUp(upEvent: MouseEvent) {
+      upEvent.preventDefault();
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
       onDelta(upEvent.clientX - startX, "commit");

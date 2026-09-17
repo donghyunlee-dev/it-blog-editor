@@ -64,3 +64,36 @@ plan.md의 Global Constraints에 명시했듯, 드래그의 계산 로직(clamp,
 반복 드래그(축소 1회, 최소 clamp 1회, 최대 clamp 1회) — 매번 정확히 이미지
 1개만 유지되고(`find("너비 조절")`로 슬라이더 개수가 항상 2개 — 이미지 1 +
 카드 1 — 임을 확인), 복제나 위치 이동 없이 너비/높이만 의도대로 바뀌었다.
+
+## P18-2 후속 검증(PR 리뷰 중 — "사이즈 조절은 되는데 랜덤하게 또 보이네")
+
+**발견**: 리사이즈 핸들을 드래그하면 크기는 바뀌지만 그 직후 `ImageBubbleMenu`
+(캡션 입력·다시 업로드·삭제)가 원치 않게 뜨는 것을 사용자가 실사용 중 보고했다.
+
+**진단 과정**: `window.getSelection()`/`.ProseMirror-selectednode` 클래스를
+직접 찍어보며 단계적으로 격리했다.
+1. 처음엔 ProseMirror의 클릭 감지가 원인이라 보고 NodeView `stopEvent`로
+   막으려 했으나, `stopEvent` 호출 여부를 직접 계측(임시 로그)한 결과 **실제
+   드래그 중 단 한 번도 호출되지 않음**을 확인 — 잘못된 가설이었다.
+2. 디버그 문서가 이미지로 시작해 ProseMirror의 기본 초기 선택이 이미 이미지를
+   가리키고 있던 착시였음을 발견 — 문단을 앞에 추가해 재현 조건을 현실적으로
+   맞췄다.
+3. 그제서야 `window.getSelection()`이 드래그 도중 이미 `.ProseMirror`를
+   앵커로 하는 네이티브 `Range`를 갖고 있음을 확인 — 브라우저가 mousedown 이후
+   mousemove 동안 `contentEditable=false`인 원자적 블록(이미지)을 기본 동작으로
+   네이티브 선택해버리고, ProseMirror가 `selectionchange`를 통해 이를
+   `NodeSelection`으로 그대로 반영한다는 진짜 원인을 찾았다.
+
+**조치**: `useDragResize`의 `mousemove`/`mouseup` 핸들러 각각에
+`preventDefault()`를 추가(기존엔 `mousedown`에만 있었다). 1차 가설로 추가했던
+`stopEvent`/`isResizeHandleEvent` 관련 코드는 실제로 아무 역할이 없었음이
+확인돼 제거했다.
+
+**재검증**:
+- 문단 → 이미지 → 문서 링크 카드 순서의 현실적인 문서에서 두 핸들 모두
+  드래그 후 `.ProseMirror-selectednode`가 생기지 않음을 확인(수정 전에는 매번
+  생겼다).
+- 이미지를 직접 클릭했을 때 캡션 메뉴가 뜨는 기존 동작(P17-8)은
+  `RichTextEditor.test.tsx`의 자동화 테스트로 계속 보장됨을 재확인
+  (`npx vitest run` — 84 passed, 회귀 없음).
+- `npx eslint`, `npm run build` 재실행 — 모두 클린.
