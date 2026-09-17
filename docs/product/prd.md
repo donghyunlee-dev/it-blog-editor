@@ -6,13 +6,18 @@
 
 
 
-> 전체 진행률: 127 / 130 항목 완료(Phase 18 신설로 분모 +2) (최근 갱신: 2026-09-17 —
-**P18-1**(하이퍼링크 텍스트 클릭 시 열기 — "링크를 넣었는데 클릭해도 안 열린다"는
-지적. 원인은 `link: { openOnClick: false }`(편집 중 실수 방지용 의도적 설정)를
-켜둔 채 대신 열 수 있는 방법을 전혀 안 만들어 둔 것이었다. Ctrl/Cmd+클릭으로 새
-탭에서 열리게 하고, 링크 버블 메뉴에도 "열기" 버튼을 추가했다(사용자 확인 —
-"둘다 다 가능했으면 좋겠어") — 일반 클릭은 그대로 커서 배치용으로 남겨 편집 중
-실수 방지 목적은 유지된다). 이전 갱신: **P17-12**(사용자 추가
+> 전체 진행률: 130 / 130 항목 완료(Phase 18 신설로 분모 +2) (최근 갱신: 2026-09-17 —
+**P18-2**(이미지/문서 링크 카드 크기 조절 — "resize에 대한 기능이 없어 ... 무조건
+editor의 가로 full 사이즈로 설정이 돼"라는 지적에 대응. 두 노드 모두 우측 경계
+드래그 핸들로 너비를 조절하게 했고(이미지는 종횡비 유지, 카드는 너비만), 실사용
+검증 중 드래그 시 이미지가 복제되는 버그를 발견해 `AttachmentImage`의
+`draggable: false`로 함께 고쳤다). 이전 갱신: **P18-1**(하이퍼링크 텍스트 클릭 시
+열기 — "링크를 넣었는데 클릭해도 안 열린다"는 지적. 원인은 `link: { openOnClick:
+false }`(편집 중 실수 방지용 의도적 설정)를 켜둔 채 대신 열 수 있는 방법을 전혀
+안 만들어 둔 것이었다. Ctrl/Cmd+클릭으로 새 탭에서 열리게 하고, 링크 버블
+메뉴에도 "열기" 버튼을 추가했다(사용자 확인 — "둘다 다 가능했으면 좋겠어") —
+일반 클릭은 그대로 커서 배치용으로 남겨 편집 중 실수 방지 목적은 유지된다).
+그 이전 갱신: **P17-12**(사용자 추가
 
 요청 — 표 툴바 버튼이 클릭 시 에디터 선택을 표 첫 셀로 되돌려버리는 문제. 원인은
 `TableToolbarButton`이 `onMouseDown`으로 기본 동작을 막지 않아, 버튼을 누르는
@@ -1011,9 +1016,17 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   배치/편집용으로 남는다. 산출물:
   `docs/superpowers/tasks/P18-1-hyperlink-open-on-click/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
-- [ ] (P18-2) 이미지/문서 링크 카드 크기 조절 — 두 노드 모두 우측 경계에 드래그 핸들을
-  추가해 너비를 조절할 수 있게 한다(이미지는 종횡비 유지, 카드는 너비만). 조절한 값은
-  `width`(이미지는 `height`도) attrs로 저장된다.
+- [x] (완료, P18-2) 이미지/문서 링크 카드 크기 조절 — 두 노드 모두 우측 경계에 드래그
+  핸들을 추가해 너비를 조절할 수 있게 했다(이미지는 종횡비 유지, 카드는 너비만).
+  조절한 값은 `width`(이미지는 `height`도) attrs로 저장되고, 편집기 폭을 최댓값·
+  `RESIZE_MIN_WIDTH`(100px)를 최솟값으로 clamp한다. 크기를 조절하지 않은 기존
+  이미지/카드는 이전과 동일하게(100% 폭) 보여 하위 호환된다. 실사용 검증 중
+  발견한 버그(이미지 리사이즈 핸들을 드래그하면 `@tiptap/extension-image` 기본
+  `draggable: true` 스펙 때문에 ProseMirror가 노드 드래그로 오인해 이미지가
+  복제되던 문제)도 같은 작업에서 `draggable: false`로 고쳤다. 산출물:
+  `docs/superpowers/tasks/P18-2-image-link-card-resize/{task,plan,result,test}.md`,
+  src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
+  src/app/globals.css
 
 
 

@@ -1,6 +1,15 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { findParentNodeClosestToPos, mergeAttributes, Node, type Editor, type Range } from "@tiptap/core";
 
@@ -281,6 +290,12 @@ export function createDocumentLinkSlashItem(
  * 변환용 JSON parseHTML 왕복)에도 노출되지 않게 한다.
  */
 const AttachmentImage = TiptapImage.extend({
+  // P18-2: 기본 Image 확장은 draggable: true라 ProseMirror가 mousedown 시점에
+  // 노드를 드래그 가능하게 만든다 — 새로 추가한 우측 경계 크기 조절 핸들을
+  // 드래그하면 크기 조절이 아니라 "노드 이동/복제"로 처리돼버려(실사용 확인:
+  // 핸들을 드래그하니 이미지가 복제됨) 크기 조절 기능과 충돌한다. 이 앱은 이미지
+  // 드래그 재정렬 UI가 없으므로 draggable을 꺼서 크기 조절 핸들만 동작하게 한다.
+  draggable: false,
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -303,8 +318,135 @@ const AttachmentImage = TiptapImage.extend({
  */
 const ImagePageIdContext = createContext<string | undefined>(undefined);
 
+/**
+ * P18-2: 이미지·문서 링크 카드 크기 조절 — 사용자 지적 "resize에 대한 기능이 없어
+ * ... 무조건 editor의 가로 full 사이즈로 설정이 돼"에 대응한다. 두 노드뷰가 똑같이
+ * "우측 경계를 드래그하면 너비가 바뀐다"는 동작이 필요해 계산(clamp)과 드래그
+ * 수명주기(mousedown→mousemove→mouseup)를 공용으로 뺀다 — "너비가 바뀔 때 높이를
+ * 어떻게 할지"(이미지는 종횡비 유지, 카드는 안 바꿈)만 호출부가 정한다.
+ */
+const RESIZE_MIN_WIDTH = 100;
+
+/** 너비를 [최소값, 최대값] 범위로 자른다 — 최대값은 보통 부모 컨테이너의 현재 폭. */
+export function clampResizeWidth(width: number, maxWidth: number, minWidth = RESIZE_MIN_WIDTH): number {
+  return Math.round(Math.min(Math.max(width, minWidth), Math.max(maxWidth, minWidth)));
+}
+
+/**
+ * P18-2 후속(사용자 지적 — "사이즈 조절은 되는데 랜덤하게 또 보이네"): 핸들을
+ * 드래그하면 그때마다 이미지가 `ImageBubbleMenu`(캡션 입력·다시 업로드·삭제
+ * 버튼)와 함께 선택된 상태로 남는 버그가 있었다.
+ *
+ * 원인: 이미지처럼 `contentEditable=false`인 원자적 노드 위에서 mousedown 후
+ * 누른 채로 움직이면(mousemove), 브라우저는 기본 동작으로 그 원자적 블록 전체를
+ * 네이티브 선택 영역으로 잡는다(개발자 도구로 `window.getSelection()`을 찍어
+ * 직접 확인 — 드래그 도중 이미 `Range`가 `.ProseMirror` 컨테이너를 앵커로 잡고
+ * 있었다). ProseMirror는 `selectionchange`를 구독해 이 네이티브 선택을 자신의
+ * `NodeSelection`으로 그대로 반영하므로, 우리가 만든 리사이즈 로직과 전혀
+ * 무관하게 이미지가 선택돼버린다. `mousedown`에서만 `preventDefault`를 부르는
+ * 걸로는 부족하다 — 이 "선택 영역 확장" 기본 동작은 각 `mousemove`/`mouseup`
+ * 이벤트 자체의 기본 동작이라, 그 이벤트들에도 각각 `preventDefault`를 불러야
+ * 막을 수 있다(처음엔 ProseMirror의 클릭 감지 자체가 원인이라고 잘못 짚어
+ * NodeView `stopEvent` 콜백으로 막으려 했으나, 실제로 그 경로는 전혀 호출되지
+ * 않았다 — 계측으로 확인 후 걷어냈다).
+ *
+ * 드래그 시작 시 콜백을 등록하는 순수 이벤트 배선 훅 — "지금 몇 px 움직였는지"만
+ * 계산해 호출부에 넘긴다. `phase: "preview"`는 마우스가 움직이는 동안(매번), `phase:
+ * "commit"`은 마우스를 뗀 시점(한 번)에 호출된다 — 실제 attrs 반영은 commit에서만
+ * 하여(P17-9 자리표시자 패턴과 같은 이유) 드래그 중 히스토리가 매 픽셀마다 쌓이지
+ * 않게 한다.
+ */
+function useDragResize(onDelta: (deltaX: number, phase: "preview" | "commit") => void) {
+  return function handleMouseDown(event: ReactMouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    const startX = event.clientX;
+    function handleMouseMove(moveEvent: MouseEvent) {
+      moveEvent.preventDefault();
+      onDelta(moveEvent.clientX - startX, "preview");
+    }
+    function handleMouseUp(upEvent: MouseEvent) {
+      upEvent.preventDefault();
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      onDelta(upEvent.clientX - startX, "commit");
+    }
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+}
+
+/**
+ * 공용 크기 조절 핸들 — 이미지·문서 링크 카드 둘 다 같은 시각 스타일(우측 경계,
+ * 호버 시에만 보임)을 쓴다. `role="slider"`는 시각적으로 드래그 가능한 요소임을
+ * 스크린리더에도 알리지만, 실제 키보드 조작은 지원하지 않는다(task.md "범위 밖" —
+ * 대부분의 에디터가 마우스 드래그만 지원하는 것과 같은 범위).
+ */
+function ResizeHandle({
+  label,
+  widthPx,
+  onMouseDown,
+}: {
+  label: string;
+  /** 현재 너비(px) — `role="slider"`의 필수 접근성 속성(`aria-valuenow`)에 그대로 쓴다. */
+  widthPx: number;
+  onMouseDown: (event: ReactMouseEvent) => void;
+}) {
+  return (
+    <span
+      role="slider"
+      aria-label={label}
+      aria-orientation="horizontal"
+      aria-valuenow={widthPx}
+      aria-valuemin={RESIZE_MIN_WIDTH}
+      tabIndex={-1}
+      className="node-resize-handle"
+      onMouseDown={onMouseDown}
+      // 문서 링크 카드는 핸들이 <button> 안에 있다 — 드래그 없이 핸들만 살짝
+      // 클릭해도 그 click이 버튼까지 올라가 문서로 이동해버리는 걸 막는다.
+      onClick={(event) => event.stopPropagation()}
+    />
+  );
+}
+
 /** 업로드 중인 이미지 자리표시자 — 스피너 + 안내 문구로 "진행 중"임을 보여준다(P17-9). */
-function ImageView({ node }: Pick<NodeViewProps, "node">) {
+function ImageView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [previewSize, setPreviewSize] = useState<{ width: number; height: number } | null>(null);
+  const dragStateRef = useRef<{ startWidth: number; maxWidth: number; aspectRatio: number } | null>(null);
+
+  // P18-2: 우측 경계 드래그로 너비를 조절한다 — 이미지는 원본 종횡비를 유지하며
+  // 높이도 함께 바뀐다(드래그 시작 시점의 렌더 크기로 비율을 계산 — `naturalWidth`/
+  // `naturalHeight`가 있으면 그걸 우선한다. 둘 다 원본 이미지 자체의 가로세로
+  // 비율이라 같은 값이어야 정상이지만, 아주 드물게 이미지가 아직 완전히 로드되지
+  // 않은 시점에 드래그를 시작하면 `natural*`이 0일 수 있어 그럴 때만 현재 렌더
+  // 크기로 대체한다).
+  const handleResizeMouseDown = useDragResize((deltaX, phase) => {
+    const state = dragStateRef.current;
+    if (!state) return;
+    const width = clampResizeWidth(state.startWidth + deltaX, state.maxWidth);
+    const height = Math.round(width * state.aspectRatio);
+    if (phase === "preview") {
+      setPreviewSize({ width, height });
+    } else {
+      updateAttributes({ width, height });
+      setPreviewSize(null);
+      dragStateRef.current = null;
+    }
+  });
+
+  function startResize(event: ReactMouseEvent) {
+    const img = imgRef.current;
+    const wrapper = img?.parentElement;
+    if (!img || !wrapper) return;
+    const rect = img.getBoundingClientRect();
+    const maxWidth = wrapper.parentElement?.getBoundingClientRect().width ?? rect.width;
+    const aspectRatio =
+      img.naturalWidth && img.naturalHeight ? img.naturalHeight / img.naturalWidth : (rect.height || 1) / (rect.width || 1);
+    dragStateRef.current = { startWidth: rect.width, maxWidth, aspectRatio };
+    handleResizeMouseDown(event);
+  }
+
   if (node.attrs.uploading) {
     return (
       <NodeViewWrapper
@@ -316,13 +458,27 @@ function ImageView({ node }: Pick<NodeViewProps, "node">) {
       </NodeViewWrapper>
     );
   }
+
+  const savedWidth = typeof node.attrs.width === "number" ? node.attrs.width : null;
+  const savedHeight = typeof node.attrs.height === "number" ? node.attrs.height : null;
+  const sizeStyle = previewSize ?? (savedWidth ? { width: savedWidth, height: savedHeight ?? undefined } : undefined);
+
   return (
     <NodeViewWrapper contentEditable={false}>
-      {/* Confluence 첨부파일 URL은 사전에 알 수 없는 임의 외부 호스트라 next/image의
-          remotePatterns 설정 대상이 될 수 없다 — 에디터 본문 이미지는 기존에도(NodeView
-          도입 전, TipTap의 renderHTML을 통해) 평범한 <img>였다. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={node.attrs.src ?? undefined} alt={node.attrs.alt ?? ""} title={node.attrs.title ?? undefined} />
+      <span className="resizable-node">
+        {/* Confluence 첨부파일 URL은 사전에 알 수 없는 임의 외부 호스트라 next/image의
+            remotePatterns 설정 대상이 될 수 없다 — 에디터 본문 이미지는 기존에도(NodeView
+            도입 전, TipTap의 renderHTML을 통해) 평범한 <img>였다. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          ref={imgRef}
+          src={node.attrs.src ?? undefined}
+          alt={node.attrs.alt ?? ""}
+          title={node.attrs.title ?? undefined}
+          style={sizeStyle}
+        />
+        <ResizeHandle label="이미지 너비 조절" widthPx={sizeStyle?.width ?? 0} onMouseDown={startResize} />
+      </span>
     </NodeViewWrapper>
   );
 }
@@ -414,16 +570,48 @@ const Panel = Node.create({
  * attrs로 캐시해 두고 그대로 보여준다(실시간 재조회 없음 — task.md "결정이 필요한 사항"
  * 참고). 아이콘은 문서 데이터 모델에 아이콘 필드가 없어 모든 카드가 고정 이모지(📄)를 쓴다.
  */
-function DocumentLinkView({ node }: Pick<NodeViewProps, "node">) {
+function DocumentLinkView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "updateAttributes">) {
   const router = useRouter();
+  const cardRef = useRef<HTMLButtonElement>(null);
+  const [previewWidth, setPreviewWidth] = useState<number | null>(null);
+  const dragStateRef = useRef<{ startWidth: number; maxWidth: number } | null>(null);
   const pageId = String(node.attrs.pageId ?? "");
   const title = String(node.attrs.title ?? "").trim() || "(제목 없음)";
+
+  // P18-2: 이미지와 같은 우측 경계 드래그 — 카드는 이미지와 달리 높이가 내용
+  // (제목 길이)에 따라 자연스럽게 정해지는 요소라 너비만 조절한다.
+  const handleResizeMouseDown = useDragResize((deltaX, phase) => {
+    const state = dragStateRef.current;
+    if (!state) return;
+    const width = clampResizeWidth(state.startWidth + deltaX, state.maxWidth);
+    if (phase === "preview") {
+      setPreviewWidth(width);
+    } else {
+      updateAttributes({ width });
+      setPreviewWidth(null);
+      dragStateRef.current = null;
+    }
+  });
+
+  function startResize(event: ReactMouseEvent) {
+    const card = cardRef.current;
+    if (!card) return;
+    const rect = card.getBoundingClientRect();
+    const maxWidth = card.parentElement?.getBoundingClientRect().width ?? rect.width;
+    dragStateRef.current = { startWidth: rect.width, maxWidth };
+    handleResizeMouseDown(event);
+  }
+
+  const savedWidth = typeof node.attrs.width === "number" ? node.attrs.width : null;
+  const width = previewWidth ?? savedWidth ?? undefined;
 
   return (
     <NodeViewWrapper contentEditable={false}>
       <button
+        ref={cardRef}
         type="button"
         className="document-link-card"
+        style={width ? { width, maxWidth: "100%" } : undefined}
         onClick={() => {
           if (pageId) router.push(`/editor/${pageId}`);
         }}
@@ -431,6 +619,7 @@ function DocumentLinkView({ node }: Pick<NodeViewProps, "node">) {
         <span aria-hidden="true">📄</span>
         <span className="document-link-title">{title}</span>
         <span aria-hidden="true">→</span>
+        <ResizeHandle label="문서 링크 카드 너비 조절" widthPx={width ?? 0} onMouseDown={startResize} />
       </button>
     </NodeViewWrapper>
   );
@@ -442,7 +631,9 @@ const DocumentLink = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return { pageId: { default: null }, title: { default: "" } };
+    // P18-2: width는 사용자가 우측 경계를 드래그해 조절한 카드 너비(px)를 저장한다
+    // — 지정하지 않으면(null) 기존과 같은 100% 폭 카드로 보인다(하위 호환).
+    return { pageId: { default: null }, title: { default: "" }, width: { default: null } };
   },
   parseHTML() {
     return [
@@ -451,6 +642,9 @@ const DocumentLink = Node.create({
         getAttrs: (el) => ({
           pageId: (el as HTMLElement).getAttribute("data-page-id"),
           title: (el as HTMLElement).getAttribute("data-title"),
+          width: (el as HTMLElement).getAttribute("data-width")
+            ? Number((el as HTMLElement).getAttribute("data-width"))
+            : null,
         }),
       },
     ];
@@ -462,6 +656,7 @@ const DocumentLink = Node.create({
         "data-document-link": "true",
         "data-page-id": node.attrs.pageId,
         "data-title": node.attrs.title,
+        ...(node.attrs.width ? { "data-width": node.attrs.width } : {}),
         href: `/editor/${node.attrs.pageId}`,
         class: "document-link-card",
       },

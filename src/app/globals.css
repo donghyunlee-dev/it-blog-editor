@@ -188,6 +188,7 @@ body {
 
 /* 문서 링크 카드(P10-1) — 노션의 "하위 페이지 링크" 블록에 대응. */
 .document-link-card {
+  position: relative; /* P18-2: 크기 조절 핸들의 absolute 위치 기준 */
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -213,6 +214,61 @@ body {
   white-space: nowrap;
   text-overflow: ellipsis;
   font-weight: 500;
+}
+
+/*
+ * P18-2(사용자 지적 — "resize에 대한 기능이 없어 ... 무조건 editor의 가로 full
+ * 사이즈로 설정이 돼. 컴포넌트의 오른쪽 하단이나 우측 경계에 사이즈 조절하는 바가
+ * 있어서 ... 사이즈 조절을 하면 좋을 것 같아"): 이미지·문서 링크 카드 공용 크기
+ * 조절 핸들 스타일. 이미지는 `<span class="resizable-node">`로 감싸 `<img>`가
+ * `display:inline-block`인 이 래퍼의 크기에 맞춰지게 하고, 문서 링크 카드는
+ * `.document-link-card` 자체가 이미 이 핸들의 위치 기준(position: relative)이라
+ * 별도 래퍼가 필요 없다. 평소에는 안 보이다가 마우스를 올리거나 포커스가 갔을
+ * 때만 나타나 — 다른 인터랙티브 요소를 실수로 가리지 않는다(표 컬럼 리사이즈
+ * 손잡이(`.column-resize-handle`)는 항상 보이는데, 그건 표 조작 중에만 나타나는
+ * 컨텍스트라 항상 노출돼도 걸리적거리지 않는다는 차이가 있다).
+ */
+.resizable-node {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.resizable-node img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.node-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 8px;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity var(--motion-fast, 100ms ease);
+}
+
+.node-resize-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px;
+  height: 32px;
+  max-height: 60%;
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-brand);
+}
+
+.resizable-node:hover .node-resize-handle,
+.node-resize-handle:focus-visible,
+.document-link-card:hover .node-resize-handle,
+.document-link-card:focus-within .node-resize-handle {
+  opacity: 1;
 }
 
 .ProseMirror table {
