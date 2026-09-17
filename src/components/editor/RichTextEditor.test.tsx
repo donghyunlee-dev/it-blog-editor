@@ -3,7 +3,7 @@ import { createEvent, fireEvent, render, screen, waitFor } from "@testing-librar
 import { ToastProvider } from "@sfood/ui";
 import type { Editor, Range } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/react";
-import { RichTextEditor, createImageSlashItem, createDocumentLinkSlashItem } from "./RichTextEditor";
+import { RichTextEditor, createImageSlashItem, createDocumentLinkSlashItem, clampResizeWidth } from "./RichTextEditor";
 import * as imageUpload from "@/lib/editor/image-upload";
 
 // P10-1(문서 링크 카드)의 NodeView가 next/navigation의 useRouter를 쓴다 — AppRouterContext
@@ -1556,6 +1556,105 @@ describe("RichTextEditor 이미지 삭제/다시 업로드(P17-8)", () => {
 
     await waitFor(() => expect(screen.getByText("업로드 실패!")).toBeInTheDocument());
     expect(container.querySelector(".ProseMirror img")).toHaveAttribute("src", "https://example.com/old.png");
+  });
+});
+
+describe("clampResizeWidth(P18-2)", () => {
+  it("최소 너비보다 작으면 최소 너비로 잘린다", () => {
+    expect(clampResizeWidth(10, 720)).toBe(100);
+  });
+
+  it("최대 너비보다 크면 최대 너비로 잘린다", () => {
+    expect(clampResizeWidth(2000, 720)).toBe(720);
+  });
+
+  it("범위 안이면 그대로(반올림해) 반환한다", () => {
+    expect(clampResizeWidth(300.4, 720)).toBe(300);
+  });
+
+  it("최대 너비 자체가 최소 너비보다 작으면 최소 너비를 우선한다", () => {
+    expect(clampResizeWidth(50, 40)).toBe(100);
+  });
+});
+
+describe("RichTextEditor 이미지/문서 링크 카드 크기 조절(P18-2)", () => {
+  it("저장된 width/height가 있으면 이미지에 인라인 스타일로 반영된다", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [
+              {
+                type: "image",
+                attrs: { src: "https://example.com/photo.png", filename: "photo.png", width: 320, height: 160 },
+              },
+            ],
+          }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    const img = container.querySelector(".ProseMirror img") as HTMLImageElement;
+    expect(img.style.width).toBe("320px");
+    expect(img.style.height).toBe("160px");
+  });
+
+  it("width/height가 저장돼 있지 않은 기존 이미지는 인라인 스타일이 없다(하위 호환)", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "image", attrs: { src: "https://example.com/photo.png", filename: "photo.png" } }],
+          }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    const img = container.querySelector(".ProseMirror img") as HTMLImageElement;
+    expect(img.style.width).toBe("");
+    expect(img.style.height).toBe("");
+  });
+
+  it("저장된 width가 있으면 문서 링크 카드에 인라인 스타일로 반영된다", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "documentLink", attrs: { pageId: "target-doc", title: "연결된 문서", width: 400 } }],
+          }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    const card = container.querySelector(".document-link-card") as HTMLElement;
+    expect(card.style.width).toBe("400px");
+  });
+
+  it("width가 저장돼 있지 않은 기존 카드는 인라인 스타일이 없다(하위 호환, 기존 100% 폭 CSS 유지)", () => {
+    const { container } = render(
+      <ToastProvider>
+        <RichTextEditor
+          content={{
+            type: "doc",
+            content: [{ type: "documentLink", attrs: { pageId: "target-doc", title: "연결된 문서" } }],
+          }}
+          onChange={vi.fn()}
+          pageId="doc-1"
+        />
+      </ToastProvider>
+    );
+
+    const card = container.querySelector(".document-link-card") as HTMLElement;
+    expect(card.style.width).toBe("");
   });
 });
 
