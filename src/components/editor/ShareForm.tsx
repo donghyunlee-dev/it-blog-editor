@@ -28,8 +28,8 @@ async function errorMessageOf(response: Response, fallback: string) {
 
 /**
  * 문서 공유 팝업 내용(P6-2/P6-3). `DocumentEditor.tsx`가 `Modal`로 감싸서 쓴다
- * (`PublishForm.tsx`/`VersionHistory.tsx`와 같은 관례 — 이 컴포넌트는 Modal을 소유하지
- * 않는다). 이름·이메일·팀 검색(디바운스, P5-7의 검색 API 재사용)으로 대상을 찾아 추가하고,
+ * (`PublishForm.tsx`와 같은 관례 — 이 컴포넌트는 Modal을 소유하지 않는다). 이름·이메일·팀
+ * 검색(디바운스, P5-7의 검색 API 재사용)으로 대상을 찾아 추가하고,
  * 이미 공유된 대상은 목록에서 바로 제거할 수 있다.
  */
 export function ShareForm({ pageId, initialSharedWith }: ShareFormProps) {

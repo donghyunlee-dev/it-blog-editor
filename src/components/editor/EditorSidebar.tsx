@@ -10,7 +10,6 @@ import { AccountInfoModal } from "./AccountInfoModal";
 import { FolderFormModal, type FolderFormMode } from "./FolderFormModal";
 import { MoveDocumentModal } from "./MoveDocumentModal";
 import { useUnsavedChanges } from "./UnsavedChangesContext";
-import { VersionHistory } from "./VersionHistory";
 import { formatAccountLabel } from "@/lib/account-display";
 import type { DocumentSummary, SharedDocumentSummary } from "@/lib/editor/documents";
 import type { FolderNode } from "@/lib/editor/folders";
@@ -429,11 +428,9 @@ export function EditorSidebar({
   // "이동" 메뉴/모달로만 구현한다(prd.md Phase 7 핵심 결정).
   const [moveDocumentTarget, setMoveDocumentTarget] = useState<DocumentSummary | null>(null);
 
-  // P14-2: "이력"·"삭제"가 에디터 헤더에서 사이드바 문서 옵션(⋯) 메뉴로 옮겨오면서, 그
-  // 대상 문서를 담는 상태도 함께 옮겨온다(moveDocumentTarget과 같은 패턴).
-  const [historyDocumentTarget, setHistoryDocumentTarget] = useState<DocumentSummary | null>(
-    null
-  );
+  // P14-2: "삭제"가 에디터 헤더에서 사이드바 문서 옵션(⋯) 메뉴로 옮겨오면서, 그 대상
+  // 문서를 담는 상태도 함께 옮겨온다(moveDocumentTarget과 같은 패턴). "이력"은 P19-1부터
+  // Modal이 아니라 `/editor/history/{pageId}` 페이지로 이동하므로 대상 상태가 필요 없다.
   const [deleteDocumentTarget, setDeleteDocumentTarget] = useState<DocumentSummary | null>(null);
   const [deletingDocument, setDeletingDocument] = useState(false);
 
@@ -857,7 +854,7 @@ export function EditorSidebar({
     items.push({
       label: "이력",
       icon: <HistoryIcon />,
-      onClick: () => setHistoryDocumentTarget(document),
+      onClick: () => router.push(`/editor/history/${document.pageId}`),
     });
     items.push({
       label: "삭제",
@@ -1454,16 +1451,6 @@ export function EditorSidebar({
           onSaved={() => router.refresh()}
         />
       )}
-
-      {/* P14-2: 헤더의 "이력" 버튼이 열던 모달을 그대로 옮겨온다 — VersionHistory는
-          pageId만 있으면 스스로 데이터를 가져오므로 대상 문서만 바꿔 끼우면 된다. */}
-      <Modal
-        open={historyDocumentTarget !== null}
-        onClose={() => setHistoryDocumentTarget(null)}
-        title="문서 이력"
-      >
-        {historyDocumentTarget && <VersionHistory pageId={historyDocumentTarget.pageId} />}
-      </Modal>
 
       {/* P14-2: 헤더의 "삭제" 버튼이 열던 확인 모달과 같은 문구·버튼 구성을 그대로 옮겨온다. */}
       <Modal
