@@ -10,6 +10,7 @@ import {
   deleteDocument,
   getDocumentDetail,
   getDocumentVersionHistory,
+  getVersionDiff,
   listDocuments,
   listSharedDocuments,
   reassignDocumentsFolder,
@@ -1101,6 +1102,53 @@ describe("getDocumentVersionHistory", () => {
         author: null,
       },
     ]);
+  });
+});
+
+describe("getVersionDiff", () => {
+  it("버전 1은 이전 버전이 없어 null을 반환한다(P19-5)", async () => {
+    const diff = await getVersionDiff("doc-1", 1);
+    expect(diff).toBeNull();
+  });
+
+  it("현재 버전과 그 이전 버전의 순수 텍스트 diff를 반환한다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>안녕 세상</p>", representation: "storage" } },
+    });
+    const historicalSpy = vi
+      .spyOn(client, "getHistoricalPageBody")
+      .mockResolvedValue("<p>안녕</p>");
+
+    const diff = await getVersionDiff("doc-1", 2);
+
+    // 버전 2가 현재 버전이므로 그 본문은 getPage 결과를 그대로 쓰고, 이전 버전(1)만
+    // getHistoricalPageBody로 조회한다.
+    expect(historicalSpy).toHaveBeenCalledWith("doc-1", 1);
+    expect(historicalSpy).toHaveBeenCalledTimes(1);
+    expect(diff).toEqual([
+      { value: "안녕", added: false, removed: false },
+      { value: " 세상", added: true, removed: false },
+    ]);
+  });
+
+  it("존재하지 않는 버전(현재 버전보다 큼)이면 NotFoundError를 던진다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>내용</p>", representation: "storage" } },
+    });
+
+    await expect(getVersionDiff("doc-1", 5)).rejects.toThrow("존재하지 않는 버전입니다.");
   });
 });
 

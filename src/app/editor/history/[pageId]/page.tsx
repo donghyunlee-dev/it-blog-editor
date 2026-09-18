@@ -37,7 +37,7 @@ export default async function HistoryPage({ params }: HistoryPageProps) {
 
   return (
     <main>
-      <VersionHistoryPage initialVersions={versions} />
+      <VersionHistoryPage pageId={pageId} initialVersions={versions} />
     </main>
   );
 }
