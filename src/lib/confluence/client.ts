@@ -352,6 +352,25 @@ export async function listPageVersions(
   );
 }
 
+/**
+ * 과거 버전의 저장 형식(storage HTML) 본문을 조회한다(P19-5, 이력 diff용). v2 API의 버전
+ * 상세(`GET /api/v2/pages/{id}/versions/{n}`)는 메타데이터만 주고 본문을 포함하지 않아
+ * (실제 API로 확인), 본문을 볼 수 있는 v1 레거시 API(`?status=historical&version=n`)를
+ * 대신 쓴다. 현재(최신) 버전은 이 방식으로 조회하지 않는다 — 호출부(`getVersionDiff`)가
+ * `getPage`로 이미 갖고 있는 현재 버전 본문을 그대로 쓴다.
+ */
+export async function getHistoricalPageBody(
+  pageId: string,
+  version: number
+): Promise<string> {
+  const result = await confluenceRequest<{
+    body?: { storage?: { value: string } };
+  }>(
+    `/rest/api/content/${pageId}?status=historical&version=${version}&expand=body.storage`
+  );
+  return result.body?.storage?.value ?? "";
+}
+
 // ── Content Properties ────────────────────────────────
 
 export interface ConfluencePageProperty<T = unknown> {

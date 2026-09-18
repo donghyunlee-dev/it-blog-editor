@@ -10,6 +10,8 @@ import {
   deleteDocument,
   getDocumentDetail,
   getDocumentVersionHistory,
+  getVersionContent,
+  getVersionDiff,
   listDocuments,
   listSharedDocuments,
   reassignDocumentsFolder,
@@ -1101,6 +1103,105 @@ describe("getDocumentVersionHistory", () => {
         author: null,
       },
     ]);
+  });
+});
+
+describe("getVersionDiff", () => {
+  it("버전 1은 이전 버전이 없어 null을 반환한다(P19-5)", async () => {
+    const diff = await getVersionDiff("doc-1", 1);
+    expect(diff).toBeNull();
+  });
+
+  it("현재 버전과 그 이전 버전의 순수 텍스트 diff를 반환한다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>안녕 세상</p>", representation: "storage" } },
+    });
+    const historicalSpy = vi
+      .spyOn(client, "getHistoricalPageBody")
+      .mockResolvedValue("<p>안녕</p>");
+
+    const diff = await getVersionDiff("doc-1", 2);
+
+    // 버전 2가 현재 버전이므로 그 본문은 getPage 결과를 그대로 쓰고, 이전 버전(1)만
+    // getHistoricalPageBody로 조회한다.
+    expect(historicalSpy).toHaveBeenCalledWith("doc-1", 1);
+    expect(historicalSpy).toHaveBeenCalledTimes(1);
+    expect(diff).toEqual([
+      { value: "안녕", added: false, removed: false },
+      { value: " 세상", added: true, removed: false },
+    ]);
+  });
+
+  it("존재하지 않는 버전(현재 버전보다 큼)이면 NotFoundError를 던진다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>내용</p>", representation: "storage" } },
+    });
+
+    await expect(getVersionDiff("doc-1", 5)).rejects.toThrow("존재하지 않는 버전입니다.");
+  });
+});
+
+describe("getVersionContent", () => {
+  it("현재 버전이면 getPage의 본문을 그대로 반환한다(추가 조회 없음)", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>현재 내용</p>", representation: "storage" } },
+    });
+    const historicalSpy = vi.spyOn(client, "getHistoricalPageBody");
+
+    const html = await getVersionContent("doc-1", 2);
+
+    expect(html).toBe("<p>현재 내용</p>");
+    expect(historicalSpy).not.toHaveBeenCalled();
+  });
+
+  it("과거 버전이면 getHistoricalPageBody로 조회한다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 3, createdAt: "" },
+      body: { storage: { value: "<p>현재 내용</p>", representation: "storage" } },
+    });
+    vi.spyOn(client, "getHistoricalPageBody").mockResolvedValue("<p>과거 내용</p>");
+
+    const html = await getVersionContent("doc-1", 1);
+
+    expect(html).toBe("<p>과거 내용</p>");
+    expect(client.getHistoricalPageBody).toHaveBeenCalledWith("doc-1", 1);
+  });
+
+  it("존재하지 않는 버전이면 NotFoundError를 던진다", async () => {
+    vi.spyOn(client, "getPage").mockResolvedValue({
+      id: "doc-1",
+      status: "current",
+      title: "제목",
+      spaceId: "space-1",
+      parentId: "folder-1",
+      version: { number: 2, createdAt: "" },
+      body: { storage: { value: "<p>내용</p>", representation: "storage" } },
+    });
+
+    await expect(getVersionContent("doc-1", 9)).rejects.toThrow("존재하지 않는 버전입니다.");
   });
 });
 

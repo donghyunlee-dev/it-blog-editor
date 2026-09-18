@@ -1,11 +1,13 @@
 import { randomUUID } from "crypto";
 import { cache } from "react";
+import { diffWordsWithSpace } from "diff";
 import {
   ConfluenceApiError,
   createPage,
   deletePage,
   deletePageProperty,
   getConfiguredSpace,
+  getHistoricalPageBody,
   getPage,
   getPageProperty,
   listChildPages,
@@ -718,4 +720,88 @@ export async function getDocumentVersionHistory(
     isCurrent: version.number === maxNumber,
     author: version.message?.trim() ? version.message : null,
   }));
+}
+
+/**
+ * Confluence 저장 형식(storage HTML)을 diff 비교용 순수 텍스트로 바꾼다(P19-5). 서식·구조
+ * (표·이미지·매크로 등)는 버리고 텍스트 내용만 비교하기로 결정했다(task.md 참고) — 블록
+ * 요소 경계에서만 줄바꿈을 넣어 문단 단위로는 diff가 읽히게 한다.
+ */
+function storageHtmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|tr|blockquote|pre)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export interface VersionDiffPart {
+  value: string;
+  added?: boolean;
+  removed?: boolean;
+}
+
+/**
+ * 특정 버전과 바로 이전 버전 사이의 순수 텍스트 diff를 계산한다(P19-5). 되돌리기 등 쓰기
+ * 동작은 없다(P1-2a 범위 유지). 첫 번째 버전(1)은 비교 대상이 없어 `null`을 반환한다.
+ *
+ * 편집 원본(sourceDocument property)은 과거 버전을 보관하지 않아(실제 API로 확인,
+ * task.md 참고) 저장 형식(storage HTML)을 버전별로 조회해 비교한다 — 현재(최신) 버전은
+ * 이미 조회해 둔 `current.body`를 그대로 쓰고, 그 외에는 `getHistoricalPageBody`로 과거
+ * 버전 본문을 별도 조회한다.
+ */
+export async function getVersionDiff(
+  pageId: string,
+  versionNumber: number
+): Promise<VersionDiffPart[] | null> {
+  if (versionNumber <= 1) {
+    return null;
+  }
+
+  const current = await getPageOrThrow(pageId);
+  if (versionNumber > current.version.number) {
+    throw new NotFoundError("존재하지 않는 버전입니다.");
+  }
+
+  const previousNumber = versionNumber - 1;
+  const currentBody = current.body?.storage.value ?? "";
+  const [oldHtml, newHtml] = await Promise.all([
+    previousNumber === current.version.number
+      ? Promise.resolve(currentBody)
+      : getHistoricalPageBody(pageId, previousNumber),
+    versionNumber === current.version.number
+      ? Promise.resolve(currentBody)
+      : getHistoricalPageBody(pageId, versionNumber),
+  ]);
+
+  return diffWordsWithSpace(
+    storageHtmlToPlainText(oldHtml),
+    storageHtmlToPlainText(newHtml)
+  ).map((part) => ({ value: part.value, added: part.added, removed: part.removed }));
+}
+
+/**
+ * 특정 버전의 저장 형식(storage HTML) 본문을 그대로 반환한다(P19-6, 복원용). 변환(storage
+ * HTML → TipTap JSON)은 브라우저의 `DOMParser`가 필요해 클라이언트에서 한다 — 이 함수는
+ * 원본 HTML만 내려준다. `getVersionDiff`와 같은 현재/과거 버전 판단 로직을 쓴다.
+ */
+export async function getVersionContent(
+  pageId: string,
+  versionNumber: number
+): Promise<string> {
+  const current = await getPageOrThrow(pageId);
+  if (versionNumber < 1 || versionNumber > current.version.number) {
+    throw new NotFoundError("존재하지 않는 버전입니다.");
+  }
+  if (versionNumber === current.version.number) {
+    return current.body?.storage.value ?? "";
+  }
+  return getHistoricalPageBody(pageId, versionNumber);
 }
