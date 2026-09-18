@@ -184,6 +184,9 @@ export function VersionHistoryPage({
     <div className="flex justify-center px-6">
       <div className="flex w-full max-w-[830px] flex-col gap-6 py-10">
         <div>
+          {/* 사용자 지적 — "이 문서의 이력이라고만 하니까 알 수가 없어" — 어떤 문서를 보고
+              있는지 알 수 있도록 상단에 제목을 함께 보여준다. */}
+          <p className="text-sm font-medium text-muted">{currentTitle || "(제목 없음)"}</p>
           <h1 className="text-2xl font-bold text-foreground">문서 이력</h1>
           <p className="mt-1 text-sm text-muted">
             이 문서에 저장된 버전 이력입니다.

@@ -56,6 +56,8 @@ describe("VersionHistoryPage", () => {
     expect(screen.getByText("버전 2")).toBeInTheDocument();
     expect(screen.getByText("버전 1")).toBeInTheDocument();
     expect(screen.getByText("현재 버전")).toBeInTheDocument();
+    // 사용자 지적 — "이 문서의 이력이라고만 하니까 알 수가 없어" — 상단에 문서 제목을 보여준다.
+    expect(screen.getByText("문서 제목")).toBeInTheDocument();
     // P19-4: 버전 코멘트가 있으면 작성자를, 없으면(이 기능 이전에 저장된 버전) 안내 문구를 보여준다.
     expect(screen.getByText("김철수(editor@s-food.com)")).toBeInTheDocument();
     expect(screen.getByText("작성자 정보 없음")).toBeInTheDocument();
@@ -65,6 +67,12 @@ describe("VersionHistoryPage", () => {
     renderPage({ initialVersions: [] });
 
     expect(screen.getByText("버전 이력이 없습니다.")).toBeInTheDocument();
+  });
+
+  it("제목이 없으면(빈 문자열) 대체 문구를 보여준다", () => {
+    renderPage({ initialVersions: [], currentTitle: "" });
+
+    expect(screen.getByText("(제목 없음)")).toBeInTheDocument();
   });
 
   it("버전 1(최초 버전)에는 '변경 내용 보기' 버튼이 없다(P19-5 — 비교할 이전 버전이 없음)", () => {
