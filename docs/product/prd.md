@@ -6,7 +6,13 @@
 
 
 
-> 전체 진행률: 130 / 130 항목 완료(Phase 18 신설로 분모 +2) (최근 갱신: 2026-09-17 —
+> 전체 진행률: 131 / 131 항목 완료(Phase 19 신설로 분모 +1) (최근 갱신: 2026-09-18 —
+**P19-3**(문서 이력 조회 시 버전 50개/댓글 100개를 넘는 문서에서 페이지네이션이 404로
+깨지던 버그 수정 — 실사용 검증 중 발견. Confluence v2 API의 `_links.next`가 이미
+`CONFLUENCE_BASE_URL`의 path(`/wiki`)를 포함한 절대 경로로 오는데, 그대로 이어붙여
+"/wiki"가 두 번 겹치는 URL을 만든 것이 원인이었다. 실제 Confluence 인스턴스로 직접
+확인해 원인을 특정하고, 같은 패턴을 쓰는 두 함수(`listPageVersions`/
+`listFooterComments`)를 함께 고쳤다). 이전 갱신: 2026-09-17 —
 **P18-2**(이미지/문서 링크 카드 크기 조절 — "resize에 대한 기능이 없어 ... 무조건
 editor의 가로 full 사이즈로 설정이 돼"라는 지적에 대응. 두 노드 모두 우측 경계
 드래그 핸들로 너비를 조절하게 했고(이미지는 종횡비 유지, 카드는 너비만), 실사용
@@ -572,6 +578,19 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   이미지 자유 비율 조절(가로세로 각각 따로 — 항상 원본 종횡비 유지), 크기 조절 핸들의
   키보드 조작(마우스 드래그만 지원 — 대부분의 편집기가 같은 범위로 다룬다).
 
+### Phase 19 — 문서 이력 화면 개선 (신규, 2026-09-18 계획)
+- 배경: 사용자 지적 — "히스토리를 보는 방법이 팝업이라서 리스트가 안 보이는 문제가
+  있어. 삭제된 문서처럼, 히스토리도 팝업이 아닌 페이지에 리스트를 보여주는 방식으로
+  변경해야 해." 함께 "페이지를 간단히 수정을 하더라도 30초마다 저장을 해서 히스토리가
+  많이 쌓여"라는 지적도 있었다. 이 절은 P19-3(실사용 검증 중 발견한 버그 수정)만
+  다룬다 — P19-1(이력 전용 페이지 전환)·P19-2(저장 dedup)는 별도 브랜치에서 진행 중이다.
+- P19-3 배경: P19-1 실사용 검증 중 버전이 57개인 실제 문서에서 이력 페이지가
+  404 오류로 크래시했다. 원인 조사 결과 Confluence v2 API의 페이지네이션 커서가
+  `CONFLUENCE_BASE_URL`의 path(`/wiki`)를 중복시키는 URL을 만들고 있었다(아래 체크리스트
+  항목 설명 참고).
+- 진행 방식: Phase 5~18과 동일 — 항목마다 4파일(task/plan/result/test)을 만들고 개별
+  PR로 머지·확인 후 다음 항목을 진행한다.
+
 ## ✅ 단계별 진행 체크리스트
 
 ### Phase 0 — 기존 스캐폴딩 (완료)
@@ -1028,6 +1047,20 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx,
   src/app/globals.css
 
+### Phase 19 — 문서 이력 화면 개선 (신규, 2026-09-18 계획)
+목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 19 절 참고.
+
+- [x] (완료, P19-3) 문서 이력 조회 시 버전 50개/댓글 100개를 넘는 문서에서
+  페이지네이션이 404로 깨지던 버그 수정 — P19-1(이력 전용 페이지) 실사용 검증 중
+  버전 57개짜리 실제 문서에서 발견했다. Confluence v2 API의 `_links.next`가 이미
+  `CONFLUENCE_BASE_URL`의 path(`/wiki`)를 포함한 절대 경로로 오는데, `confluenceRequest`가
+  이를 그대로 `baseUrl + path`로 이어붙여 "/wiki"가 두 번 겹치는 잘못된 URL(404)을
+  만들고 있었다 — 실제 Confluence 인스턴스로 직접 API를 호출해 원인을 확인했다.
+  `stripBaseUrlPathPrefix` 헬퍼로 baseUrl의 path 접두사를 제거하도록
+  `listPageVersions`/`listFooterComments`(같은 패턴을 쓰는 댓글 페이지네이션)를 고쳤다.
+  v1 API를 쓰는 `listChildPages`는 이 버그가 없음을 실제 API로 확인해 그대로 뒀다.
+  산출물: `docs/superpowers/tasks/P19-3-confluence-versions-pagination/{task,plan,result,test}.md`,
+  src/lib/confluence/client.ts, src/lib/confluence/client.test.ts
 
 
 ## 🗄️ 데이터 저장 여부
