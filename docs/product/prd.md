@@ -7,7 +7,13 @@
 
 
 
-> 전체 진행률: 131 / 132 항목 완료(Phase 19 신설로 분모 +1) (최근 갱신: 2026-09-18 —
+> 전체 진행률: 132 / 133 항목 완료(Phase 19 신설, P19-5/P19-6 진행 예정으로 분모 계속 증가
+중) (최근 갱신: 2026-09-18 — **P19-4**(문서 이력에 저장한 사람 표시 — Confluence
+`version.authorId`는 이 앱의 모든 API 호출이 서비스 계정 하나로만 이루어져 실제 편집자와
+무관하게 항상 같은 값이라는 것을 실제 API로 확인하고, 대신 버전 코멘트(`version.message`,
+지금까지 항상 비어있었음)에 저장자 표시 정보를 실어 보내도록 고쳤다. 이 기능 적용 이후
+저장되는 버전부터만 작성자가 남고, 과거 버전은 소급되지 않아 "작성자 정보 없음"으로
+표시된다 — 사용자에게 이 한계를 설명하고 진행 확인받음). 이전 갱신: 2026-09-18 —
 **P19-3**(문서 이력 조회 시 버전 50개/댓글 100개를 넘는 문서에서 페이지네이션이 404로
 깨지던 버그 수정 — 실사용 검증 중 발견. Confluence v2 API의 `_links.next`가 이미
 `CONFLUENCE_BASE_URL`의 path(`/wiki`)를 포함한 절대 경로로 오는데, 그대로 이어붙여
@@ -585,30 +591,41 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
 - 배경: 사용자 지적 — "히스토리를 보는 방법이 팝업이라서 리스트가 안 보이는 문제가
   있어. 삭제된 문서처럼, 히스토리도 팝업이 아닌 페이지에 리스트를 보여주는 방식으로
   변경해야 해." 함께 "페이지를 간단히 수정을 하더라도 30초마다 저장을 해서 히스토리가
-
-  많이 쌓여"라는 지적도 있었다. 이 절은 P19-3(실사용 검증 중 발견한 버그 수정)만
-  다룬다 — P19-1(이력 전용 페이지 전환)·P19-2(저장 dedup)는 별도 브랜치에서 진행 중이다.
-- P19-3 배경: P19-1 실사용 검증 중 버전이 57개인 실제 문서에서 이력 페이지가
-  404 오류로 크래시했다. 원인 조사 결과 Confluence v2 API의 페이지네이션 커서가
-  `CONFLUENCE_BASE_URL`의 path(`/wiki`)를 중복시키는 URL을 만들고 있었다(아래 체크리스트
-  항목 설명 참고).
-- 진행 방식: Phase 5~18과 동일 — 항목마다 4파일(task/plan/result/test)을 만들고 개별
-  PR로 머지·확인 후 다음 항목을 진행한다.
-
-- 원인 조사 결과: 자동저장 주기는 실제로는 60초(1분, P0-1b)이고 `performAutosave`는
-  이미 dirty 플래그가 없으면 저장을 건너뛴다 — 하지만 dirty는 어떤 입력이든 있으면
-  true가 되므로, 최종 내용이 직전 저장본과 완전히 같아져도(예: 입력 후 되돌리기) 새
-  Confluence 버전이 그대로 생성된다.
+  많이 쌓여"라는 지적도 있었다. P19-1 실사용 검증 중 버전 57개짜리 실제 문서에서 이력
+  페이지가 404로 크래시하는 별개 버그(P19-3)를 발견해 먼저 고쳤고, 그 뒤 "히스토리에
+  버전 숫자만 나오는데 더 보여줄 정보가 없냐"는 후속 질문에 답하며 작성자 표시(P19-4)·
+  변경 내용 diff(P19-5)·특정 버전 복원(P19-6)을 추가로 계획해 순차 진행하기로 했다.
+- 원인 조사 결과:
+  - 자동저장 주기는 실제로는 60초(1분, P0-1b)이고 `performAutosave`는 이미 dirty
+    플래그가 없으면 저장을 건너뛴다 — 하지만 dirty는 어떤 입력이든 있으면 true가
+    되므로, 최종 내용이 직전 저장본과 완전히 같아져도(예: 입력 후 되돌리기) 새
+    Confluence 버전이 그대로 생성된다(P19-2).
+  - P19-3: Confluence v2 API의 페이지네이션 커서가 `CONFLUENCE_BASE_URL`의 path
+    (`/wiki`)를 중복시키는 URL을 만들고 있었다(체크리스트 항목 설명 참고).
+  - P19-4: Confluence `version.authorId`는 이 앱의 모든 API 호출이 서비스 계정
+    하나로만 이루어져 실제 편집자와 무관하게 항상 같은 값이다(실제 API로 확인) — 버전
+    코멘트(`version.message`)를 대신 활용해야 한다.
+  - P19-6: 편집 원본(TipTap JSON)은 Confluence content property로 저장되는데, 이
+    property는 과거 버전을 보관하지 않는다(`?version=N`으로 직접 확인 — 항상 현재 값만
+    돌아옴). 반면 저장 형식(storage HTML) 본문은 버전별로 조회 가능하다 — 복원은 이
+    HTML을 역변환하는 방식으로만 가능하고, "문서 링크 카드"는 저장 시점에 원본 문서
+    ID를 알아볼 수 없는 텍스트로만 남도록 의도적으로 한쪽 방향만 구현돼 있어(P18-2)
+    복원해도 카드가 아니라 안내 텍스트로만 돌아온다(사용자 확인).
 - 핵심 결정(사용자 확인, 2026-09-18): (1) "이력"을 "삭제된 문서"(P16-1)와 같은 방식으로
   Modal → 전용 페이지(`/editor/history/[pageId]`)로 전환하고 트래시 페이지와 동일한
-  패턴(서버 프리페치, `EmptyState`, 카드형 리스트, 페이지네이션 없음)을 따른다. (2)
-  자동저장 주기(60초)는 바꾸지 않고, 대신 저장 시 직전 저장본과 내용이 완전히 같으면
-  새 버전을 만들지 않는(dedup) 방식으로 히스토리 증가를 줄인다.
+  패턴(서버 프리페치, `EmptyState`, 카드형 리스트, 페이지네이션 없음)을 따른다(P19-1).
+  (2) 자동저장 주기(60초)는 바꾸지 않고, 대신 저장 시 직전 저장본과 내용이 완전히 같으면
+  새 버전을 만들지 않는(dedup) 방식으로 히스토리 증가를 줄인다(P19-2). (3) 작성자는
+  버전 코멘트 방식으로, 적용 이후 버전부터만 표시하고 과거 버전은 소급하지 않는다
+  (P19-4). (4) 변경 내용은 순수 텍스트 diff로, 바로 이전 버전과 비교만 지원한다(P19-5).
+  (5) 복원은 새 버전을 추가하는 비파괴적 방식이며, "문서 링크 카드"만 텍스트로
+  복원되는 한계를 감수하고 진행한다(P19-6).
 - 진행 방식: Phase 5~18과 동일 — 항목마다 4파일(task/plan/result/test)을 만들고 개별
   PR로 머지·확인 후 다음 항목을 진행한다.
 - 범위 밖: 자동저장 주기 자체 변경, 이미 쌓인 중복 버전의 소급 정리, 이력 페이지의
-  검색/필터(버전 항목엔 제목·태그가 없어 검색 대상이 없음), 버전 되돌리기(restore, P1-2a
-  때부터 범위 밖).
+  검색/필터(버전 항목엔 제목·태그가 없어 검색 대상이 없음), 과거 버전에 소급해서
+  작성자 정보를 채우는 것, 리치 텍스트 구조 수준의 diff(텍스트 diff만 지원), diff에서
+  일부 변경만 되돌리는 부분 복원.
 
 
 ## ✅ 단계별 진행 체크리스트
@@ -1093,6 +1110,17 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   src/app/editor/history/[pageId]/page.tsx, src/components/editor/VersionHistoryPage.tsx,
   src/components/editor/VersionHistoryPage.test.tsx, src/components/editor/EditorSidebar.tsx,
   src/components/editor/EditorSidebar.test.tsx, src/components/editor/ShareForm.tsx
+- [x] (완료, P19-4) 문서 이력에 저장한 사람 표시 — Confluence `version.authorId`는 이 앱의
+  모든 API 호출이 서비스 계정 하나로만 이루어져 실제 편집자와 무관하게 항상 같은 값이라는
+  것을 실제 API로 확인했다. 대신 지금까지 항상 비어있던 버전 코멘트(`version.message`)에
+  저장을 요청한 사람의 표시 정보(`formatAccountLabel`)를 실어 보내도록 `updateDocument`/
+  `updatePage`를 고쳤다. `DocumentVersion`에 `author` 필드를 추가하고 이력 화면에
+  표시한다 — 이 기능 적용 이후 저장되는 버전부터만 작성자가 남고, 과거 버전은 소급되지
+  않아 "작성자 정보 없음"으로 표시된다(사용자 확인). 산출물:
+  `docs/superpowers/tasks/P19-4-history-author/{task,plan,result,test}.md`,
+  src/lib/confluence/client.ts, src/lib/editor/documents.ts, src/lib/editor/documents.test.ts,
+  src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx,
+  src/app/api/editor/documents/[pageId]/versions/route.test.ts
 
 
 ## 🗄️ 데이터 저장 여부
