@@ -302,11 +302,24 @@ export interface ConfluencePageVersion {
 }
 
 /**
+ * `_links.next`는 origin 기준 절대 경로로 오는데, 이미 `CONFLUENCE_BASE_URL`의 path 부분
+ * (예: `/wiki`)을 포함하고 있다. `confluenceRequest`는 항상 `baseUrl + path`로 URL을
+ * 만들므로, 이 절대 경로를 그대로 넘기면 `/wiki`가 두 번 겹쳐 잘못된 URL(404)이 된다 —
+ * baseUrl의 path 접두사를 제거해 baseUrl 기준 상대 경로로 되돌린다(2026-09-18, 실사용 중
+ * 버전이 50개를 넘는 문서에서 발견된 버그).
+ */
+function stripBaseUrlPathPrefix(absolutePath: string): string {
+  const basePathname = new URL(getConfluenceConfig().baseUrl).pathname.replace(/\/$/, "");
+  if (basePathname && absolutePath.startsWith(basePathname)) {
+    return absolutePath.slice(basePathname.length);
+  }
+  return absolutePath;
+}
+
+/**
  * 페이지의 전체 버전 이력을 최신순으로 반환한다. Confluence Cloud REST API v2
- * 문서(`GET /api/v2/pages/{id}/versions`) 기준으로 구현했으나, 이 프로젝트에
- * 접근 가능한 실제 Confluence 인스턴스가 없어 응답 필드명·정렬 기본값을 실제로
- * 검증하지는 못했다(docs/superpowers/tasks/P1-2a-revision-history-view/task.md
- * 참고) — 그래서 서버가 주는 정렬에 의존하지 않고 클라이언트에서 직접 정렬한다.
+ * 문서(`GET /api/v2/pages/{id}/versions`) 기준으로 구현했다 — 서버가 주는 정렬에
+ * 의존하지 않고 클라이언트에서 직접 정렬한다.
  */
 export async function listPageVersions(
   pageId: string
@@ -322,7 +335,7 @@ export async function listPageVersions(
     }>(query);
 
     versions.push(...page.results);
-    cursor = page._links.next ?? null;
+    cursor = page._links.next ? stripBaseUrlPathPrefix(page._links.next) : null;
   } while (cursor);
 
   return versions.sort(
@@ -592,7 +605,9 @@ export async function listFooterComments(
     }>(query);
 
     comments.push(...page.results);
-    cursor = page._links.next ?? null;
+    // listPageVersions와 같은 이유(v2 API의 _links.next는 baseUrl의 path를 이미 포함한
+    // 절대 경로로 온다) — 100개를 넘는 댓글이 달린 문서에서 같은 버그가 재현될 수 있다.
+    cursor = page._links.next ? stripBaseUrlPathPrefix(page._links.next) : null;
   } while (cursor);
 
   return comments;

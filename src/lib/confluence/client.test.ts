@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, deletePageProperty, downloadAttachment, getCurrentConfluenceUser, listChildPages, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, uploadAttachment, listLabels } from "./client";
+import { addLabels, clearPageRestrictions, ConfluenceApiError, createPage, deletePageProperty, downloadAttachment, getCurrentConfluenceUser, listChildPages, listFooterComments, listPageVersions, movePage, PropertyVersionConflictError, removeLabel, replacePageBody, restrictPageToAccount, upsertPageProperty, uploadAttachment, listLabels } from "./client";
 
 const BASE_URL = "https://test.atlassian.net/wiki";
 
@@ -465,18 +465,20 @@ describe("confluenceRequest 재시도(P1-3)", () => {
 });
 
 describe("listPageVersions", () => {
-  it("_links.next 커서를 따라가며 모든 버전을 모은다", async () => {
+  it("_links.next 커서를 따라가며 모든 버전을 모은다(실제 Confluence처럼 next가 baseUrl의 /wiki를 포함한 절대 경로로 온다, 2026-09-18 회귀)", async () => {
     const fetchMock = vi.fn(async (url: string) => {
-      if (url.endsWith("/api/v2/pages/111/versions?limit=50")) {
+      if (url === `${BASE_URL}/api/v2/pages/111/versions?limit=50`) {
         return new Response(
           JSON.stringify({
             results: [{ number: 2, createdAt: "2026-08-27T00:00:00.000Z" }],
-            _links: { next: "/api/v2/pages/111/versions?cursor=abc" },
+            // 실제 Confluence 응답처럼 next가 이미 baseUrl의 path(/wiki)를 포함한다 —
+            // 그대로 baseUrl과 이어붙이면 "/wiki"가 중복돼 404가 난다(실사용 중 발견한 버그).
+            _links: { next: "/wiki/api/v2/pages/111/versions?cursor=abc" },
           }),
           { status: 200 }
         );
       }
-      if (url.endsWith("/api/v2/pages/111/versions?cursor=abc")) {
+      if (url === `${BASE_URL}/api/v2/pages/111/versions?cursor=abc`) {
         return new Response(
           JSON.stringify({
             results: [{ number: 1, createdAt: "2026-08-20T00:00:00.000Z" }],
@@ -514,6 +516,35 @@ describe("listPageVersions", () => {
     const versions = await listPageVersions("111");
 
     expect(versions.map((v) => v.number)).toEqual([3, 2, 1]);
+  });
+});
+
+describe("listFooterComments", () => {
+  it("_links.next 커서를 따라가며 모든 댓글을 모은다(listPageVersions와 같은 /wiki 접두사 중복 버그, 2026-09-18 회귀)", async () => {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === `${BASE_URL}/api/v2/pages/111/footer-comments?body-format=storage&limit=100`) {
+        return new Response(
+          JSON.stringify({
+            results: [{ id: "c1" }],
+            _links: { next: "/wiki/api/v2/pages/111/footer-comments?cursor=abc" },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url === `${BASE_URL}/api/v2/pages/111/footer-comments?cursor=abc`) {
+        return new Response(
+          JSON.stringify({ results: [{ id: "c2" }], _links: {} }),
+          { status: 200 }
+        );
+      }
+      throw new Error(`unexpected url: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const comments = await listFooterComments("111");
+
+    expect(comments).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 
