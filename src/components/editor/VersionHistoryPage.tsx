@@ -184,16 +184,13 @@ export function VersionHistoryPage({
     <div className="flex justify-center px-6">
       <div className="flex w-full max-w-[830px] flex-col gap-6 py-10">
         <div>
-          {/* 사용자 지적 — "이 문서의 이력이라고만 하니까 알 수가 없어" — 어떤 문서를 보고
-              있는지가 더 중요한 정보라, 문서 제목을 큰 제목으로 두고 "문서 이력"은 작은
-              라벨로 낮췄다(처음엔 반대로 둬서 "문서 이력"이 제목처럼 보인다는 재지적을
-              받음 — 폰트 크기·굵기가 더 큰 쪽이 시각적으로 "제목"으로 읽힌다). */}
-          <p className="text-sm font-medium text-muted">문서 이력</p>
-          <h1 className="text-2xl font-bold text-foreground">
+          {/* 사용자 재지적 — "문서 이력 타이틀은 타이틀로 돌려놔. 지금은 일반 텍스트
+              사이즈니까 메뉴명같지 않아." "문서 이력"을 화면 이름(제목)으로 크게 두고,
+              문서 제목은 그 아래 여백을 두고 강조해 보여준다. 부제("이 문서에 저장된
+              버전 이력입니다")는 정보량이 적어 요청대로 제거했다. */}
+          <h1 className="text-2xl font-bold text-foreground">문서 이력</h1>
+          <p className="mt-2 text-base font-semibold text-foreground">
             {currentTitle || "(제목 없음)"}
-          </h1>
-          <p className="mt-1 text-sm text-muted">
-            이 문서에 저장된 버전 이력입니다.
           </p>
         </div>
 
