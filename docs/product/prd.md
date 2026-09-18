@@ -7,8 +7,15 @@
 
 
 
-> 전체 진행률: 133 / 134 항목 완료(Phase 19 신설, P19-6 진행 예정으로 분모 계속 증가 중)
-(최근 갱신: 2026-09-18 — **P19-5**(문서 이력에서 버전 간 변경 내용(diff) 보기 — 편집
+> 전체 진행률: 134 / 134 항목 완료(Phase 19 신설로 분모 +6) (최근 갱신: 2026-09-18 —
+**P19-6**(문서 이력에서 특정 버전으로 복원 — 편집 원본·제목은 과거 버전을 보관하지
+않아 본문만 복원 대상으로 삼고, 저장 형식(storage HTML) → TipTap JSON 역변환기를
+새로 만들었다. 실제 Confluence 인스턴스의 진짜 문서로 검증하다, 실제 서비스가 이
+앱이 만들지 않는 추가 속성을 매크로 태그에 붙인다는 것을 발견해(합성 테스트로는
+못 잡음) 전처리 로직을 고치고 회귀 테스트를 추가했다. 표·이미지·강조 박스는 정상
+복원되고 "문서 링크 카드"만 텍스트로 복원된다는 한계를 사용자에게 확인받고
+진행했다). 이전 갱신: 2026-09-18 —
+**P19-5**(문서 이력에서 버전 간 변경 내용(diff) 보기 — 편집
 원본은 과거 버전을 보관하지 않지만 저장 형식(storage HTML) 본문은 버전별 조회가
 가능함을 실제 API로 확인해, 순수 텍스트로 바꿔 바로 이전 버전과 비교하는 diff를
 추가했다. 목록은 그대로 서버에서 미리 내려주되, diff는 펼칠 때만 온디맨드로 조회해
@@ -1138,6 +1145,25 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   src/app/api/editor/documents/[pageId]/versions/[version]/diff/route.ts,
   src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx,
   src/app/editor/history/[pageId]/page.tsx, package.json
+- [x] (완료, P19-6) 문서 이력에서 특정 버전으로 복원(되돌리기) — 편집 원본(sourceDocument
+  property)은 과거 버전을 보관하지 않고, 그 property의 title도 마찬가지라 제목은 복원
+  대상에서 뺐다(본문만 복원, 제목은 현재 값 유지). 저장 형식(storage HTML) → TipTap
+  JSON 역변환기(`storage-to-tiptap.ts`)를 새로 만들었다 — `@tiptap/core`의 `generateJSON`
+  이 브라우저 `DOMParser`가 필요해 변환은 클라이언트에서 하고, 변환 결과는 새 쓰기 API
+  없이 기존 저장 경로(`PUT /api/editor/documents/{pageId}`)를 그대로 재사용해 낙관적
+  동시성 검사·버전 코멘트(P19-4)를 다시 구현하지 않았다. 실제 Confluence 인스턴스의
+  진짜 문서로 검증하던 중, 실제 서비스가 이 앱이 절대 만들지 않는 추가 속성
+  (`ri:version-at-save`, `ac:schema-version`, `ac:macro-id`)을 매크로 태그에 붙인다는
+  것을 발견 — 합성 라운드트립 테스트로는 못 잡던 버그라 전처리 정규식을 태그 끝까지
+  관대하게 고치고 실제 형태 그대로 회귀 테스트를 추가했다. 표·코드 블록(언어 표시
+  제외)·이미지·강조 박스는 정상 복원되고, "문서 링크 카드"만 저장 형식 자체의 한계로
+  텍스트로 복원된다(사용자 확인). 복원 확인 `Modal`에 이 한계를 안내한다. 산출물:
+  `docs/superpowers/tasks/P19-6-history-restore/{task,plan,result,test}.md`,
+  src/lib/editor/documents.ts, src/lib/editor/documents.test.ts,
+  src/app/api/editor/documents/[pageId]/versions/[version]/content/route.ts,
+  src/components/editor/RichTextEditor.tsx, src/lib/editor/storage-to-tiptap.ts,
+  src/lib/editor/storage-to-tiptap.test.tsx, src/app/editor/history/[pageId]/page.tsx,
+  src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx
 
 
 ## 🗄️ 데이터 저장 여부
