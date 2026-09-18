@@ -1074,6 +1074,36 @@ describe("getDocumentDetail", () => {
   });
 });
 
+describe("getDocumentVersionHistory", () => {
+  it("버전 코멘트(message)가 있으면 작성자로, 없으면(빈 문자열) null로 매핑한다(P19-4)", async () => {
+    vi.spyOn(client, "listPageVersions").mockResolvedValue([
+      {
+        number: 2,
+        createdAt: "2026-09-18T00:00:00.000Z",
+        message: "김철수(editor@s-food.com)",
+      },
+      { number: 1, createdAt: "2026-09-14T00:00:00.000Z", message: "" },
+    ]);
+
+    const versions = await getDocumentVersionHistory("doc-1");
+
+    expect(versions).toEqual([
+      {
+        number: 2,
+        createdAt: "2026-09-18T00:00:00.000Z",
+        isCurrent: true,
+        author: "김철수(editor@s-food.com)",
+      },
+      {
+        number: 1,
+        createdAt: "2026-09-14T00:00:00.000Z",
+        isCurrent: false,
+        author: null,
+      },
+    ]);
+  });
+});
+
 describe("updateDocument", () => {
   it("버전이 일치하면 doc을 갱신한다", async () => {
     vi.spyOn(client, "getPage").mockResolvedValue({
@@ -1124,8 +1154,10 @@ describe("updateDocument", () => {
     );
     // P0-7: Confluence 페이지의 실제 title(내부 고유키)은 생성 이후 절대 바뀌지 않는다 —
     // 기존 title("제목")을 그대로 다시 보내지, 사용자가 입력한 "새 제목"을 보내지 않는다.
+    // P19-4: version.authorId는 서비스 계정 고정값이라 쓸 수 없어, 저장자 표시를 버전
+    // 코멘트(message)에 실어 보낸다.
     expect(client.updatePage).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "제목" })
+      expect.objectContaining({ title: "제목", message: "김철수(editor@s-food.com)" })
     );
     // P6-7: 저장 성공 시 sharingMeta.lastEditedBy를 저장자로 갱신하고, 그 값을 응답에도 포함한다.
     expect(result).toEqual({

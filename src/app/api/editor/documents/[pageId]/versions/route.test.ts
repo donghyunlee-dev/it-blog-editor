@@ -27,8 +27,8 @@ describe("GET /api/editor/documents/[pageId]/versions", () => {
   it("문서의 버전 이력을 반환한다", async () => {
     vi.mocked(requireSessionEmail).mockResolvedValue("user@s-food.com");
     vi.mocked(getDocumentVersionHistory).mockResolvedValue([
-      { number: 2, createdAt: "2026-08-27T00:00:00.000Z", isCurrent: true },
-      { number: 1, createdAt: "2026-08-20T00:00:00.000Z", isCurrent: false },
+      { number: 2, createdAt: "2026-08-27T00:00:00.000Z", isCurrent: true, author: null },
+      { number: 1, createdAt: "2026-08-20T00:00:00.000Z", isCurrent: false, author: null },
     ]);
 
     const request = new Request(
@@ -42,8 +42,8 @@ describe("GET /api/editor/documents/[pageId]/versions", () => {
     expect(vi.mocked(getDocumentVersionHistory)).toHaveBeenCalledWith("doc-1");
     expect(body).toEqual({
       versions: [
-        { number: 2, createdAt: "2026-08-27T00:00:00.000Z", isCurrent: true },
-        { number: 1, createdAt: "2026-08-20T00:00:00.000Z", isCurrent: false },
+        { number: 2, createdAt: "2026-08-27T00:00:00.000Z", isCurrent: true, author: null },
+        { number: 1, createdAt: "2026-08-20T00:00:00.000Z", isCurrent: false, author: null },
       ],
     });
   });

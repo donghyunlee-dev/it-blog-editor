@@ -46,9 +46,16 @@ export function VersionHistoryPage({ initialVersions }: VersionHistoryPageProps)
                 key={version.number}
                 className="flex items-center justify-between gap-4 rounded-card border border-border p-4"
               >
-                <span className="text-sm font-medium text-foreground">
-                  버전 {version.number}
-                </span>
+                <div>
+                  <span className="text-sm font-medium text-foreground">
+                    버전 {version.number}
+                  </span>
+                  {/* P19-4: 이 버전을 저장한 사람 — 이 기능 적용 이전에 저장된 버전은
+                      author가 없어(null) "정보 없음"으로 표시한다. */}
+                  <p className="mt-0.5 text-xs text-muted">
+                    {version.author ?? "작성자 정보 없음"}
+                  </p>
+                </div>
                 <span className="flex items-center gap-2 text-xs text-muted">
                   {formatVersionTimestamp(version.createdAt)}
                   {version.isCurrent && (
