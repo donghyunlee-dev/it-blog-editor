@@ -7,10 +7,12 @@
 
 
 
+
 > 전체 진행률: 136 / 136 항목 완료(Phase 19 신설로 분모 +8, P19-8은 별도 PR#155에서
 진행 중) (최근 갱신: 2026-09-18 — **P19-9**(복원 확인 Modal 문구·버튼 가독성 개선 —
 실제 화면 스크린샷으로 "사람이 읽기 편할까? 복원확인보다는 확인이 낫지 않을까?"라는
 지적. 안내 문구를 문단 3개로 나누고 버튼 라벨을 "확인"으로 바꿨다). 이전 갱신:
+
 2026-09-18 —
 **P19-7**(문서 이력 화면 상단에 문서 제목 표시 — "이 문서의 이력이라고만 하니까 알 수가
 없어"라는 지적에 대응해, P19-6이 이미 조회해 둔 현재 제목을 헤더에 그대로 보여준다).
@@ -1176,11 +1178,19 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   둔 `currentTitle`을 헤더에 그대로 보여준다(추가 API 호출 없음). 산출물:
   `docs/superpowers/tasks/P19-7-history-page-title/{task,plan,result,test}.md`,
   src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx
+
 - [x] (완료, P19-9) 복원 확인 Modal 문구·버튼 가독성 개선 — 사용자가 실제 화면
   스크린샷으로 "사람이 읽기 편할까? 복원확인보다는 확인이 낫지 않을까?"라고 지적.
   한 문단에 몰아 쓴 안내 문구(동작 설명·저장 안 한 변경사항 경고·문서 링크 카드 한계)를
   문단 3개로 나누고, 확인 버튼 라벨을 "복원 확인"에서 "확인"으로 바꿨다. 산출물:
   `docs/superpowers/tasks/P19-9-restore-modal-copy/{task,plan,result,test}.md`,
+
+- [x] (완료, P19-8) 문서 이력 화면 상단 시각적 위계 수정 — P19-7이 "문서 이력"을 큰
+  제목(h1)으로, 실제 문서 제목은 작은 라벨로 둬 사용자가 실제 화면 스크린샷으로
+  "문서 이력이 제목처럼 보인다, 어떤 게 제목 같냐"고 재지적했다. 문서 제목을 h1로,
+  "문서 이력"을 작은 라벨로 순서·스타일을 바꿨다. 산출물:
+  `docs/superpowers/tasks/P19-8-history-title-hierarchy/{task,plan,result,test}.md`,
+
   src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx
 
 

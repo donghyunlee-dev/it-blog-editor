@@ -185,9 +185,13 @@ export function VersionHistoryPage({
       <div className="flex w-full max-w-[830px] flex-col gap-6 py-10">
         <div>
           {/* 사용자 지적 — "이 문서의 이력이라고만 하니까 알 수가 없어" — 어떤 문서를 보고
-              있는지 알 수 있도록 상단에 제목을 함께 보여준다. */}
-          <p className="text-sm font-medium text-muted">{currentTitle || "(제목 없음)"}</p>
-          <h1 className="text-2xl font-bold text-foreground">문서 이력</h1>
+              있는지가 더 중요한 정보라, 문서 제목을 큰 제목으로 두고 "문서 이력"은 작은
+              라벨로 낮췄다(처음엔 반대로 둬서 "문서 이력"이 제목처럼 보인다는 재지적을
+              받음 — 폰트 크기·굵기가 더 큰 쪽이 시각적으로 "제목"으로 읽힌다). */}
+          <p className="text-sm font-medium text-muted">문서 이력</p>
+          <h1 className="text-2xl font-bold text-foreground">
+            {currentTitle || "(제목 없음)"}
+          </h1>
           <p className="mt-1 text-sm text-muted">
             이 문서에 저장된 버전 이력입니다.
           </p>
