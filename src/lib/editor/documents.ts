@@ -786,3 +786,22 @@ export async function getVersionDiff(
     storageHtmlToPlainText(newHtml)
   ).map((part) => ({ value: part.value, added: part.added, removed: part.removed }));
 }
+
+/**
+ * 특정 버전의 저장 형식(storage HTML) 본문을 그대로 반환한다(P19-6, 복원용). 변환(storage
+ * HTML → TipTap JSON)은 브라우저의 `DOMParser`가 필요해 클라이언트에서 한다 — 이 함수는
+ * 원본 HTML만 내려준다. `getVersionDiff`와 같은 현재/과거 버전 판단 로직을 쓴다.
+ */
+export async function getVersionContent(
+  pageId: string,
+  versionNumber: number
+): Promise<string> {
+  const current = await getPageOrThrow(pageId);
+  if (versionNumber < 1 || versionNumber > current.version.number) {
+    throw new NotFoundError("존재하지 않는 버전입니다.");
+  }
+  if (versionNumber === current.version.number) {
+    return current.body?.storage.value ?? "";
+  }
+  return getHistoricalPageBody(pageId, versionNumber);
+}

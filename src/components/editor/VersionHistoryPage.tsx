@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { Button, EmptyState } from "@sfood/ui";
+import { useRouter } from "next/navigation";
+import { Button, EmptyState, Modal, useToast } from "@sfood/ui";
 import type { DocumentVersion, VersionDiffPart } from "@/lib/editor/documents";
+import { storageHtmlToTiptapDoc } from "@/lib/editor/storage-to-tiptap";
 
 export interface VersionHistoryPageProps {
   pageId: string;
   initialVersions: DocumentVersion[];
+  /** P19-6: "이 버전으로 복원"이 기존 저장 경로(PUT)에 함께 보낼 현재 제목·버전. */
+  currentTitle: string;
+  currentVersion: number;
 }
 
 /** `YYYY.MM.DD HH:mm` — `VersionHistory.tsx`(P1-2a)에서 그대로 옮겨온 포맷. */
@@ -80,15 +85,25 @@ function VersionDiffView({ state }: { state: DiffState }) {
  * "문서 이력" 전용 페이지(P19-1) — 목록이 늘어날수록 팝업(`Modal`)으로는 감당이 안 된다는
  * 지적으로, "삭제된 문서"(P16-1)와 같은 방식으로 전환했다. 목록 자체는 서버 컴포넌트
  * (`src/app/editor/history/[pageId]/page.tsx`)가 미리 조회해 `initialVersions`로 내려준다.
- * 되돌리기(restore) 등 쓰기 동작은 다루지 않는다(P1-2a 범위 유지).
  *
  * P19-5부터 각 버전 행에서 "변경 내용 보기"를 펼치면 바로 이전 버전과의 순수 텍스트 diff를
- * 그때 가서 조회한다(버전이 많을수록 과거 본문을 전부 미리 가져오는 비용이 커, 목록은
- * 서버에서 미리 내려주되 diff는 펼칠 때만 클라이언트에서 fetch하는 방식으로 나눴다).
+ * 그때 가서 조회한다. P19-6부터 과거 버전에 "이 버전으로 복원"을 제공한다 — 처음
+ * P1-2a에서 정한 읽기 전용 범위를 벗어나는 첫 쓰기 동작이다. 복원은 히스토리를 되감지
+ * 않는 비파괴적 방식(새 버전 추가)이고, 기존 저장 경로(`PUT /api/editor/documents/{pageId}`)
+ * 를 그대로 재사용한다 — 낙관적 동시성 검사·버전 코멘트(P19-4) 등을 다시 구현하지 않는다.
  */
-export function VersionHistoryPage({ pageId, initialVersions }: VersionHistoryPageProps) {
+export function VersionHistoryPage({
+  pageId,
+  initialVersions,
+  currentTitle,
+  currentVersion,
+}: VersionHistoryPageProps) {
+  const router = useRouter();
+  const { toast } = useToast();
   const [expanded, setExpanded] = useState<number | null>(null);
   const [diffs, setDiffs] = useState<Record<number, DiffState>>({});
+  const [restoreTarget, setRestoreTarget] = useState<number | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   async function toggleDiff(version: number) {
     if (expanded === version) {
@@ -122,6 +137,46 @@ export function VersionHistoryPage({ pageId, initialVersions }: VersionHistoryPa
           message: error instanceof Error ? error.message : "변경 내용을 불러오지 못했습니다.",
         },
       }));
+    }
+  }
+
+  async function handleRestore() {
+    if (restoreTarget === null) {
+      return;
+    }
+    setRestoring(true);
+    try {
+      const contentResponse = await fetch(
+        `/api/editor/documents/${pageId}/versions/${restoreTarget}/content`
+      );
+      if (!contentResponse.ok) {
+        const data = (await contentResponse.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        throw new Error(data?.error?.message ?? "버전 내용을 불러오지 못했습니다.");
+      }
+      const { html } = (await contentResponse.json()) as { html: string };
+      const doc = storageHtmlToTiptapDoc(html, pageId);
+
+      const saveResponse = await fetch(`/api/editor/documents/${pageId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: currentTitle, doc, version: currentVersion }),
+      });
+      if (!saveResponse.ok) {
+        const data = (await saveResponse.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
+        throw new Error(data?.error?.message ?? "복원에 실패했습니다.");
+      }
+
+      toast(`버전 ${restoreTarget}(으)로 복원했습니다.`, "success");
+      setRestoreTarget(null);
+      router.push(`/editor/${pageId}`);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : "복원에 실패했습니다.", "danger");
+    } finally {
+      setRestoring(false);
     }
   }
 
@@ -172,6 +227,17 @@ export function VersionHistoryPage({ pageId, initialVersions }: VersionHistoryPa
                         {expanded === version.number ? "변경 내용 닫기" : "변경 내용 보기"}
                       </Button>
                     )}
+                    {/* P19-6: 이미 현재 버전인 것을 그 자신으로 "복원"하는 건 의미가 없다. */}
+                    {!version.isCurrent && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setRestoreTarget(version.number)}
+                      >
+                        복원
+                      </Button>
+                    )}
                   </div>
                 </div>
                 {expanded === version.number && diffs[version.number] && (
@@ -184,6 +250,32 @@ export function VersionHistoryPage({ pageId, initialVersions }: VersionHistoryPa
           </ul>
         )}
       </div>
+
+      <Modal
+        open={restoreTarget !== null}
+        onClose={() => setRestoreTarget(null)}
+        title="버전으로 복원"
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setRestoreTarget(null)}
+              disabled={restoring}
+            >
+              취소
+            </Button>
+            <Button type="button" variant="danger" onClick={handleRestore} disabled={restoring}>
+              {restoring ? "복원 중..." : "복원 확인"}
+            </Button>
+          </>
+        }
+      >
+        버전 {restoreTarget}의 내용으로 현재 문서를 덮어씁니다(새 버전으로 추가되며, 기존
+        이력은 그대로 남습니다). 지금 편집 중이던 저장하지 않은 변경사항이 있다면
+        사라집니다. 표·이미지·강조 박스는 그대로 복원되지만, 문서 링크 카드는 저장 형식의
+        한계로 텍스트로만 복원됩니다.
+      </Modal>
     </div>
   );
 }

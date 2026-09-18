@@ -289,7 +289,7 @@ export function createDocumentLinkSlashItem(
  * 읽는다). `uploading`/`uploadId`는 rendered:false로 둬 HTML(및 Confluence storage
  * 변환용 JSON parseHTML 왕복)에도 노출되지 않게 한다.
  */
-const AttachmentImage = TiptapImage.extend({
+export const AttachmentImage = TiptapImage.extend({
   // P18-2: 기본 Image 확장은 draggable: true라 ProseMirror가 mousedown 시점에
   // 노드를 드래그 가능하게 만든다 — 새로 추가한 우측 경계 크기 조절 핸들을
   // 드래그하면 크기 조절이 아니라 "노드 이동/복제"로 처리돼버려(실사용 확인:
@@ -541,7 +541,7 @@ function PanelView({ node, updateAttributes }: NodeViewProps) {
   );
 }
 
-const Panel = Node.create({
+export const Panel = Node.create({
   name: "panel",
   group: "block",
   content: "block+",
@@ -639,7 +639,7 @@ function DocumentLinkView({ node, updateAttributes }: Pick<NodeViewProps, "node"
   );
 }
 
-const DocumentLink = Node.create({
+export const DocumentLink = Node.create({
   name: "documentLink",
   group: "block",
   atom: true,
@@ -1557,7 +1557,7 @@ function createStickyTableView(editor: Editor) {
  * 묶인 `createStickyTableView(this.editor)`를 넣는다 — `resizable`이 켜져 있든 꺼져
  * 있든 항상 표별 sticky 툴바가 딸린 View가 쓰이게 하기 위해서다.
  */
-const TableWithToolbar = Table.extend({
+export const TableWithToolbar = Table.extend({
   addProseMirrorPlugins() {
     const View = createStickyTableView(this.editor);
     return [
@@ -1718,7 +1718,7 @@ function CodeBlockView({ node, updateAttributes }: Pick<NodeViewProps, "node" | 
   );
 }
 
-const CodeBlockWithLanguagePicker = CodeBlockLowlight.extend({
+export const CodeBlockWithLanguagePicker = CodeBlockLowlight.extend({
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlockView);
   },
@@ -1740,7 +1740,7 @@ const LINK_OPEN_HINT = "Ctrl(Windows)/Cmd(Mac)+클릭하여 링크 열기";
  * 그래서 `title`을 이 확장 자체의 attrs로 직접 등록해 매 링크 마크에 고정값으로
  * 렌더링되게 한다.
  */
-const LinkWithOpenHint = Link.extend({
+export const LinkWithOpenHint = Link.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
