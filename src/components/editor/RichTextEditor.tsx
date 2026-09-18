@@ -469,6 +469,19 @@ function ImageView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "upd
         {/* Confluence 첨부파일 URL은 사전에 알 수 없는 임의 외부 호스트라 next/image의
             remotePatterns 설정 대상이 될 수 없다 — 에디터 본문 이미지는 기존에도(NodeView
             도입 전, TipTap의 renderHTML을 통해) 평범한 <img>였다. */}
+        {/*
+          이미지 드래그 시 캡션 메뉴가 랜덤하게 뜨던 문제(사용자 실사용 확인 — "이미지를
+          드래그해서 내리니까 복사가 되면서 캡션 입력하는 게 나왔어")의 진짜 원인: <img>는
+          브라우저 기본값으로 draggable="true"라, 우리가 `AttachmentImage` 노드 스펙에
+          `draggable: false`를 줘도(크기 조절 핸들 드래그 시 노드가 복제되던 다른 버그를
+          막으려고 추가한 것) 그건 ProseMirror 자신의 노드 드래그만 끌 뿐 <img> 엘리먼트
+          자체의 네이티브 HTML5 이미지 드래그는 그대로 켜져 있었다. 이미지 "본문"을
+          드래그하면 이 네이티브 드래그가 시작되고, 같은 편집 영역에 놓으면 브라우저가
+          그 자리에 이미지를 새로 삽입해버려(원본은 그대로 남음) 복제처럼 보였다 —
+          `@tiptap/extension-image`의 기본 NodeView는 `el.draggable = false`를 직접
+          설정해 이를 막는데(node_modules 확인), 커스텀 NodeView로 바꾸며 이 속성을
+          그대로 옮기지 않은 게 원인이었다.
+        */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           ref={imgRef}
@@ -476,6 +489,7 @@ function ImageView({ node, updateAttributes }: Pick<NodeViewProps, "node" | "upd
           alt={node.attrs.alt ?? ""}
           title={node.attrs.title ?? undefined}
           style={sizeStyle}
+          draggable={false}
         />
         <ResizeHandle label="이미지 너비 조절" widthPx={sizeStyle?.width ?? 0} onMouseDown={startResize} />
       </span>
