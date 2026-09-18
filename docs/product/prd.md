@@ -7,10 +7,14 @@
 
 
 
-> 전체 진행률: 135 / 135 항목 완료(Phase 19 신설로 분모 +7) (최근 갱신: 2026-09-18 —
+> 전체 진행률: 136 / 136 항목 완료(Phase 19 신설로 분모 +8) (최근 갱신: 2026-09-18 —
+**P19-8**(문서 이력 화면 상단 시각적 위계 수정 — P19-7이 "문서 이력"을 큰 제목으로, 실제
+문서 제목은 작은 라벨로 둬 사용자가 실제 화면 스크린샷으로 "어떤 게 제목 같냐"고
+재지적. 문서 제목을 h1로, "문서 이력"을 작은 라벨로 순서를 바꿨다). 이전 갱신:
+2026-09-18 —
 **P19-7**(문서 이력 화면 상단에 문서 제목 표시 — "이 문서의 이력이라고만 하니까 알 수가
 없어"라는 지적에 대응해, P19-6이 이미 조회해 둔 현재 제목을 헤더에 그대로 보여준다).
-이전 갱신: 2026-09-18 —
+그 이전 갱신: 2026-09-18 —
 **P19-6**(문서 이력에서 특정 버전으로 복원 — 편집 원본·제목은 과거 버전을 보관하지
 않아 본문만 복원 대상으로 삼고, 저장 형식(storage HTML) → TipTap JSON 역변환기를
 새로 만들었다. 실제 Confluence 인스턴스의 진짜 문서로 검증하다, 실제 서비스가 이
@@ -1171,6 +1175,12 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   하니까 알 수가 없어"라는 지적에 대응. `page.tsx`가 P19-6(복원)을 위해 이미 조회해
   둔 `currentTitle`을 헤더에 그대로 보여준다(추가 API 호출 없음). 산출물:
   `docs/superpowers/tasks/P19-7-history-page-title/{task,plan,result,test}.md`,
+  src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx
+- [x] (완료, P19-8) 문서 이력 화면 상단 시각적 위계 수정 — P19-7이 "문서 이력"을 큰
+  제목(h1)으로, 실제 문서 제목은 작은 라벨로 둬 사용자가 실제 화면 스크린샷으로
+  "문서 이력이 제목처럼 보인다, 어떤 게 제목 같냐"고 재지적했다. 문서 제목을 h1로,
+  "문서 이력"을 작은 라벨로 순서·스타일을 바꿨다. 산출물:
+  `docs/superpowers/tasks/P19-8-history-title-hierarchy/{task,plan,result,test}.md`,
   src/components/editor/VersionHistoryPage.tsx, src/components/editor/VersionHistoryPage.test.tsx
 
 
