@@ -191,7 +191,7 @@ describe("VersionHistoryPage", () => {
     await user.click(screen.getByRole("button", { name: "복원" }));
     expect(screen.getByText(/버전 1의 내용으로 현재 문서를 덮어씁니다/)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "복원 확인" }));
+    await user.click(screen.getByRole("button", { name: "확인" }));
 
     expect(await screen.findByText(/복원했습니다/)).toBeInTheDocument();
     expect(push).toHaveBeenCalledWith("/editor/doc-1");
@@ -215,7 +215,7 @@ describe("VersionHistoryPage", () => {
     });
 
     await user.click(screen.getByRole("button", { name: "복원" }));
-    await user.click(screen.getByRole("button", { name: "복원 확인" }));
+    await user.click(screen.getByRole("button", { name: "확인" }));
 
     expect(await screen.findByText("버전 내용을 불러오지 못했습니다.")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);

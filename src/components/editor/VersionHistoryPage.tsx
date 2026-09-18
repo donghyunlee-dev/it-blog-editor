@@ -269,15 +269,24 @@ export function VersionHistoryPage({
               취소
             </Button>
             <Button type="button" variant="danger" onClick={handleRestore} disabled={restoring}>
-              {restoring ? "복원 중..." : "복원 확인"}
+              {restoring ? "복원 중..." : "확인"}
             </Button>
           </>
         }
       >
-        버전 {restoreTarget}의 내용으로 현재 문서를 덮어씁니다(새 버전으로 추가되며, 기존
-        이력은 그대로 남습니다). 지금 편집 중이던 저장하지 않은 변경사항이 있다면
-        사라집니다. 표·이미지·강조 박스는 그대로 복원되지만, 문서 링크 카드는 저장 형식의
-        한계로 텍스트로만 복원됩니다.
+        {/* 사용자 지적 — 한 문단에 몰아쓰니 읽기 불편함. 항목별로 문단을 나눠 한눈에
+            들어오게 했다. */}
+        <div className="flex flex-col gap-2">
+          <p>
+            버전 {restoreTarget}의 내용으로 현재 문서를 덮어씁니다. 새 버전으로 추가되며,
+            기존 이력은 그대로 남습니다.
+          </p>
+          <p>지금 편집 중이던 저장하지 않은 변경사항이 있다면 사라집니다.</p>
+          <p>
+            표·이미지·강조 박스는 그대로 복원되지만, 문서 링크 카드는 저장 형식의 한계로
+            텍스트로만 복원됩니다.
+          </p>
+        </div>
       </Modal>
     </div>
   );
