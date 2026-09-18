@@ -57,10 +57,10 @@ describe("VersionHistoryPage", () => {
     expect(screen.getByText("버전 1")).toBeInTheDocument();
     expect(screen.getByText("현재 버전")).toBeInTheDocument();
     // 사용자 지적 — "이 문서의 이력이라고만 하니까 알 수가 없어" — 상단에 문서 제목을
-    // 보여준다. "문서 이력"이 큰 제목처럼 보여 오히려 헷갈린다는 재지적을 받아, 문서
-    // 제목을 실제 h1(가장 눈에 띄는 텍스트)로 두고 "문서 이력"은 작은 라벨로 낮췄다.
-    expect(screen.getByRole("heading", { name: "문서 제목" })).toBeInTheDocument();
-    expect(screen.getByText("문서 이력")).toBeInTheDocument();
+    // 보여준다. 이후 재지적("문서 이력 타이틀은 타이틀로 돌려놔")으로 "문서 이력"을
+    // 화면 제목(heading)으로, 문서 제목은 그 아래 강조된 텍스트로 최종 정리했다.
+    expect(screen.getByRole("heading", { name: "문서 이력" })).toBeInTheDocument();
+    expect(screen.getByText("문서 제목")).toBeInTheDocument();
     // P19-4: 버전 코멘트가 있으면 작성자를, 없으면(이 기능 이전에 저장된 버전) 안내 문구를 보여준다.
     expect(screen.getByText("김철수(editor@s-food.com)")).toBeInTheDocument();
     expect(screen.getByText("작성자 정보 없음")).toBeInTheDocument();
