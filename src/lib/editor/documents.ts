@@ -586,6 +586,9 @@ export async function updateDocument(input: UpdateDocumentInput) {
     title: current.title,
     bodyValue: tiptapDocToStorageFormat(input.doc),
     nextVersion: current.version.number + 1,
+    // P19-4: 이 버전을 저장한 사람을 버전 코멘트에 남긴다 — Confluence의 version.authorId는
+    // 서비스 계정 고정값이라 쓸 수 없다(client.ts의 updatePage 주석 참고).
+    message: formatAccountLabel(input.editor.email, input.editor.name),
   });
 
   try {
@@ -693,6 +696,11 @@ export interface DocumentVersion {
   createdAt: string;
   /** 이 문서의 현재(최신) 버전인지 — 가장 높은 버전 번호를 기준으로 판단한다. */
   isCurrent: boolean;
+  /**
+   * 이 버전을 저장한 사람의 표시 문구(P19-4, `updateDocument`가 남긴 버전 코멘트).
+   * 이 기능 적용 이전에 저장된 버전이나 최초 생성 버전(version 1)은 코멘트가 없어 `null`.
+   */
+  author: string | null;
 }
 
 /**
@@ -708,5 +716,6 @@ export async function getDocumentVersionHistory(
     number: version.number,
     createdAt: version.createdAt,
     isCurrent: version.number === maxNumber,
+    author: version.message?.trim() ? version.message : null,
   }));
 }

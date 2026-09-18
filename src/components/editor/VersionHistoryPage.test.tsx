@@ -7,8 +7,13 @@ describe("VersionHistoryPage", () => {
     render(
       <VersionHistoryPage
         initialVersions={[
-          { number: 2, createdAt: "2026-08-27T10:00:00.000Z", isCurrent: true },
-          { number: 1, createdAt: "2026-08-20T09:00:00.000Z", isCurrent: false },
+          {
+            number: 2,
+            createdAt: "2026-08-27T10:00:00.000Z",
+            isCurrent: true,
+            author: "김철수(editor@s-food.com)",
+          },
+          { number: 1, createdAt: "2026-08-20T09:00:00.000Z", isCurrent: false, author: null },
         ]}
       />
     );
@@ -16,6 +21,9 @@ describe("VersionHistoryPage", () => {
     expect(screen.getByText("버전 2")).toBeInTheDocument();
     expect(screen.getByText("버전 1")).toBeInTheDocument();
     expect(screen.getByText("현재 버전")).toBeInTheDocument();
+    // P19-4: 버전 코멘트가 있으면 작성자를, 없으면(이 기능 이전에 저장된 버전) 안내 문구를 보여준다.
+    expect(screen.getByText("김철수(editor@s-food.com)")).toBeInTheDocument();
+    expect(screen.getByText("작성자 정보 없음")).toBeInTheDocument();
   });
 
   it("버전이 없으면 안내 문구를 보여준다", () => {

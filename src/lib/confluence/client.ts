@@ -278,6 +278,15 @@ export async function updatePage(input: {
   title: string;
   bodyValue: string;
   nextVersion: number;
+  /**
+   * 이 버전을 저장한 사람의 표시 정보(P19-4) — Confluence 버전 코멘트(`version.message`)에
+   * 실어 보낸다. 이 앱의 모든 Confluence API 호출은 서비스 계정 하나로만 이루어져
+   * `version.authorId`가 실제 편집자와 무관하게 항상 같은 값이라, "누가 이 버전을
+   * 저장했는지"를 남길 수 있는 유일한 자리다. 생략하면(예: 향후 다른 호출부) 빈 문자열로
+   * 저장된다 — 이 작업 이전에 저장된 버전들도 마찬가지라 이력 화면에서 "정보 없음"으로
+   * 처리한다.
+   */
+  message?: string;
 }): Promise<ConfluencePage> {
   return confluenceRequest<ConfluencePage>(`/api/v2/pages/${input.pageId}`, {
     method: "PUT",
@@ -287,7 +296,7 @@ export async function updatePage(input: {
       status: "current",
       title: input.title,
       body: { representation: "storage", value: input.bodyValue },
-      version: { number: input.nextVersion },
+      version: { number: input.nextVersion, message: input.message ?? "" },
     }),
   });
 }
