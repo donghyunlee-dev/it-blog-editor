@@ -86,16 +86,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-// P14-2: VersionHistory 자체의 로딩/성공/실패 동작은 VersionHistory.test.tsx가 다룬다.
-// 여기서는 "이력" 메뉴 항목이 Modal을 열고 올바른 pageId를 넘기는지만 확인하면 되므로
-// 가벼운 대역으로 바꿔 끼운다(DocumentEditor.test.tsx가 헤더에 있던 이 버튼을 테스트하던
-// 방식과 동일 — 기능이 여기로 옮겨왔다).
-vi.mock("./VersionHistory", () => ({
-  VersionHistory: ({ pageId }: { pageId: string }) => (
-    <div data-testid="version-history" data-page-id={pageId} />
-  ),
-}));
-
 const DOCS: DocumentSummary[] = [
   {
     pageId: "1",
@@ -917,15 +907,14 @@ describe("EditorSidebar 문서 옵션 메뉴 — 이력·삭제(P14-2)", () => {
     expect(screen.queryByRole("menuitem", { name: "다른 폴더로 이동" })).not.toBeInTheDocument();
   });
 
-  it("'이력'을 누르면 버전 이력 모달이 열리고 올바른 pageId를 넘긴다", async () => {
+  it("'이력'을 누르면 이력 페이지로 이동한다(P19-1)", async () => {
     const user = userEvent.setup();
     renderSidebar();
 
     await openOptionsMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "이력" }));
 
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByTestId("version-history")).toHaveAttribute("data-page-id", "doc-1");
+    expect(push).toHaveBeenCalledWith("/editor/history/doc-1");
   });
 
   it("'삭제'를 누르면 확인 모달이 뜨고, 확인해야 실제 삭제 요청을 보낸다", async () => {
