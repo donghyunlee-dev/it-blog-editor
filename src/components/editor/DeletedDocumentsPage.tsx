@@ -76,7 +76,10 @@ export function DeletedDocumentsPage({ initialDocuments }: DeletedDocumentsPageP
 
   return (
     <div className="flex justify-center px-6">
-      <div className="flex w-full max-w-[830px] flex-col gap-6 py-10">
+      {/* P17-18: DocumentEditor.tsx의 본문 폭이 830px→920px로 바뀌어(외부 UI 개선
+          제안 검토 후 결정) 그 값을 그대로 맞춘다 — 편집 화면과 이 화면을 오갈 때
+          폭이 달라 보이지 않게 하기 위함이다(기존에도 830px로 값을 맞춰 뒀었다). */}
+      <div className="flex w-full max-w-[920px] flex-col gap-6 py-10">
         <div>
           <h1 className="text-2xl font-bold text-foreground">삭제된 문서</h1>
           <p className="mt-1 text-sm text-muted">

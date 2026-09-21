@@ -25,6 +25,18 @@ import { formatAccountLabel } from "@/lib/account-display";
 /** Issue #1(P0-1b)에서 결정된 주기 — "1분마다 체크해서 저장한다". */
 const AUTOSAVE_INTERVAL_MS = 60_000;
 
+/**
+ * P17-18(외부 UI 개선 제안 검토 후 채택 — 값은 사용자에게 직접 확인해 결정): 본문
+ * 최대 폭을 기존 830px(P8-6, support.claude.com/ko 벤치마킹 실측값)에서 920px로
+ * 확대한다. 그리고 표·코드블록처럼 넓어야 유리한 콘텐츠를 위해 "넓게 보기"를 켜면
+ * 1200px까지 확장하는 Wide mode를 추가한다 — 이번엔 문서 전체 토글로만 만들고,
+ * 블록(표/코드블록 등) 단위로 개별 확장하는 건 스키마 변경이 필요한 별도 후속
+ * 작업으로 미룬다(Issue #161 결정 사항).
+ */
+const NORMAL_CONTENT_WIDTH = "max-w-[920px]";
+const WIDE_CONTENT_WIDTH = "max-w-[1200px]";
+const WIDE_MODE_STORAGE_KEY = "sfood-editor-wide-mode";
+
 interface DocumentEditorProps {
   mode: "create" | "edit";
   pageId?: string;
@@ -127,6 +139,26 @@ function ShareIcon() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * P17-18: "넓게 보기" 토글 아이콘 — 가운데 세로선(문서 경계) 양옆으로 바깥을 향하는
+ * 화살표 두 개로 "좌우로 넓힌다"는 뜻을 나타낸다. 다른 헤더 아이콘과 같은 시각 스타일
+ * (viewBox 0 0 20 20, stroke=currentColor, strokeWidth 1.5).
+ */
+function WideModeIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M10 3v14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path
+        d="M6 7L3 10l3 3M14 7l3 3-3 3"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
     </svg>
   );
@@ -304,6 +336,11 @@ export function DocumentEditor({
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(
     mode === "edit" && initialUpdatedAt ? new Date(initialUpdatedAt) : null
   );
+  // P17-18: 문서 내용이 아니라 "이 브라우저를 쓰는 사람의 보기 취향"이라 서버에 저장하지
+  // 않는다 — 사이드바 폭·접힘(EditorShell.tsx)과 같은 이유로 localStorage에 둔다.
+  // 서버에는 이 값이 없어 항상 false(기본 폭)로 가정해야 하고, 마운트 직후 실제 값으로
+  // 동기화해야 한다(EditorShell.tsx의 같은 패턴 참고) — 그래서 초깃값은 항상 false다.
+  const [wideMode, setWideMode] = useState(false);
   // P14-2: "삭제"·"이력"은 사이드바 문서 옵션(⋯) 메뉴로 옮겨가서 status는 더 이상
   // "deleting"을 가질 필요가 없다 — 저장 중 여부만 추적한다.
   const [status, setStatus] = useState<"idle" | "saving">("idle");
@@ -334,6 +371,29 @@ export function DocumentEditor({
     isDirtyRef.current = isDirty;
     statusRef.current = status;
   });
+
+  // P17-18: EditorShell.tsx의 사이드바 폭·접힘 저장과 같은 패턴 — try/catch로 감싸
+  // 프라이빗 브라우징 등 저장이 막힌 환경에서도 기능 자체(토글)는 동작하게 한다.
+  useEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setWideMode(window.localStorage.getItem(WIDE_MODE_STORAGE_KEY) === "true");
+    } catch {
+      // 무시 — 기본값(좁게, false) 그대로 쓴다.
+    }
+  }, []);
+
+  function toggleWideMode() {
+    setWideMode((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(WIDE_MODE_STORAGE_KEY, String(next));
+      } catch {
+        // 무시.
+      }
+      return next;
+    });
+  }
 
   /** 제목·본문·태그 중 하나라도 바뀌면 "저장하지 않은 변경사항 있음"으로 표시한다
    * (P0-1a — EditorShell의 UnsavedChangesProvider가 이 값을 보고 탭 닫기/앱 내부 이동을
@@ -693,6 +753,21 @@ export function DocumentEditor({
           `EditorSidebar.tsx`에 그대로 남아 있다).
         */}
         <div className="flex items-center gap-2">
+          {/* P17-18: 저장 여부·소유권과 무관한 "보기 취향"이라 mode/pageId 조건 없이
+              항상 보인다(새 문서를 작성하는 동안에도 표나 코드블록은 넓게 보고 싶을 수
+              있다). */}
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            className="!px-2.5"
+            aria-label={wideMode ? "좁게 보기" : "넓게 보기"}
+            title={wideMode ? "좁게 보기" : "넓게 보기"}
+            aria-pressed={wideMode}
+            onClick={toggleWideMode}
+          >
+            <WideModeIcon />
+          </Button>
           {mode === "edit" && pageId && (
             <Button
               type="button"
@@ -774,16 +849,22 @@ export function DocumentEditor({
         스크롤 영역 밖 독립된 컬럼이 되면서 본문 하나만 가운데 정렬하면 된다.
       */}
       {/*
-        P8-6 후속(2026-09-14): `px-6`(좌우 24px)을 본문 폭 상한(`max-w-[830px]`)과 같은
-        엘리먼트에 두면 Tailwind 기본 box-sizing(border-box)상 그 패딩이 830px 안에서
-        깎여나가, 실제 읽기 영역이 830-48=782px로 레퍼런스(순수 830px 텍스트 폭)보다
-        좁아진다("문서 컨텐츠의 WIDTH가 참고 사이트와 달라 — 830px로 읽은 거 같은데,
-        우리 컨텐츠는 여백 포함해서 830"이라는 지적으로 발견). 이 바깥 줄로 `px-6`을
-        옮기면 830px는 본문 자신만의 순수 폭이 되고, `px-6`은 그 830px 박스 전체를
-        감싸는 여유 공간(좁은 화면에서만 실제로 줄어드는 가장자리 여백)이 된다.
+        P8-6 후속(2026-09-14): `px-6`(좌우 24px)을 본문 폭 상한과 같은 엘리먼트에 두면
+        Tailwind 기본 box-sizing(border-box)상 그 패딩이 안에서 깎여나가, 실제 읽기
+        영역이 레퍼런스(순수 텍스트 폭)보다 좁아진다("문서 컨텐츠의 WIDTH가 참고
+        사이트와 달라 — 830px로 읽은 거 같은데, 우리 컨텐츠는 여백 포함해서 830"이라는
+        지적으로 발견). 이 바깥 줄로 `px-6`을 옮기면 폭 상한은 본문 자신만의 순수
+        폭이 되고, `px-6`은 그 박스 전체를 감싸는 여유 공간(좁은 화면에서만 실제로
+        줄어드는 가장자리 여백)이 된다.
+
+        P17-18: 폭 상한 자체는 830px(P8-6 벤치마킹 값)에서 920px로 올렸다 — 외부
+        리뷰가 "본문을 무조건 넓히지는 말라"고 짚었듯, 일반 문장이 많은 Wiki 문서는
+        한 줄이 너무 길어지면 오히려 읽기 힘들어진다는 우려에 동의해 급격히 늘리지
+        않았다. 표·코드블록처럼 넓어야 유리한 콘텐츠를 위한 1200px "넓게 보기"는
+        위 헤더의 토글(`wideMode`)로만 켤 수 있다 — 기본값은 여전히 920px다.
       */}
       <div className="flex justify-center px-6">
-        <div className="flex w-full max-w-[830px] flex-col py-10">
+        <div className={`flex w-full flex-col py-10 ${wideMode ? WIDE_CONTENT_WIDTH : NORMAL_CONTENT_WIDTH}`}>
           {/* 제목은 TipTap 문서 안의 노드가 아니라 별도의 가벼운 입력이다. 저장 시
               sourceDocument property에 본문과 함께 저장된다(P0-7 — Confluence page의
               실제 title은 내부 고유키일 뿐이라 이 값을 그대로 쓰지 않는다).
