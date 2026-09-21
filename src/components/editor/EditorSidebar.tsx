@@ -1295,13 +1295,21 @@ export function EditorSidebar({
           수준으로 낮춘다. `Button`은 `<button>`만 지원해 `/editor/new`로 이동하는 이
           `<Link>`에는 쓸 수 없어(node_modules/@sfood/ui/dist/index.d.ts의
           `ButtonProps extends ButtonHTMLAttributes` 확인) 클래스만 그대로 재사용했다.
+
+          P17-20(사용자 추가 요청 — "마우스 오버 했을 때 아무 인터렉션이 없다"):
+          `hover:bg-surface-raised`는 라이트 모드에서 `--color-surface-raised`가
+          `--color-surface`와 같은 값이라(node_modules/@sfood/ui/tokens/semantic.css
+          14~17행) 실제로는 아무 효과가 없었다 — 이 파일의 문서·폴더 행이 같은 이유로
+          이미 겪은 문제(위 P13-2 주석, globals.css의 `.sidebar-row-hover`)를 그대로
+          답습한 것이다. 같은 해결책을 재사용해 `hover:bg-surface-raised`를
+          `sidebar-row-hover`로 바꾼다.
         */}
         <div className="shrink-0 p-2.5">
           <Link
             href="/editor/new"
             onClick={onNavigate}
             onNavigate={(event) => guardNavigate(event, "/editor/new")}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors duration-default hover:bg-surface-raised"
+            className="sidebar-row-hover inline-flex w-full items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors duration-default"
           >
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />

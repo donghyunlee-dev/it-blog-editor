@@ -194,6 +194,14 @@ describe("EditorSidebar", () => {
     );
   });
 
+  it("새 문서 링크는 라이트 모드에서도 보이는 hover 스타일(sidebar-row-hover)을 쓴다(P17-20 — hover:bg-surface-raised는 라이트 모드에서 --color-surface와 같은 값이라 마우스를 올려도 아무 변화가 없었다)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.getByRole("link", { name: "새 문서" })).toHaveClass(
+      "sidebar-row-hover"
+    );
+  });
+
   it("'새 문서' 링크는 문서 목록의 스크롤 영역 바깥(형제)에 있어 목록 길이와 무관하게 항상 보인다(P15-4 — P15-3의 sticky는 목록이 짧으면 효과가 없어 이 구조로 교체됨)", () => {
     render(<EditorSidebar documents={DOCS} />);
 
