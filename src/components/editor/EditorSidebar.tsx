@@ -1285,12 +1285,23 @@ export function EditorSidebar({
           붙어 있어"). 구분선(`border-t`)은 넣지 않는다 — 왼쪽 패널에 선이 너무 많다는
           사용자 지적으로 뺐다.
         */}
+        {/*
+          P17-14(사용자 추가 요청): 이 버튼이 사이드바 안에서 가장 강한 시각적 무게(꽉 찬
+          브랜드 레드)를 가져 "사이드바에서 제일 중요한 기능"처럼 보인다는 지적 — 이 화면의
+          진짜 주 행위는 새 문서 작성이 아니라 문서함 탐색이다. `@sfood/ui`의 `Button
+          variant="secondary"`가 쓰는 색 조합(`bg-surface border border-border
+          text-foreground hover:bg-surface-raised`, node_modules/@sfood/ui/dist/index.js
+          확인)을 그대로 옮겨 강조도를 다른 보조 액션(위 "더 보기" 버튼 등)과 같은
+          수준으로 낮춘다. `Button`은 `<button>`만 지원해 `/editor/new`로 이동하는 이
+          `<Link>`에는 쓸 수 없어(node_modules/@sfood/ui/dist/index.d.ts의
+          `ButtonProps extends ButtonHTMLAttributes` 확인) 클래스만 그대로 재사용했다.
+        */}
         <div className="shrink-0 p-2.5">
           <Link
             href="/editor/new"
             onClick={onNavigate}
             onNavigate={(event) => guardNavigate(event, "/editor/new")}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-btn bg-brand px-4 py-2 text-sm font-medium text-on-brand transition-colors duration-default hover:bg-brand-hover"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors duration-default hover:bg-surface-raised"
           >
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
