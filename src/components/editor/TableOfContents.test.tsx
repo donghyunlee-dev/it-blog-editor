@@ -48,7 +48,7 @@ function Harness({
   return (
     <RailHarness>
       <div data-testid="scroll-parent" style={{ overflowY: "auto" }}>
-        <div ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
+        <div data-testid="content" ref={containerRef} dangerouslySetInnerHTML={{ __html: html }} />
         <TableOfContents containerRef={containerRef} doc={doc} />
       </div>
     </RailHarness>
@@ -343,7 +343,12 @@ describe("TableOfContents", () => {
   it("헤딩 엘리먼트에 어떤 속성도 쓰지 않는다(ProseMirror가 관리하는 DOM을 건드리면 그 변화를 감지해 무한 재조정 루프를 만드는 실제 버그를 막기 위함, 2026-09-11 실사용 중 발견 — '## 중제목'을 입력하면 사이트가 멈췄다)", () => {
     render(<Harness html="<h2>섹션</h2><h3>하위 섹션</h3>" />);
 
-    for (const heading of document.querySelectorAll("h2, h3")) {
+    // document 전체가 아니라 실제 본문 컨테이너 안의 헤딩만 본다 — P17-17부터
+    // TableOfContents가 md~xl 드로어(`@sfood/ui`의 `Drawer`)도 함께 렌더링하는데,
+    // 그 컴포넌트는 title을 접근성용 실제 <h2>로 그려서(디자인 시스템 자체 구현) 이
+    // 검증과 무관한 h2가 document 전역에 하나 더 생긴다.
+    const content = screen.getByTestId("content");
+    for (const heading of content.querySelectorAll("h2, h3")) {
       expect(heading.attributes.length).toBe(0);
     }
   });
@@ -448,5 +453,47 @@ describe("TableOfContents", () => {
     await user.click(screen.getByRole("button", { name: "본문 바꾸기" }));
 
     expect(await screen.findByRole("link", { name: "새로 추가된 섹션" })).toBeInTheDocument();
+  });
+
+  describe("md~xl 구간 목차 드로어(P17-17)", () => {
+    it("헤딩이 있으면 '이 페이지' 드로어 트리거 버튼을 렌더링한다", () => {
+      render(<Harness html="<h2>섹션</h2>" />);
+
+      expect(screen.getByRole("button", { name: "이 페이지" })).toBeInTheDocument();
+    });
+
+    it("헤딩이 없으면 드로어 트리거도 렌더링하지 않는다", () => {
+      render(<Harness html="<p>헤딩 없음</p>" />);
+
+      expect(screen.queryByRole("button", { name: "이 페이지" })).not.toBeInTheDocument();
+    });
+
+    it("트리거를 클릭하면 드로어가 열리고 목차 항목을 보여준다", async () => {
+      const user = userEvent.setup();
+      render(<Harness html="<h2>섹션 A</h2><h3>하위 섹션</h3>" />);
+
+      await user.click(screen.getByRole("button", { name: "이 페이지" }));
+
+      const drawer = screen.getByRole("dialog", { name: "이 페이지" });
+      expect(within(drawer).getByRole("link", { name: "섹션 A" })).toBeInTheDocument();
+      expect(within(drawer).getByRole("link", { name: "하위 섹션" })).toBeInTheDocument();
+    });
+
+    it("드로어 안에서 항목을 클릭하면 해당 헤딩으로 스크롤하고 드로어를 닫는다", async () => {
+      const user = userEvent.setup();
+      render(<Harness html="<h2>목표 섹션</h2>" />);
+      const scrollSpy = vi.fn();
+      Element.prototype.scrollIntoView = scrollSpy;
+
+      await user.click(screen.getByRole("button", { name: "이 페이지" }));
+      const drawer = screen.getByRole("dialog", { name: "이 페이지" });
+      await user.click(within(drawer).getByRole("link", { name: "목표 섹션" }));
+
+      expect(scrollSpy).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+      // Drawer는 닫혀도 DOM에 남아 aria-hidden으로만 감춰진다(@sfood/ui 자체 구현,
+      // 위 컴포넌트 주석 참고) — role 쿼리는 기본적으로 aria-hidden 트리를 제외하므로
+      // "더 이상 접근 가능한 dialog가 없다"로 닫힘을 확인한다.
+      expect(screen.queryByRole("dialog", { name: "이 페이지" })).not.toBeInTheDocument();
+    });
   });
 });
