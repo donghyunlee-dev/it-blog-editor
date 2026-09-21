@@ -8,7 +8,13 @@
 
 
 
-> 전체 진행률: 138 / 138 항목 완료(P17-13 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+> 전체 진행률: 139 / 139 항목 완료(P17-14 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+**P17-14**(사이드바 "새 문서" 버튼 강조도 낮춤 — 외부(GPT) UI 개선 제안을 검토해 채택한
+항목. 하단 "새 문서" 링크가 `bg-brand` 풀필드 스타일이라 사이드바에서 가장 강한 시각적
+무게를 가져 "가장 중요한 기능"처럼 보인다는 지적. `@sfood/ui`의 `Button
+variant="secondary"`가 쓰는 색 조합(연한 테두리 + surface 배경)을 그대로 재사용해
+강조도를 다른 보조 액션과 같은 수준으로 낮췄다. 폴더 "+"(폴더별 새 문서 생성) 역할
+분담과 위치는 이미 적절하다고 판단해 그대로 유지). 이전 갱신: 2026-09-21 —
 **P17-13**(슬래시 메뉴 항목을 클릭해도 반응이 없는 문제 — "슬래시 사용으로 툴바를
 선택하면 동작하지 않고 있어"라는 리포트. 메뉴 버튼이 `mousedown`의 기본 동작을
 막지 않아, 클릭 순간 브라우저가 에디터 선택을 바꾸고 그 변화가 `@tiptap/suggestion`
@@ -1107,6 +1113,15 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   사용자의 재확인이 필요하다. 산출물:
   `docs/superpowers/tasks/P17-13-slash-menu-click-ignored/{task,plan,result,test}.md`,
   src/components/editor/SlashCommandExtension.ts, src/components/editor/SlashCommandExtension.test.ts
+- [x] (완료, P17-14 — 외부 UI 개선 제안 검토 후 채택) 사이드바 "새 문서" 버튼 강조도
+  낮추기 — 하단 "새 문서" 링크가 `bg-brand` 풀필드(브랜드 레드) 스타일이라 사이드바
+  안에서 가장 강한 시각적 무게를 가져 "가장 중요한 기능"처럼 보인다는 외부 리뷰 지적을
+  실제 코드로 검증한 뒤 채택했다. `@sfood/ui`의 `Button variant="secondary"`가 쓰는
+  색 조합(`bg-surface border border-border text-foreground hover:bg-surface-raised`)을
+  그대로 재사용해 강조도만 낮췄다 — href·클릭 동작·위치는 그대로. 폴더 "+"의 역할
+  분담(폴더 지정 생성 vs 미분류 생성)과 툴팁은 이미 적절해 그대로 유지했다. 산출물:
+  `docs/superpowers/tasks/P17-14-new-doc-button-deemphasis/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.
