@@ -8,7 +8,12 @@
 
 
 
-> 전체 진행률: 143 / 143 항목 완료(P17-20 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+> 전체 진행률: 144 / 144 항목 완료(P17-21 추가로 분모 +1) (최근 갱신: 2026-09-22 —
+**P17-21**(사용자 추가 요청 — 문서함 리스트 행 밀도 조정. "문서가 많아지면 리스트가
+길어져 화면에 보이는 문서 수가 적다"는 리포트에 "행 높이를 줄여 더 많이 보이게"로
+방향을 확인받았다. 문서·폴더·공유받은 문서 행의 상하 패딩을 `py-1.5`(6px, P13-1
+결정값)에서 `py-1`(4px)로 한 단계 더 줄였다 — 행 간격이 34px→30px로 실측 확인).
+이전 갱신: 2026-09-21 —
 **P17-20**(사용자 추가 요청 — 새 문서 버튼 hover가 라이트 모드에서 안 보이던 문제
 수정. P17-14 병합 후 "마우스 오버 했을 때 아무 인터렉션이 없다"는 리포트. 원인은
 `hover:bg-surface-raised`가 라이트 모드에서 `--color-surface`와 완전히 같은 값이라
@@ -1205,6 +1210,15 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   재사용했다. 산출물:
   `docs/superpowers/tasks/P17-20-new-doc-hover-visibility/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
+- [x] (완료, P17-21 — 사용자 추가 요청) 문서함 리스트 행 밀도 조정 — "문서가
+  많아지면 리스트가 길어져 화면에 보이는 문서 수가 적다"는 리포트에 "행 높이를
+  줄여 더 많이 보이게"로 방향을 확인받았다. 문서·폴더·공유받은 문서 행의 상하
+  패딩을 `py-1.5`(6px, P13-1 결정값)에서 `py-1`(4px)로 한 단계 더 줄였다 — 세
+  종류 행의 높이를 항상 맞춰야 한다는 기존 제약(P8-2/P13-1)에 따라 세 곳 모두
+  함께 조정했고, 실제 행 간격이 34px→30px로 줄어드는 것을 실측 확인했다. 산출물:
+  `docs/superpowers/tasks/P17-21-sidebar-list-density/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
+  docs/product/design.md
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.
