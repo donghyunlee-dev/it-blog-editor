@@ -276,6 +276,15 @@ function createSlashMenuRenderer() {
         selectedIndex = index;
         renderItems();
       });
+      // P17-12(표 툴바)와 같은 원인: 버튼 mousedown의 기본 동작을 막지 않으면 브라우저가
+      // 에디터의 선택을 바꾸고, 그게 selectionchange로 ProseMirror에 전파되어 이 메뉴를
+      // 활성화 중인 Suggestion 플러그인 상태가 "range 밖으로 벗어난 선택"으로 보고 즉시
+      // onExit(메뉴 DOM 제거)을 실행해 버린다 — mousedown~click 사이에 버튼 자체가 DOM에서
+      // 사라지면 click 이벤트가 아예 발생하지 않아 "항목을 선택해도 아무 반응이 없다"로 보인다.
+      // 표 툴바와 동일한 표준 패턴(mousedown에서 preventDefault)으로 막는다.
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
       button.addEventListener("click", () => {
         if (currentEditor && currentRange) item.run(currentEditor, currentRange);
       });

@@ -8,7 +8,15 @@
 
 
 
-> 전체 진행률: 137 / 137 항목 완료(Phase 19 신설로 분모 +10) (최근 갱신: 2026-09-18 —
+> 전체 진행률: 138 / 138 항목 완료(P17-13 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+**P17-13**(슬래시 메뉴 항목을 클릭해도 반응이 없는 문제 — "슬래시 사용으로 툴바를
+선택하면 동작하지 않고 있어"라는 리포트. 메뉴 버튼이 `mousedown`의 기본 동작을
+막지 않아, 클릭 순간 브라우저가 에디터 선택을 바꾸고 그 변화가 `@tiptap/suggestion`
+플러그인을 비활성화시켜 메뉴 DOM을 mousedown~click 사이에 제거해 버려 `click`
+이벤트 자체가 발생하지 않았다 — 표 툴바 버튼(P17-12)과 근본 원인이 같다. 같은
+표준 패턴(`mousedown`에서 `preventDefault`)으로 고쳤다. 실제 브라우저 재현·재확인은
+이 세션에서 로그인 우회가 안 돼 하지 못했다 — 사용자의 재확인이 필요하다). 이전
+갱신: 2026-09-18 —
 **P19-10**(문서 이력 화면 헤더 재조정 — P19-8 이후 실제 화면을 본 사용자가 "문서 이력을
 다시 타이틀로, 문서 제목은 그 아래 강조해서, 부제는 삭제"로 최종 배치를 지시. "문서
 이력"을 다시 화면 제목(h1)으로 되돌리고 문서 제목을 그 아래 강조된 텍스트로, 부제
@@ -1087,6 +1095,18 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   본문이 있어 구조적으로 클리핑이 없음) 해결했다. 산출물:
   `docs/superpowers/tasks/P17-10-table-toolbar-tooltip-clipping/{task,plan,result,test}.md`,
   src/components/editor/RichTextEditor.tsx, src/components/editor/RichTextEditor.test.tsx
+- [x] (완료, P17-13 — 사용자 추가 요청) 슬래시 메뉴 항목을 클릭해도 반응이 없는
+  문제 — "슬래시 사용으로 툴바를 선택하면 동작하지 않고 있어"라는 리포트. 원인은
+  P17-12(표 툴바 버튼)와 같은 클래스 — `SlashCommandExtension.ts`의 메뉴 버튼이
+  `mousedown`의 기본 동작을 막지 않아, 누르는 순간 브라우저가 에디터 포커스/선택을
+  바꾸고 그 `selectionchange`가 `@tiptap/suggestion` 플러그인 상태를 비활성화시켜
+  `onExit`(메뉴 DOM 제거)을 mousedown~click 사이에 실행해 버렸다 — 대상 버튼이
+  DOM에서 사라져 `click` 이벤트 자체가 발생하지 않았다. 같은 표준 패턴
+  (`mousedown`에서 `preventDefault`)으로 고쳤다. 이 세션은 앱이 MS 계정 로그인
+  뒤에 있어(로컬 dev-login 우회 미구현) 실제 브라우저 재현·재확인을 하지 못했다 —
+  사용자의 재확인이 필요하다. 산출물:
+  `docs/superpowers/tasks/P17-13-slash-menu-click-ignored/{task,plan,result,test}.md`,
+  src/components/editor/SlashCommandExtension.ts, src/components/editor/SlashCommandExtension.test.ts
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.

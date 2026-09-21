@@ -266,6 +266,26 @@ describe("createSlashMenuRenderer(SlashCommandExtension 내부)", () => {
     expect(items[1].run).toHaveBeenCalledTimes(1);
   });
 
+  // 표 툴바 버튼(P17-12)과 같은 근본 원인의 회귀 방지 — mousedown의 기본 동작을 막지
+  // 않으면 브라우저가 에디터 선택을 바꾸고, 그 selectionchange가 Suggestion 플러그인
+  // 상태를 "range 밖" 판정해 onExit(메뉴 DOM 제거)을 mousedown~click 사이에 실행해
+  // 버려 클릭 자체가 무시된다("항목을 선택해도 반응이 없다"). jsdom은 이 브라우저
+  // 고유의 선택-되돌림 자체는 재현하지 않으므로, 표 툴바 테스트와 동일하게 "버튼의
+  // mousedown이 preventDefault를 호출한다"는 핸들러 존재만 고정한다.
+  it("메뉴 버튼의 mousedown은 기본 동작을 막아 에디터 선택이 바뀌지 않게 한다", () => {
+    const items = makeItems();
+    const { mount } = makeMount();
+    renderer.onStart(makeProps(items, mount));
+
+    const menuEl = mount.mock.calls[0][0] as HTMLElement;
+    const buttons = Array.from(menuEl.querySelectorAll("button"));
+    for (const button of buttons) {
+      const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+      button.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+    }
+  });
+
   it("onExit는 props.mount가 반환한 unmount 콜백을 호출한다", () => {
     const items = makeItems();
     const { mount, unmount } = makeMount();
