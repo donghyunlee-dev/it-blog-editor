@@ -151,19 +151,67 @@ beforeEach(() => {
 });
 
 describe("DocumentEditor", () => {
-  it("본문 콘텐츠 컨테이너의 최대 폭이 830px다(P8-6, support.claude.com/ko 벤치마킹 실측값과 일치)", () => {
+  it("본문 콘텐츠 컨테이너의 최대 폭이 920px다(P17-18 — 830px에서 확대, 외부 UI 개선 제안 검토 후 결정)", () => {
     renderEditor(<DocumentEditor mode="create" />);
 
-    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[830px]"]');
+    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[920px]"]');
     expect(contentContainer).not.toBeNull();
-    expect(document.querySelector('[class*="max-w-[820px]"]')).not.toBeInTheDocument();
+    expect(document.querySelector('[class*="max-w-[830px]"]')).not.toBeInTheDocument();
   });
 
-  it("본문 최대 폭(max-w-[830px])과 좌우 패딩(px-*)이 같은 엘리먼트에 있지 않다(2026-09-14 후속 — Tailwind 기본 box-sizing(border-box)에서는 패딩이 그 안에서 깎여나가, 이 둘을 한 엘리먼트에 같이 두면 830px가 아니라 830px-패딩만큼만 실제 읽기 영역이 된다. jsdom은 실제 레이아웃을 계산하지 않아 렌더링 폭 자체는 확인할 수 없으므로, 이 둘이 같은 클래스 문자열에 섞여 있지 않다는 구조로 대신 고정한다)", () => {
+  it("본문 최대 폭(max-w-[920px])과 좌우 패딩(px-*)이 같은 엘리먼트에 있지 않다(2026-09-14 후속 — Tailwind 기본 box-sizing(border-box)에서는 패딩이 그 안에서 깎여나가, 이 둘을 한 엘리먼트에 같이 두면 920px가 아니라 920px-패딩만큼만 실제 읽기 영역이 된다. jsdom은 실제 레이아웃을 계산하지 않아 렌더링 폭 자체는 확인할 수 없으므로, 이 둘이 같은 클래스 문자열에 섞여 있지 않다는 구조로 대신 고정한다)", () => {
     renderEditor(<DocumentEditor mode="create" />);
 
-    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[830px]"]') as HTMLElement;
+    const contentContainer = screen.getByLabelText("제목").closest('[class*="max-w-[920px]"]') as HTMLElement;
     expect(contentContainer.className).not.toMatch(/\bpx-\d/);
+  });
+
+  describe("Wide mode(P17-18)", () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    it("기본은 920px(좁게)이고, '넓게 보기'를 누르면 1200px로 바뀐다", async () => {
+      renderEditor(<DocumentEditor mode="create" />);
+
+      expect(
+        screen.getByLabelText("제목").closest('[class*="max-w-[920px]"]')
+      ).not.toBeNull();
+
+      await userEvent.click(screen.getByRole("button", { name: "넓게 보기" }));
+
+      expect(
+        screen.getByLabelText("제목").closest('[class*="max-w-[1200px]"]')
+      ).not.toBeNull();
+      expect(
+        screen.queryByLabelText("제목")?.closest('[class*="max-w-[920px]"]')
+      ).toBeNull();
+    });
+
+    it("다시 누르면 좁게(920px)로 돌아간다", async () => {
+      renderEditor(<DocumentEditor mode="create" />);
+
+      const button = screen.getByRole("button", { name: "넓게 보기" });
+      await userEvent.click(button);
+      await userEvent.click(screen.getByRole("button", { name: "좁게 보기" }));
+
+      expect(
+        screen.getByLabelText("제목").closest('[class*="max-w-[920px]"]')
+      ).not.toBeNull();
+    });
+
+    it("선택은 localStorage에 저장돼 다음 마운트에도 유지된다", async () => {
+      const { unmount } = renderEditor(<DocumentEditor mode="create" />);
+
+      await userEvent.click(screen.getByRole("button", { name: "넓게 보기" }));
+      unmount();
+
+      renderEditor(<DocumentEditor mode="create" />);
+
+      expect(
+        screen.getByLabelText("제목").closest('[class*="max-w-[1200px]"]')
+      ).not.toBeNull();
+    });
   });
 
   it("새 문서 생성 성공 시 사이드바를 새로고침하고 새 문서로 이동한다", async () => {

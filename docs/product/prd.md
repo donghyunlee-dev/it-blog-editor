@@ -8,7 +8,15 @@
 
 
 
-> 전체 진행률: 141 / 141 항목 완료(P17-17 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+> 전체 진행률: 142 / 142 항목 완료(P17-18 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+**P17-18**(본문 폭 확대 + Wide mode + 워크스페이스 중앙 정렬 — 외부(GPT) UI 개선
+제안 검토 후 값 결정이 필요해 GitHub Issue #161로 등록했고, 사용자가 직접 확인한
+값을 반영했다: 본문 최대 폭 830px→920px, "넓게 보기" 토글로 1200px까지 확장(문서
+전체 단위, localStorage에 유지), 사이드바+본문+TOC 전체를 1800px 최대폭으로 묶어
+페이지 가운데 정렬(넓은 모니터에서 본문 좌우로 커지던 빈 공간 문제 해결). 이 구조
+변경이 깨뜨리는 기존 가정(사이드바 폭 조절 드래그의 "커서 x=폭", 접힘 펼치기
+버튼의 `fixed` 위치)도 함께 고쳤다. 같은 830px를 쓰던 문서 이력·삭제된 문서 화면도
+920px로 맞췄다). 이전 갱신: 2026-09-21 —
 **P17-17**(좁은 화면에서 목차를 드로어로 열기 — 외부(GPT) UI 개선 제안을 검토해
 채택한 항목. 우측 목차(TOC)가 `xl`(1280px) 이상에서만 보여, 노트북처럼 애매하게
 좁은 화면에서는 목차에 접근할 방법이 아예 없었다는 지적. `@sfood/ui`의 `Drawer`를
@@ -1167,6 +1175,20 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   닫는다. `md` 미만(모바일)은 기존과 동일하게 접근 방법 없음으로 범위 밖에 남겼다.
   산출물: `docs/superpowers/tasks/P17-17-toc-drawer-responsive/{task,plan,result,test}.md`,
   src/components/editor/TableOfContents.tsx, src/components/editor/TableOfContents.test.tsx
+- [x] (완료, P17-18 — 외부 UI 개선 제안 검토 후 값 결정, GitHub Issue #161) 본문 폭
+  확대 + Wide mode + 워크스페이스 중앙 정렬 — 본문 최대 폭을 830px(P8-6 벤치마킹
+  값)에서 920px로 올리고, 헤더의 "넓게 보기" 토글로 문서 전체를 1200px까지 확장할
+  수 있게 했다(선택은 localStorage에 유지, 블록 단위 확장은 스키마 변경이 필요한
+  후속 작업으로 미룸). 넓은 모니터(1920px 이상)에서 본문 좌우로 점점 커지던 빈
+  공간 문제는 사이드바+본문+TOC 워크스페이스 전체를 1800px 최대폭으로 묶어 페이지
+  가운데 정렬해 해결했다 — 이 구조 변경이 깨뜨리는 두 곳(사이드바 폭 조절 드래그의
+  "커서 x=폭" 가정, 접힘 펼치기 버튼의 `fixed` 위치)도 함께 고쳤다. 같은 830px를
+  쓰던 문서 이력·삭제된 문서 화면도 920px로 맞춰 편집 화면과의 폭 불일치를 막았다.
+  산출물:
+  `docs/superpowers/tasks/P17-18-body-width-wide-mode-workspace-centering/{task,plan,result,test}.md`,
+  src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
+  src/components/editor/EditorShell.tsx, src/components/editor/EditorShell.test.tsx,
+  src/components/editor/VersionHistoryPage.tsx, src/components/editor/DeletedDocumentsPage.tsx
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.
