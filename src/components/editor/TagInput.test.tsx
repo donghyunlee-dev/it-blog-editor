@@ -3,10 +3,19 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TagInput } from "./TagInput";
 
+/**
+ * P17-16부터 태그 입력창은 상시 노출되지 않고 "태그 추가" 트리거(Popover)를 눌러야
+ * 나타난다 — 입력 관련 동작을 검증하는 테스트는 먼저 이 트리거를 열어야 한다.
+ */
+async function openTagPopover() {
+  await userEvent.click(screen.getByRole("button", { name: "태그 추가" }));
+}
+
 describe("TagInput", () => {
   it("Enter를 누르면 태그가 추가된다", async () => {
     const onChange = vi.fn();
     render(<TagInput value={[]} onChange={onChange} suggestions={[]} />);
+    await openTagPopover();
 
     const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "React{Enter}");
@@ -17,6 +26,7 @@ describe("TagInput", () => {
   it("쉼표를 누르면 태그가 추가된다", async () => {
     const onChange = vi.fn();
     render(<TagInput value={["React"]} onChange={onChange} suggestions={[]} />);
+    await openTagPopover();
 
     const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "Backend,");
@@ -27,6 +37,7 @@ describe("TagInput", () => {
   it("이미 존재하는 태그는 중복 추가되지 않는다", async () => {
     const onChange = vi.fn();
     render(<TagInput value={["React"]} onChange={onChange} suggestions={[]} />);
+    await openTagPopover();
 
     const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "React{Enter}");
@@ -34,7 +45,7 @@ describe("TagInput", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("칩의 삭제 버튼을 누르면 태그가 제거된다", async () => {
+  it("칩의 삭제 버튼을 누르면 태그가 제거된다(팝오버를 열지 않아도 칩은 항상 보인다)", async () => {
     const onChange = vi.fn();
     render(<TagInput value={["React", "Backend"]} onChange={onChange} suggestions={[]} />);
 
@@ -43,9 +54,10 @@ describe("TagInput", () => {
     expect(onChange).toHaveBeenCalledWith(["Backend"]);
   });
 
-  it("한글 조합 중 Enter는 태그를 추가하지 않는다 (IME composition)", () => {
+  it("한글 조합 중 Enter는 태그를 추가하지 않는다 (IME composition)", async () => {
     const onChange = vi.fn();
     render(<TagInput value={[]} onChange={onChange} suggestions={[]} />);
+    await openTagPopover();
 
     const input = screen.getByRole("combobox", { name: "태그" });
     fireEvent.change(input, { target: { value: "리액" } });
@@ -61,14 +73,12 @@ describe("TagInput", () => {
     expect(onChange).toHaveBeenCalledWith(["리액트"]);
   });
 
-  it("이미 선택된 값과 입력한 초안을 제외한 추천 태그를 제공한다", async () => {
+  it("팝오버를 열면 이미 선택된 값을 제외한 추천 태그를 곧바로(입력 없이도) 보여준다", async () => {
     render(
       <TagInput value={["React"]} onChange={vi.fn()} suggestions={["React", "Redux", "Backend"]} />
     );
 
-    const input = screen.getByRole("combobox", { name: "태그" });
-    // 드롭다운은 초안이 있을 때만(datalist와 달리 빈 입력에서는 뜨지 않음) 열린다.
-    await userEvent.type(input, "e");
+    await openTagPopover();
 
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     expect(screen.getAllByRole("option")).toHaveLength(2);
@@ -76,11 +86,25 @@ describe("TagInput", () => {
     expect(screen.getByRole("option", { name: "Backend" })).toBeInTheDocument();
   });
 
+  it("입력한 글자로 추천 태그를 좁힌다", async () => {
+    render(
+      <TagInput value={[]} onChange={vi.fn()} suggestions={["Redux", "Backend"]} />
+    );
+    await openTagPopover();
+
+    const input = screen.getByRole("combobox", { name: "태그" });
+    await userEvent.type(input, "red");
+
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "Redux" })).toBeInTheDocument();
+  });
+
   it("추천 태그를 클릭하면 태그로 추가된다", async () => {
     const onChange = vi.fn();
     render(
       <TagInput value={[]} onChange={onChange} suggestions={["Redux", "Backend"]} />
     );
+    await openTagPopover();
 
     const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "red");
@@ -89,15 +113,11 @@ describe("TagInput", () => {
     expect(onChange).toHaveBeenCalledWith(["Redux"]);
   });
 
-  it("태그가 없으면 예시 placeholder를 보여준다", () => {
+  it("추천 태그가 없으면(빈 suggestions) 목록 없이 입력창만 보인다", async () => {
     render(<TagInput value={[]} onChange={vi.fn()} suggestions={[]} />);
+    await openTagPopover();
 
-    expect(screen.getByPlaceholderText("예: React, Backend")).toBeInTheDocument();
-  });
-
-  it("태그가 이미 있으면 예시 placeholder를 보여주지 않는다(2026-09-14, P12-2)", () => {
-    render(<TagInput value={["React"]} onChange={vi.fn()} suggestions={[]} />);
-
-    expect(screen.queryByPlaceholderText("예: React, Backend")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "태그" })).toBeInTheDocument();
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });
