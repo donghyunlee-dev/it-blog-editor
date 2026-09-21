@@ -372,8 +372,9 @@ describe("DocumentEditor", () => {
     renderEditor(<DocumentEditor mode="create" />);
 
     await userEvent.type(screen.getByLabelText("제목"), "새 문서");
+    await userEvent.click(screen.getByRole("button", { name: "태그 추가" }));
     await userEvent.type(
-      screen.getByPlaceholderText("예: React, Backend"),
+      screen.getByRole("combobox", { name: "태그" }),
       "Backend{Enter}"
     );
     await userEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -408,8 +409,9 @@ describe("DocumentEditor", () => {
     renderEditor(<DocumentEditor mode="create" />);
 
     await userEvent.type(screen.getByLabelText("제목"), "새 문서");
+    await userEvent.click(screen.getByRole("button", { name: "태그 추가" }));
     await userEvent.type(
-      screen.getByPlaceholderText("예: React, Backend"),
+      screen.getByRole("combobox", { name: "태그" }),
       "Backend{Enter}"
     );
     await userEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -513,7 +515,8 @@ describe("DocumentEditor", () => {
       <DocumentEditor {...EDIT_PROPS} tagSuggestions={["Backend", "React"]} />
     );
 
-    const input = screen.getByPlaceholderText("예: React, Backend");
+    await userEvent.click(screen.getByRole("button", { name: "태그 추가" }));
+    const input = screen.getByRole("combobox", { name: "태그" });
     await userEvent.type(input, "e");
 
     expect(screen.getAllByRole("option")).toHaveLength(2);
