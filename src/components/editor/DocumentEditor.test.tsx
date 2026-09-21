@@ -621,6 +621,41 @@ describe("DocumentEditor", () => {
   });
 });
 
+describe("DocumentEditor — 헤더 저장 상태 표시(P17-15)", () => {
+  it("한 번도 저장한 적 없고 변경도 없는 새 문서는 아무 상태도 표시하지 않는다", () => {
+    renderEditor(<DocumentEditor mode="create" />);
+
+    expect(screen.queryByText("변경사항 있음")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^저장됨/)).not.toBeInTheDocument();
+  });
+
+  it("이미 저장된 문서를 열면 최종 수정 시각으로 '저장됨 HH:MM'을 곧바로 보여준다", () => {
+    renderEditor(
+      <DocumentEditor {...EDIT_PROPS} initialUpdatedAt="2026-09-01T13:27:00.000Z" />
+    );
+
+    expect(screen.getByText(/^저장됨 \d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+
+  it("수정하면 '변경사항 있음'으로 바뀌고, 저장에 성공하면 다시 '저장됨 HH:MM'으로 바뀐다", async () => {
+    stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    renderEditorWithGuard(
+      <DocumentEditor {...EDIT_PROPS} initialUpdatedAt="2026-09-01T13:27:00.000Z" />
+    );
+    expect(screen.getByText(/^저장됨 \d{2}:\d{2}$/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText("제목"), " (수정)");
+    expect(screen.getByText("변경사항 있음")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    await screen.findByText("저장되었습니다.");
+    expect(screen.queryByText("변경사항 있음")).not.toBeInTheDocument();
+    expect(screen.getByText(/^저장됨 \d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+});
+
 describe("DocumentEditor — 자동 저장(P0-1b)", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -674,10 +709,24 @@ describe("DocumentEditor — 자동 저장(P0-1b)", () => {
     await vi.advanceTimersByTimeAsync(60_000);
 
     expect(readAutosaveSnapshot("page-1")).toBeNull();
-    // 풋터의 조용한 상태 표시만으로는 놓치기 쉽다는 실사용 피드백(2026-08-27)으로
-    // 성공 시에도 토스트를 띄우도록 바꿨다 — 풋터 상태 표시와 토스트가 같은 문구를
-    // 쓰므로(둘 다 "자동 저장됨") getAllByText로 최소 1곳 이상 나타나는지 확인한다.
-    expect((await screen.findAllByText("자동 저장됨")).length).toBeGreaterThan(0);
+    // 헤더의 조용한 상태 표시(P17-15, SaveStatusIndicator)만으로는 놓치기 쉽다는
+    // 실사용 피드백(2026-08-27)으로 성공 시에도 토스트를 띄우도록 바꿨다.
+    expect(await screen.findByText("자동 저장됨")).toBeInTheDocument();
+  });
+
+  it("자동 저장이 성공하면 헤더의 저장 상태 표시가 '저장됨 HH:MM'으로 바뀐다(P17-15)", async () => {
+    stubFetch(() => jsonResponse({ pageId: "page-1", version: 2 }));
+
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent.setup({ delay: null });
+    renderEditorWithGuard(<DocumentEditor {...EDIT_PROPS} />);
+    await user.type(screen.getByLabelText("제목"), " (수정)");
+
+    expect(screen.getByText("변경사항 있음")).toBeInTheDocument();
+
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(await screen.findByText(/^저장됨 \d{2}:\d{2}$/)).toBeInTheDocument();
   });
 
   it("자동 저장이 실패하면 로컬 임시 저장본을 남겨두고 경고 토스트를 띄운다", async () => {

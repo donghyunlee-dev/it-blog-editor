@@ -15,6 +15,7 @@
 추가" 트리거만 보이고 실제 입력·검색은 트리거를 눌렀을 때만 뜨게 바꿨다. 팝오버를
 열면 입력 없이도 추천 태그 전체를 보여줘 "둘러보기"도 가능해졌다. 태그 위치(문서
 하단, P12-2 결정)는 그대로 유지). 이전 갱신: 2026-09-21 —
+
 **P17-14**(사이드바 "새 문서" 버튼 강조도 낮춤 — 외부(GPT) UI 개선 제안을 검토해 채택한
 항목. 하단 "새 문서" 링크가 `bg-brand` 풀필드 스타일이라 사이드바에서 가장 강한 시각적
 무게를 가져 "가장 중요한 기능"처럼 보인다는 지적. `@sfood/ui`의 `Button
@@ -1128,6 +1129,7 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   분담(폴더 지정 생성 vs 미분류 생성)과 툴팁은 이미 적절해 그대로 유지했다. 산출물:
   `docs/superpowers/tasks/P17-14-new-doc-button-deemphasis/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx
+
 - [x] (완료, P17-16 — 외부 UI 개선 제안 검토 후 채택) 태그 UI를 칩+팝오버 방식으로
   전환 — 상시 열린 테두리+배경 입력 행이 "문서 마지막에 거대한 Form 필드가 붙어
   있다"는 외부 리뷰 지적을 검토해 채택했다(위치는 P12-2 결정대로 하단 유지, 인터랙션만
@@ -1138,6 +1140,19 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-16-tag-input-popover/{task,plan,result,test}.md`,
   src/components/editor/TagInput.tsx, src/components/editor/TagInput.test.tsx,
   src/components/editor/DocumentEditor.test.tsx
+
+- [x] (완료, P17-15 — 외부 UI 개선 제안 검토 후 채택) 저장 버튼 상태 표현 강화 —
+  저장 버튼이 아이콘만 있어 "지금 수정 중인지/저장이 필요한지/방금 저장됐는지" 알 수
+  없다는 외부 리뷰 지적을 검토해 채택했다(저장 버튼 자체는 Confluence 실제 저장·
+  문서 이력 생성과 연결돼 있어 유지). 헤더의 저장 버튼 옆에 "저장 중.../변경사항
+  있음/저장됨 HH:MM" 세 상태 중 하나를 보여주는 `SaveStatusIndicator`를 추가했다 —
+  우선순위는 저장 중 > 변경사항 있음 > 저장됨, 아직 한 번도 저장한 적 없고 변경도
+  없는 새 문서는 아무것도 표시하지 않는다. 기존에 풋터에만 있던 중복 자동저장 상태
+  문구("자동 저장 중.../자동 저장됨")와 그 전용 state는 제거해 한 곳으로 통합했다 —
+  풋터는 세션을 넘나드는 "최종 수정 날짜·수정자"만 남는다. 산출물:
+  `docs/superpowers/tasks/P17-15-save-status-indicator/{task,plan,result,test}.md`,
+  src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx
+
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.
