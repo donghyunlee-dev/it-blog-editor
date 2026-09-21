@@ -152,6 +152,12 @@ describe("EditorSidebar", () => {
     expect(screen.getByRole("img", { name: "초안" })).toBeInTheDocument();
   });
 
+  it("문서 목록 행은 밀도를 우선한 상하 패딩(py-1)을 쓴다(P17-21 — 문서가 많아지면 화면에 보이는 문서 수가 적다는 지적으로 py-1.5에서 한 번 더 좁힘)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.getByRole("link", { name: /문서A/ })).toHaveClass("py-1");
+  });
+
   it("onOpenSearch가 없으면 헤더에 검색 버튼을 렌더링하지 않는다", () => {
     render(<EditorSidebar documents={DOCS} />);
 
@@ -191,6 +197,14 @@ describe("EditorSidebar", () => {
     expect(screen.getByRole("link", { name: "새 문서" })).toHaveAttribute(
       "href",
       "/editor/new"
+    );
+  });
+
+  it("새 문서 링크는 라이트 모드에서도 보이는 hover 스타일(sidebar-row-hover)을 쓴다(P17-20 — hover:bg-surface-raised는 라이트 모드에서 --color-surface와 같은 값이라 마우스를 올려도 아무 변화가 없었다)", () => {
+    render(<EditorSidebar documents={DOCS} />);
+
+    expect(screen.getByRole("link", { name: "새 문서" })).toHaveClass(
+      "sidebar-row-hover"
     );
   });
 

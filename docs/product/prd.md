@@ -8,7 +8,18 @@
 
 
 
-> 전체 진행률: 142 / 142 항목 완료(P17-18 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+> 전체 진행률: 144 / 144 항목 완료(P17-21 추가로 분모 +1) (최근 갱신: 2026-09-22 —
+**P17-21**(사용자 추가 요청 — 문서함 리스트 행 밀도 조정. "문서가 많아지면 리스트가
+길어져 화면에 보이는 문서 수가 적다"는 리포트에 "행 높이를 줄여 더 많이 보이게"로
+방향을 확인받았다. 문서·폴더·공유받은 문서 행의 상하 패딩을 `py-1.5`(6px, P13-1
+결정값)에서 `py-1`(4px)로 한 단계 더 줄였다 — 행 간격이 34px→30px로 실측 확인).
+이전 갱신: 2026-09-21 —
+**P17-20**(사용자 추가 요청 — 새 문서 버튼 hover가 라이트 모드에서 안 보이던 문제
+수정. P17-14 병합 후 "마우스 오버 했을 때 아무 인터렉션이 없다"는 리포트. 원인은
+`hover:bg-surface-raised`가 라이트 모드에서 `--color-surface`와 완전히 같은 값이라
+hover 시 배경색이 실제로 바뀌지 않은 것 — 이 프로젝트가 문서·폴더 행에서 이미 같은
+문제를 겪고 고친 해결책(`.sidebar-row-hover`, color-mix 기반)을 그대로 재사용해
+고쳤다). 이전 갱신: 2026-09-21 —
 **P17-18**(본문 폭 확대 + Wide mode + 워크스페이스 중앙 정렬 — 외부(GPT) UI 개선
 제안 검토 후 값 결정이 필요해 GitHub Issue #161로 등록했고, 사용자가 직접 확인한
 값을 반영했다: 본문 최대 폭 830px→920px, "넓게 보기" 토글로 1200px까지 확장(문서
@@ -1189,6 +1200,25 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx,
   src/components/editor/EditorShell.tsx, src/components/editor/EditorShell.test.tsx,
   src/components/editor/VersionHistoryPage.tsx, src/components/editor/DeletedDocumentsPage.tsx
+- [x] (완료, P17-20 — 사용자 추가 요청) 새 문서 버튼 hover가 라이트 모드에서 안
+  보이던 문제 수정 — P17-14 병합 후 "마우스 오버 했을 때 아무 인터렉션이 없다"는
+  리포트. 원인은 `hover:bg-surface-raised`가 라이트 모드에서 `--color-surface`와
+  완전히 같은 값(`node_modules/@sfood/ui/tokens/semantic.css` 확인)이라 hover 시
+  배경색이 실제로 바뀌지 않은 것 — 다크 모드에서는 값이 달라 정상 작동해 이 세션이
+  다크 모드로만 검증하며 놓쳤다. 이 프로젝트가 문서·폴더 행에서 이미 같은 문제를
+  겪고 고친 해결책(`.sidebar-row-hover`, `color-mix` 기반, P13-2)을 그대로
+  재사용했다. 산출물:
+  `docs/superpowers/tasks/P17-20-new-doc-hover-visibility/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx
+- [x] (완료, P17-21 — 사용자 추가 요청) 문서함 리스트 행 밀도 조정 — "문서가
+  많아지면 리스트가 길어져 화면에 보이는 문서 수가 적다"는 리포트에 "행 높이를
+  줄여 더 많이 보이게"로 방향을 확인받았다. 문서·폴더·공유받은 문서 행의 상하
+  패딩을 `py-1.5`(6px, P13-1 결정값)에서 `py-1`(4px)로 한 단계 더 줄였다 — 세
+  종류 행의 높이를 항상 맞춰야 한다는 기존 제약(P8-2/P13-1)에 따라 세 곳 모두
+  함께 조정했고, 실제 행 간격이 34px→30px로 줄어드는 것을 실측 확인했다. 산출물:
+  `docs/superpowers/tasks/P17-21-sidebar-list-density/{task,plan,result,test}.md`,
+  src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
+  docs/product/design.md
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.

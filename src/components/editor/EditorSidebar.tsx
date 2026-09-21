@@ -754,11 +754,13 @@ export function EditorSidebar({
           // 근거로 radius는 12px(`rounded-card`, 이 프로젝트의 `--radius-card` 토큰과 같은
           // 값)를 그대로 쓴다. 상하 padding은 P8-2 당시 `py-1.5`(6px)에서 `py-2`(8px)로
           // 올렸었는데, 문서가 적어도 목록이 화면의 상당 부분을 차지한다는 지적(2026-09-14,
-          // P13-1)으로 다시 `py-1.5`로 되돌린다 — 폴더 행과 높이를 맞추는 것은 유지한다.
+          // P13-1)으로 다시 `py-1.5`로 되돌렸다. P17-21(사용자 추가 요청 — 문서가 많아지면
+          // 리스트가 길어져 화면에 보이는 문서 수가 적다는 지적)로 `py-1`(4px)까지 한 번 더
+          // 줄인다 — 폴더 행과 높이를 맞추는 것은 유지한다.
           // `pl-2`(2026-09-14, P13-2 — 사용자 지적: "선택한 페이지 영역의 왼쪽은 여백이
           // 없어, 게시 아이콘하고 붙어 있어")를 추가한다 — 왼쪽 들여쓰기는 `<li>`의 inline
           // style이 행 전체(배경 포함)를 밀어줄 뿐, 배경 박스 안쪽 여백은 별도로 필요하다.
-          "block min-w-0 flex-1 rounded-card py-1.5 pl-2 pr-2 transition-colors duration-default " +
+          "block min-w-0 flex-1 rounded-card py-1 pl-2 pr-2 transition-colors duration-default " +
           (isActive
             ? "sidebar-row-active text-foreground"
             // P13-2: 라이트 모드에서 hover:bg-surface-raised가 --color-surface와 같은 값이라
@@ -821,8 +823,8 @@ export function EditorSidebar({
                   }
             );
           }}
-          // mt-1.5는 위 Link의 상단 패딩(py-1.5, P13-1)과 맞춰 첫 줄과 나란히 보이게 한다.
-          className="mt-1.5 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
+          // mt-1은 위 Link의 상단 패딩(py-1, P17-21)과 맞춰 첫 줄과 나란히 보이게 한다.
+          className="mt-1 shrink-0 rounded-btn p-1 text-muted opacity-0 transition-opacity duration-default hover:bg-surface hover:text-foreground group-hover:opacity-100 group-focus-within:opacity-100"
         >
           <MoreIcon />
         </button>
@@ -960,8 +962,9 @@ export function EditorSidebar({
             aria-expanded={isExpanded}
             title={folder.name}
             // P8-2 때 문서 행과 높이를 맞추려 py-1.5→py-2로 올렸었는데, 문서 행이 다시
-            // py-1.5로 돌아가면서(P13-1) 같은 높이를 유지하려 이 값도 함께 되돌린다.
-            className="flex min-w-0 flex-1 items-center gap-1.5 py-1.5 text-left text-sm font-medium text-foreground"
+            // py-1.5로 돌아가면서(P13-1) 같은 높이를 유지하려 이 값도 함께 되돌렸다.
+            // P17-21로 문서 행이 다시 py-1로 줄면서 이 값도 함께 줄인다.
+            className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left text-sm font-medium text-foreground"
           >
             <ChevronIcon expanded={isExpanded} />
             <FolderIcon />
@@ -1150,9 +1153,9 @@ export function EditorSidebar({
                     onNavigate={(event) => guardNavigate(event, `/editor/${document.pageId}`)}
                     aria-current={isActive ? "page" : undefined}
                     title={`공유자: ${ownerLabel}`}
-                    // P13-1: 문서 목록 행과 같은 이유로 py-1.5(6px)·12px radius로 맞춘다.
+                    // P17-21: 문서 목록 행과 같은 이유로 py-1(4px)·12px radius로 맞춘다.
                     className={
-                      "block rounded-card py-1.5 pl-2 pr-2 transition-colors duration-default " +
+                      "block rounded-card py-1 pl-2 pr-2 transition-colors duration-default " +
                       (isActive
                         ? "sidebar-row-active text-foreground"
                         // P13-2: 문서 목록 행과 같은 이유로 hover:bg-surface-raised 대신
@@ -1295,13 +1298,21 @@ export function EditorSidebar({
           수준으로 낮춘다. `Button`은 `<button>`만 지원해 `/editor/new`로 이동하는 이
           `<Link>`에는 쓸 수 없어(node_modules/@sfood/ui/dist/index.d.ts의
           `ButtonProps extends ButtonHTMLAttributes` 확인) 클래스만 그대로 재사용했다.
+
+          P17-20(사용자 추가 요청 — "마우스 오버 했을 때 아무 인터렉션이 없다"):
+          `hover:bg-surface-raised`는 라이트 모드에서 `--color-surface-raised`가
+          `--color-surface`와 같은 값이라(node_modules/@sfood/ui/tokens/semantic.css
+          14~17행) 실제로는 아무 효과가 없었다 — 이 파일의 문서·폴더 행이 같은 이유로
+          이미 겪은 문제(위 P13-2 주석, globals.css의 `.sidebar-row-hover`)를 그대로
+          답습한 것이다. 같은 해결책을 재사용해 `hover:bg-surface-raised`를
+          `sidebar-row-hover`로 바꾼다.
         */}
         <div className="shrink-0 p-2.5">
           <Link
             href="/editor/new"
             onClick={onNavigate}
             onNavigate={(event) => guardNavigate(event, "/editor/new")}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors duration-default hover:bg-surface-raised"
+            className="sidebar-row-hover inline-flex w-full items-center justify-center gap-2 rounded-btn border border-border bg-surface px-4 py-2 text-sm font-medium text-foreground transition-colors duration-default"
           >
             <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true">
               <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
