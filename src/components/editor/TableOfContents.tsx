@@ -1,6 +1,7 @@
 "use client";
 
 import { useContext, useEffect, useRef, useState, type RefObject } from "react";
+import { Drawer } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { TocRailContext } from "./EditorShell";
 
@@ -111,6 +112,15 @@ function computeActiveHeading(
   return candidate;
 }
 
+/** P17-17: 좁은 화면에서 목차를 여는 드로어 트리거의 "☰" 아이콘. */
+function TocToggleIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
  * 문서 보기/편집 화면 우측 목차(P8-5, design.md "7. 우측 목차(TOC)" 절이 스펙).
  * 본문 H2/H3를 스캔해 목록을 만들고, 스크롤 위치에 따라 현재 섹션을 강조하며,
@@ -118,15 +128,25 @@ function computeActiveHeading(
  * 헤딩이 하나도 없는 문서에서는 렌더링 자체를 하지 않는다(EditorSidebar.tsx의
  * "공유받은 문서" 영역이 비어 있을 때 렌더링을 생략하는 것과 같은 원칙).
  *
- * **이 컴포넌트는 자기 자리에는 아무것도 그리지 않고 항상 `null`을 반환한다**(P8-8,
- * 2026-09-14 구조 변경). 실제 목차 UI는 `EditorShell`의 우측 레일 슬롯(`TocRailContext`)
- * 으로 밀어 넣는다 — 예전엔 이 목차가 본문과 같은 `flex` 그룹의 한 아이템이라
+ * **`xl`(1280px) 이상에서는 자기 자리에 아무것도 그리지 않고 실제 목차 UI를
+ * `EditorShell`의 우측 레일 슬롯(`TocRailContext`)으로 밀어 넣는다**(P8-8,
+ * 2026-09-14 구조 변경). 예전엔 이 목차가 본문과 같은 `flex` 그룹의 한 아이템이라
  * `sticky`로 스크롤에 붙어있는 것처럼 흉내 내야 했는데, 그 flex 그룹의 `align-items`
  * 기본값(stretch)이 이 nav를 본문과 같은 높이(문서 전체 길이)로 늘려버려 `sticky`가
  * 계산상 아무 효과를 못 내는 문제가 반복됐다("스크롤하면 목차가 안 보인다"). 사용자가
  * 벤치마킹한 참고 사이트처럼, 왼쪽 사이드바와 동급으로 스크롤 영역 **밖**에 있는
  * 독립된 형제 컬럼으로 만들면 이 문제 자체가 구조적으로 생기지 않는다(`sticky` 계산이
  * 아예 필요 없다 — `EditorShell.tsx`의 `TocRailContext` 주석 참고).
+ *
+ * P17-17(외부 UI 개선 제안 검토 후 채택): `xl` 레일은 `md`(768px) 미만에서는 항상
+ * 숨겨져 있었고(`EditorShell.tsx`의 `hidden w-60 shrink-0 xl:block`), `md`~`xl`
+ * 사이(노트북처럼 뷰포트가 애매하게 좁은 구간)에서는 목차 자체에 접근할 방법이
+ * 아예 없었다 — "TOC 공간에 비해 내용이 적으니 그 구간은 접힌 토글 버튼 하나로
+ * 충분하다"는 외부 리뷰를 검토해 채택했다. 이 컴포넌트가 직접(레일과 별개로)
+ * `md:flex xl:hidden`(→ `md`~`xl` 구간에서만 보임) 위치 고정 토글 버튼과, 그 버튼을
+ * 누르면 열리는 `@sfood/ui`의 `Drawer`(우측에서 슬라이드, Escape·바깥 클릭으로 닫힘 —
+ * 새 드로어 로직을 직접 구현하지 않는다)를 렌더링한다. 목록 자체(`renderHeadingList`)는
+ * 레일과 드로어가 완전히 같은 마크업을 공유한다 — 표시 위치만 다르다.
  *
  * **이 컴포넌트는 ProseMirror가 관리하는 DOM(containerRef 안의 h2/h3)에 절대
  * 쓰기(mutate)를 하지 않는다** — 예전 구현은 헤딩마다 `element.id`를 직접 붙였는데,
@@ -142,6 +162,8 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
   const setTocRail = useContext(TocRailContext);
   const [headings, setHeadings] = useState<HeadingItem[]>([]);
   const [activeElement, setActiveElement] = useState<HTMLHeadingElement | null>(null);
+  // P17-17: md~xl 구간 드로어의 열림 상태 — xl 레일(TocRailContext)과는 완전히 별개다.
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // 방금 목차를 클릭해 이동 중인 헤딩(computeActiveHeading의 pinnedByClick 주석 참고).
   // ref로 두는 이유: 이 값 자체가 화면에 그려지는 상태가 아니라(activeElement가 그
   // 역할이다) "다음 scroll 이벤트가 바닥 판정을 클릭보다 우선할지" 판단하는 내부
@@ -234,6 +256,59 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headings]);
 
+  // 레일(xl 이상)과 드로어(md~xl, 아래 return)가 완전히 같은 목록을 그린다 — 표시
+  // 위치와 감싸는 틀(레일은 헤더 높이 맞춤 spacer + 자체 여백, 드로어는 `Drawer`의
+  // `title`/패딩)만 다르다.
+  function renderHeadingList() {
+    return (
+      <ul className="flex flex-col gap-1.5">
+        {headings.map((heading) => {
+          const isActive = heading.element === activeElement;
+          return (
+            <li key={heading.key} style={{ paddingLeft: heading.level === 3 ? 22 : 10 }}>
+              {/*
+                href="#"만 두고 실제 이동은 onClick에서 엘리먼트 참조로 직접
+                scrollIntoView한다 — 예전처럼 href="#id"로 진짜 앵커 이동을
+                겸하려면 헤딩에 id를 붙여야 하는데, 그건 ProseMirror가 관리하는
+                DOM에 쓰기를 하는 것이라 위 클래스 주석의 무한 루프를 다시 만든다.
+              */}
+              <a
+                href="#"
+                aria-current={isActive ? "true" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  // 이 클릭으로 이동 중인 헤딩을 "고정"해 둔다 — computeActiveHeading의
+                  // pinnedByClick 주석 참고. 문서(또는 마지막 구간)가 짧아 화면에 헤딩이
+                  // 2개 이상 한 번에 보일 정도면 "바닥" 판정이 거의 항상 참이 되는데,
+                  // 이 고정이 없으면 smooth 스크롤이 안착하는 동안의 매 scroll 이벤트가
+                  // 그때마다 "바닥이니까 마지막 헤딩"으로 되돌려서 클릭이 사실상
+                  // 무효화됐다(2026-09-14 실사용 중 발견). 사용자가 실제로 휠/터치로
+                  // 스크롤하면(releasePin) 이 고정을 풀어 원래 동작으로 돌아간다.
+                  pinnedByClickRef.current = heading.element;
+                  heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
+                  // 클릭한 항목을 즉시 활성으로 본다(낙관적 갱신) — 그러지 않으면
+                  // smooth 스크롤이 안착하기 전까지 화면에는 예전 활성 항목이 그대로
+                  // 남아 있어, 클릭이 반영되기까지 잠깐 아무 반응이 없는 것처럼 보인다.
+                  setActiveElement(heading.element);
+                  // P17-17: 드로어에서 항목을 클릭하면 그 목적(목차로 이동)을 이미
+                  // 이뤘으므로 드로어를 닫는다. xl 레일에서는 이 setter가 아무 효과가
+                  // 없다(드로어 자체가 md~xl 구간에서만 렌더링되어 열려 있을 수 없다).
+                  setDrawerOpen(false);
+                }}
+                className={
+                  "block truncate border-l-2 py-0.5 pl-2 text-xs transition-colors duration-default " +
+                  (isActive ? "toc-active-link" : "border-transparent text-muted hover:text-foreground")
+                }
+              >
+                {heading.text}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   // EditorShell의 우측 레일 슬롯으로 실제 UI를 밀어 넣는다(위 클래스 주석 참고) —
   // headings가 비면 슬롯을 비워(null) 레일 자체가 사라지게 한다(EditorShell.tsx의
   // `{tocRail && ...}` 조건). Provider 밖(예: 테스트에서 Context 없이 단독 렌더)에서는
@@ -266,52 +341,38 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
         <div className="h-14 shrink-0 border-b border-border" aria-hidden="true" />
         <div className="flex-1 overflow-y-auto pt-10 pr-2 pl-12">
           <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
-          <ul className="flex flex-col gap-1.5">
-            {headings.map((heading) => {
-              const isActive = heading.element === activeElement;
-              return (
-                <li key={heading.key} style={{ paddingLeft: heading.level === 3 ? 22 : 10 }}>
-                  {/*
-                    href="#"만 두고 실제 이동은 onClick에서 엘리먼트 참조로 직접
-                    scrollIntoView한다 — 예전처럼 href="#id"로 진짜 앵커 이동을
-                    겸하려면 헤딩에 id를 붙여야 하는데, 그건 ProseMirror가 관리하는
-                    DOM에 쓰기를 하는 것이라 위 클래스 주석의 무한 루프를 다시 만든다.
-                  */}
-                  <a
-                    href="#"
-                    aria-current={isActive ? "true" : undefined}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      // 이 클릭으로 이동 중인 헤딩을 "고정"해 둔다 — computeActiveHeading의
-                      // pinnedByClick 주석 참고. 문서(또는 마지막 구간)가 짧아 화면에 헤딩이
-                      // 2개 이상 한 번에 보일 정도면 "바닥" 판정이 거의 항상 참이 되는데,
-                      // 이 고정이 없으면 smooth 스크롤이 안착하는 동안의 매 scroll 이벤트가
-                      // 그때마다 "바닥이니까 마지막 헤딩"으로 되돌려서 클릭이 사실상
-                      // 무효화됐다(2026-09-14 실사용 중 발견). 사용자가 실제로 휠/터치로
-                      // 스크롤하면(releasePin) 이 고정을 풀어 원래 동작으로 돌아간다.
-                      pinnedByClickRef.current = heading.element;
-                      heading.element.scrollIntoView({ behavior: "smooth", block: "start" });
-                      // 클릭한 항목을 즉시 활성으로 본다(낙관적 갱신) — 그러지 않으면
-                      // smooth 스크롤이 안착하기 전까지 화면에는 예전 활성 항목이 그대로
-                      // 남아 있어, 클릭이 반영되기까지 잠깐 아무 반응이 없는 것처럼 보인다.
-                      setActiveElement(heading.element);
-                    }}
-                    className={
-                      "block truncate border-l-2 py-0.5 pl-2 text-xs transition-colors duration-default " +
-                      (isActive ? "toc-active-link" : "border-transparent text-muted hover:text-foreground")
-                    }
-                  >
-                    {heading.text}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
+          {renderHeadingList()}
         </div>
       </nav>
     );
     return () => setTocRail(null);
+    // renderHeadingList는 매 렌더마다 새로 만들어지는 클로저지만, 그 안에서 읽는
+    // 값(headings/activeElement)과 호출하는 setter(setActiveElement/setDrawerOpen)는
+    // 이미 안정적이거나 이미 deps에 있다 — 함수 자체를 deps에 추가하면 사실상 매
+    // 렌더마다 이 effect가 다시 실행되어, headings/activeElement가 그대로인데도
+    // setTocRail을 불필요하게 다시 호출하게 된다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headings, activeElement, setTocRail]);
 
-  return null;
+  if (headings.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      {/* P17-17: md(768px)~xl(1280px) 구간 전용 — 그 아래(모바일)는 계속 숨기고,
+          xl 이상은 위 레일이 이미 항상 보이므로 이 버튼은 필요 없다. */}
+      <button
+        type="button"
+        onClick={() => setDrawerOpen(true)}
+        className="fixed right-4 top-3 z-30 hidden items-center gap-1.5 rounded-btn border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground shadow-md transition-colors duration-default hover:bg-surface-raised md:flex xl:hidden"
+      >
+        <TocToggleIcon />
+        이 페이지
+      </button>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} side="right" title="이 페이지">
+        {renderHeadingList()}
+      </Drawer>
+    </>
+  );
 }

@@ -8,7 +8,13 @@
 
 
 
-> 전체 진행률: 140 / 140 항목 완료(P17-16 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+> 전체 진행률: 141 / 141 항목 완료(P17-17 추가로 분모 +1) (최근 갱신: 2026-09-21 —
+**P17-17**(좁은 화면에서 목차를 드로어로 열기 — 외부(GPT) UI 개선 제안을 검토해
+채택한 항목. 우측 목차(TOC)가 `xl`(1280px) 이상에서만 보여, 노트북처럼 애매하게
+좁은 화면에서는 목차에 접근할 방법이 아예 없었다는 지적. `@sfood/ui`의 `Drawer`를
+그대로 재사용해, `md`(768px)~`xl` 구간에서만 "이 페이지" 토글 버튼을 보여주고
+누르면 레일과 같은 목록을 드로어로 연다. `md` 미만(모바일)은 기존과 동일하게
+범위 밖으로 남긴다). 이전 갱신: 2026-09-21 —
 **P17-16**(태그 UI를 칩+팝오버 방식으로 전환 — 외부(GPT) UI 개선 제안을 검토해 채택한
 항목. 상시 열린 테두리+배경 입력 행이 "문서 마지막에 거대한 Form 필드가 붙어 있다"는
 인상을 준다는 지적. `@sfood/ui`의 `Popover`를 그대로 재사용해, 평소엔 칩 + "태그
@@ -1152,7 +1158,15 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   풋터는 세션을 넘나드는 "최종 수정 날짜·수정자"만 남는다. 산출물:
   `docs/superpowers/tasks/P17-15-save-status-indicator/{task,plan,result,test}.md`,
   src/components/editor/DocumentEditor.tsx, src/components/editor/DocumentEditor.test.tsx
-
+- [x] (완료, P17-17 — 외부 UI 개선 제안 검토 후 채택) 좁은 화면에서 목차를 드로어로
+  열기 — 우측 목차(TOC)가 `xl`(1280px) 이상에서만 보여, 노트북처럼 애매하게 좁은
+  화면(`md`~`xl`)에서는 목차에 접근할 방법이 아예 없었다는 외부 리뷰 지적을 검토해
+  채택했다. `@sfood/ui`의 `Drawer`를 그대로 재사용해, `md`(768px)~`xl` 구간에서만
+  "이 페이지" 토글 버튼을 보여주고 누르면 레일과 완전히 같은 목록(`renderHeadingList`
+  로 공유)을 우측 드로어로 연다. 드로어 안에서 항목을 클릭하면 스크롤 이동 후 드로어도
+  닫는다. `md` 미만(모바일)은 기존과 동일하게 접근 방법 없음으로 범위 밖에 남겼다.
+  산출물: `docs/superpowers/tasks/P17-17-toc-drawer-responsive/{task,plan,result,test}.md`,
+  src/components/editor/TableOfContents.tsx, src/components/editor/TableOfContents.test.tsx
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.
