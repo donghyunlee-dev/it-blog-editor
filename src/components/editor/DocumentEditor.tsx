@@ -212,6 +212,68 @@ function formatUpdatedAt(iso: string): string {
   return `${year}.${month}.${day}`;
 }
 
+/**
+ * P17-15: 헤더 저장 상태 표시(아래 `SaveStatusIndicator` 참고)가 "✓ 저장됨 13:27"처럼
+ * 방금 저장된 시각을 짧게 보여줄 때 쓴다. `formatUpdatedAt`(날짜, 세션을 넘나드는
+ * "최종 수정" 풋터용)과 달리 같은 세션 안에서 방금 일어난 저장을 가리키므로 날짜 없이
+ * 시:분만 24시간제로 보여준다.
+ */
+function formatSavedTime(date: Date): string {
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${hours}:${minutes}`;
+}
+
+/**
+ * P17-15(외부 UI 개선 제안 검토 후 채택): 저장 버튼 하나만으로는 "지금 수정 중인지,
+ * 저장이 필요한지, 방금 저장됐는지"를 알 수 없다는 지적 — 예전엔 이 상태가 풋터의
+ * 조용한 텍스트(`mode === "edit" && initialUpdatedAt`일 때만, 자동 저장 성공/진행
+ * 중에만)로만 있어 눈에 잘 안 띄고, 첫 저장 전(mode="create")이나 방금 만든 문서에는
+ * 아예 표시가 없었다. 저장 버튼 바로 옆(헤더)으로 끌어올려 항상 같은 자리에서 셋 중
+ * 하나로 보여준다 — 우선순위는 "저장 중" > "변경사항 있음" > "저장됨 HH:MM". 아직
+ * 한 번도 저장한 적 없고 변경도 없는 새 문서(mode="create", 열자마자)는 셋 다 해당이
+ * 없어 아무것도 표시하지 않는다.
+ */
+function SaveStatusIndicator({
+  isSaving,
+  isDirty,
+  lastSavedAt,
+}: {
+  isSaving: boolean;
+  isDirty: boolean;
+  lastSavedAt: Date | null;
+}) {
+  const label = isSaving
+    ? "저장 중..."
+    : isDirty
+      ? "변경사항 있음"
+      : lastSavedAt
+        ? `저장됨 ${formatSavedTime(lastSavedAt)}`
+        : null;
+
+  if (!label) {
+    return null;
+  }
+
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className={[
+        "hidden shrink-0 items-center gap-1 text-xs sm:flex",
+        isDirty && !isSaving ? "text-muted" : "text-success",
+      ].join(" ")}
+    >
+      {!isDirty && !isSaving && (
+        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {label}
+    </span>
+  );
+}
+
 export function DocumentEditor({
   mode,
   pageId,
@@ -236,14 +298,17 @@ export function DocumentEditor({
   const [tags, setTags] = useState<string[]>(initialTags);
   const [version, setVersion] = useState(initialVersion);
   const [lastEditedBy, setLastEditedBy] = useState(initialLastEditedBy);
+  // P17-15: 페이지를 처음 열었을 때 이미 저장돼 있던 문서(mode="edit")는 그 최종
+  // 수정 시각을 "저장됨" 상태의 초깃값으로 삼는다 — 새 문서(mode="create")는 아직
+  // 저장한 적이 없으므로 null로 시작해 SaveStatusIndicator가 아무것도 표시하지 않는다.
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(
+    mode === "edit" && initialUpdatedAt ? new Date(initialUpdatedAt) : null
+  );
   // P14-2: "삭제"·"이력"은 사이드바 문서 옵션(⋯) 메뉴로 옮겨가서 status는 더 이상
   // "deleting"을 가질 필요가 없다 — 저장 중 여부만 추적한다.
   const [status, setStatus] = useState<"idle" | "saving">("idle");
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [autosaveStatus, setAutosaveStatus] = useState<
-    "idle" | "saving" | "saved" | "failed"
-  >("idle");
   const [recoverableSnapshot, setRecoverableSnapshot] =
     useState<AutosaveSnapshot | null>(null);
   // P8-5: 우측 목차(TableOfContents)가 이 컨테이너 안의 실제 렌더링된 h2/h3 DOM을
@@ -413,7 +478,6 @@ export function DocumentEditor({
       tags: snapshotTags,
     });
 
-    setAutosaveStatus("saving");
     try {
       const response = await fetch(`/api/editor/documents/${pageId}`, {
         method: "PUT",
@@ -431,14 +495,14 @@ export function DocumentEditor({
       setVersion(data.version);
       setLastEditedBy(data.lastEditedBy);
       setDirty(false);
+      setLastSavedAt(new Date());
       clearAutosaveSnapshot(pageId);
-      setAutosaveStatus("saved");
-      // 풋터의 조용한 표시만으로는 놓치기 쉽다는 실사용 피드백(2026-08-27)으로,
-      // 매 분 뜨더라도 눈에 띄는 토스트를 함께 띄운다 — 실패 시에는 이미 토스트를
-      // 쓰고 있어(아래 catch) 성공 쪽만 없었다.
+      // 헤더의 저장 상태 표시(P17-15, SaveStatusIndicator)만으로는 이미 다른 곳을 보고
+      // 있으면 놓치기 쉽다는 실사용 피드백(2026-08-27)으로, 매 분 뜨더라도 눈에 띄는
+      // 토스트를 함께 띄운다 — 실패 시에는 이미 토스트를 쓰고 있어(아래 catch) 성공
+      // 쪽만 없었다.
       toast("자동 저장됨", "success");
     } catch (err) {
-      setAutosaveStatus("failed");
       toast(
         `자동 저장에 실패했습니다(로컬에는 임시 저장되었습니다): ${
           err instanceof Error ? err.message : "알 수 없는 오류"
@@ -497,6 +561,7 @@ export function DocumentEditor({
       // 취급한다(P0-1a). 태그 저장이 뒤이어 실패해도(아래 경고 토스트) 본문 자체는
       // 이미 저장됐으므로 이탈 경고를 계속 띄우는 건 사실과 다르다.
       setDirty(false);
+      setLastSavedAt(new Date());
 
       // 새 문서도 생성 응답으로 받은 pageId로 곧바로 태그를 저장한다. 그렇지 않으면
       // 첫 저장에서 입력한 태그가 조용히 사라진다.
@@ -664,6 +729,11 @@ export function DocumentEditor({
               <ShareIcon />
             </Button>
           )}
+          {/* P17-15: 저장 버튼 바로 옆의 상태 표시 — 위 `SaveStatusIndicator` 주석 참고.
+              좁은 화면(모바일 오프캔버스 드로어)에서는 아이콘 버튼들도 이미 빠듯해
+              `sm:flex`(컴포넌트 내부)로 숨긴다 — 저장 자체는 버튼 아이콘만으로도
+              여전히 가능하다. */}
+          <SaveStatusIndicator isSaving={status === "saving"} isDirty={isDirty} lastSavedAt={lastSavedAt} />
           {/*
             size="sm"(약 28px 높이)는 모바일 터치 타겟으로 여유가 없다(2026-08-26 UI 진단).
             EditorShell이 375px 폭 모바일 오프캔버스 드로어까지 지원하는데 헤더 액션만
@@ -747,8 +817,11 @@ export function DocumentEditor({
             보이는 하단 풋터로 옮겼다 — 컨플루언스 등 문서 도구들이 흔히 쓰는, 구분선 +
             옅은 글자의 메타 정보 풋터 형태를 따른다.
           */}
+          {/* P17-15: 실시간 저장 상태("저장 중"/"변경사항 있음"/"저장됨 HH:MM")는 헤더의
+              `SaveStatusIndicator`로 옮겨갔다 — 이 풋터는 세션을 넘나드는 이력 정보
+              (최종 수정 날짜·수정자)만 남긴다. */}
           {mode === "edit" && initialUpdatedAt && (
-            <footer className="mt-4 flex items-center justify-between border-t border-border pt-4 text-xs text-muted">
+            <footer className="mt-4 flex items-center border-t border-border pt-4 text-xs text-muted">
               <span>
                 최종 수정: {formatUpdatedAt(initialUpdatedAt)}
                 {/* P6-7: 생성 직후(아직 한 번도 수정 저장을 거치지 않은 문서) 또는 이 기능
@@ -758,12 +831,6 @@ export function DocumentEditor({
                 {lastEditedBy && (
                   <> · 마지막 수정자: {formatAccountLabel(lastEditedBy.email, lastEditedBy.name)}</>
                 )}
-              </span>
-              {/* 자동 저장(P0-1b)은 매번 "저장되었습니다" 토스트를 띄우지 않는다(1분마다
-                  뜨면 방해가 된다) — 대신 이 조용한 상태 표시만 남긴다. */}
-              <span role="status" aria-live="polite">
-                {autosaveStatus === "saving" && "자동 저장 중..."}
-                {autosaveStatus === "saved" && "자동 저장됨"}
               </span>
             </footer>
           )}
