@@ -443,7 +443,7 @@ describe("EditorShell", () => {
     });
   });
 
-  describe("폭 조절 핸들 마우스 드래그(P17-18)", () => {
+  describe("폭 조절 핸들 마우스 드래그(P17-22)", () => {
     beforeEach(() => {
       window.localStorage.clear();
     });
@@ -453,14 +453,11 @@ describe("EditorShell", () => {
     }
 
     /**
-     * P17-18 이전에는 사이드바가 항상 화면 왼쪽 끝(x=0)에 붙어 있어 `event.clientX`가
-     * 곧 원하는 폭이었다. 워크스페이스 전체를 최대폭(1800px)으로 묶어 가운데 정렬하면서
-     * 넓은 화면에서는 사이드바 왼쪽에도 여백이 생길 수 있다 — 이 여백을 반영하지 않고
-     * `clientX`를 그대로 쓰면 실제보다 넓은 폭으로 계산된다. 워크스페이스 래퍼의
-     * `getBoundingClientRect().left`를 200으로 모킹해, 그 오프셋만큼 뺀 값이 폭으로
-     * 쓰이는지 확인한다.
+     * P17-22: 사이드바는 항상 화면 왼쪽 끝(x=0)에 고정되므로(P17-18에서 워크스페이스
+     * 전체를 가운데 정렬했다가, 사이드바까지 밀려나는 회귀가 있어 되돌렸다 —
+     * EditorShell.tsx의 구조 변경 주석 참고) `event.clientX`가 곧 원하는 폭이다.
      */
-    it("드래그 시 워크스페이스 래퍼의 왼쪽 오프셋을 뺀 값을 폭으로 쓴다", () => {
+    it("드래그 시 커서의 clientX를 그대로 폭으로 쓴다", () => {
       mockMatchMedia(false);
       render(
         <EditorShell documents={DOCS}>
@@ -469,23 +466,9 @@ describe("EditorShell", () => {
       );
 
       const handle = getHandle();
-      const workspace = handle.closest('[class*="max-w-[1800px]"]') as HTMLElement;
-      vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue({
-        left: 200,
-        top: 0,
-        right: 2000,
-        bottom: 800,
-        width: 1800,
-        height: 800,
-        x: 200,
-        y: 0,
-        toJSON() {},
-      } as DOMRect);
-
       fireEvent.mouseDown(handle);
-      fireEvent(window, new MouseEvent("mousemove", { clientX: 500 }));
+      fireEvent(window, new MouseEvent("mousemove", { clientX: 300 }));
 
-      // 오프셋(200)을 뺀 300이 폭이 된다 — 뺴지 않았다면 500 그대로였을 것이다.
       expect(handle).toHaveAttribute("aria-valuenow", "300");
 
       fireEvent(window, new MouseEvent("mouseup"));

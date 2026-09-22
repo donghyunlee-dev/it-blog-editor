@@ -97,10 +97,6 @@ export function EditorShell({
   const [collapsed, setCollapsed] = useState(false);
   const draggingRef = useRef(false);
   const drawerRef = useRef<HTMLDivElement>(null);
-  // P17-18: 워크스페이스(사이드바+본문+TOC)를 통째로 감싸 가운데 정렬하는 바깥 래퍼의
-  // ref — 사이드바 폭 조절 드래그(아래 handleMouseMove)가 "커서 x좌표 = 폭"이라는
-  // 가정을 더 이상 못 쓰게 됐기 때문에 필요하다(이 래퍼 주석 참고).
-  const workspaceRef = useRef<HTMLDivElement>(null);
   // GlobalSearchModal.tsx의 openSignal로 넘겨줄 단조 증가 카운터(P8-1) — 헤더의 검색
   // 트리거 버튼(사이드바 상단, 모바일 상단 바)이 둘 다 이 함수 하나만 호출한다. 그 모달은
   // 여전히 자기 open 상태를 스스로 관리하고(Ctrl+K는 그대로 내부 처리) 이 신호는 "열어달라"
@@ -167,13 +163,12 @@ export function EditorShell({
   useEffect(() => {
     function handleMouseMove(event: MouseEvent) {
       if (!draggingRef.current) return;
-      // P17-18 이전에는 사이드바가 항상 화면 왼쪽에 붙어 있어(고정 x=0) 커서의
-      // clientX가 곧 원하는 폭이었다. 워크스페이스 전체를 최대폭으로 묶어 가운데
-      // 정렬하면서(넓은 모니터에서 사이드바 왼쪽에도 여백이 생길 수 있다) 더 이상
-      // 이 가정이 성립하지 않는다 — 래퍼의 실제 화면상 왼쪽 끝을 매번 다시 측정해
-      // 그 기준으로 폭을 계산한다.
-      const wrapperLeft = workspaceRef.current?.getBoundingClientRect().left ?? 0;
-      setSidebarWidth(clampWidth(event.clientX - wrapperLeft));
+      // P17-22: 사이드바가 항상 화면 왼쪽에 붙어 있으므로(고정 x=0), 커서의
+      // clientX가 곧 원하는 폭이다 — 사이드바 자신의 위치를 따로 측정할 필요가 없다.
+      // (P17-18에서 워크스페이스 전체를 가운데 정렬하며 이 가정이 깨졌었는데, 사이드바
+      // 왼쪽에 의도치 않은 여백이 생기는 회귀가 있어 P17-22에서 사이드바를 다시 항상
+      // 왼쪽에 고정시켰다 — 본문↔TOC만 최대폭으로 가운데 정렬한다.)
+      setSidebarWidth(clampWidth(event.clientX));
     }
     function handleMouseUp() {
       if (!draggingRef.current) return;
@@ -276,24 +271,25 @@ export function EditorShell({
     <UnsavedChangesProvider>
     <GlobalSearchModal openSignal={searchOpenSignal} folders={folders} />
     {/*
-      P17-18(외부 UI 개선 제안 검토 후 채택): 사이드바가 항상 화면 왼쪽 끝에,
-      TOC가 항상 화면 오른쪽 끝에 붙어 있고 그 사이 본문만 좁게(920px) 중앙 정렬되던
-      기존 구조는, 아주 넓은 모니터(1920px 이상)에서 본문 좌우로 점점 커지는 빈
-      공간을 만들었다 — 화면이 넓을수록 그 여백만 늘어나고 전체적으로 "휑하다"는
-      인상을 준다는 외부 리뷰를 검토해 채택했다. 사이드바~본문~TOC를 묶은 워크스페이스
-      전체에 최대폭을 씌우고 그 박스 자체를 페이지 가운데로 보낸다 — 그 최대폭을
-      넘는 화면에서는 초과분이 이 박스의 좌우 여백(중립적인 배경)으로만 남는다.
-      1800px는 사이드바 최대폭(440px, 위 MAX_WIDTH)·Wide mode 본문(1200px,
-      DocumentEditor.tsx)·TOC(240px)·거터를 모두 넉넉히 담는 값으로 잡았다(구현
-      디테일 판단 — WIDTH_STEP과 같은 이유로 GitHub Issue 없이 직접 정함).
-      바깥 div(`h-screen`, 배경색)는 그 여백을 실제로 채우는 역할만 하고, 안쪽
-      `workspaceRef`가 기존 3컬럼 레이아웃(사이드바/본문/TOC) 전체를 그대로 감싼다 —
-      아래 두 곳이 이 구조 변경의 영향을 받는다: (1) 사이드바 폭 조절 드래그
-      (handleMouseMove, 위 주석 참고 — 더 이상 "커서 x = 폭"이 아니다), (2) 접힌
-      사이드바를 다시 펴는 버튼(`fixed` → `absolute`로 변경, 아래 주석 참고).
+      P17-18(외부 UI 개선 제안 검토 후 채택)에서는 사이드바~본문~TOC를 묶은
+      워크스페이스 전체에 최대폭(1800px)을 씌우고 그 박스 자체를 페이지 가운데로
+      보냈었다 — 사이드바가 항상 화면 왼쪽 끝에, TOC가 항상 화면 오른쪽 끝에 붙어
+      있고 그 사이 본문만 중앙 정렬되던 기존 구조가, 아주 넓은 모니터에서 본문
+      좌우로 점점 커지는 빈 공간을 만든다는 문제 때문이었다.
+
+      P17-22(사용자 추가 요청 — 실사용 확인): 그런데 그 방식은 사이드바까지 함께
+      가운데로 밀려나 사이드바 왼쪽에 아무 콘텐츠도 없는 여백이 생기는 회귀를
+      냈다("LNB 왼쪽 공간 뭘까?"라는 지적, 실측 결과 오른쪽은 본문/TOC가 실제로
+      끝까지 꽉 차 있어 대칭도 아니었다 — VS Code/Slack/Notion처럼 탐색 패널은
+      항상 화면 왼쪽 끝에 고정되는 게 사용자 기대와 맞는다는 것도 확인). 그래서
+      사이드바는 다시 항상 화면 왼쪽 끝에 고정하고(아래 사이드바 wrapper, 폭 조절
+      드래그도 원래의 "커서 x = 폭" 계산으로 되돌림), 넓은 모니터 여백 문제는
+      본문+TOC 묶음에만 최대폭(아래 `max-w-[1300px]`, DocumentEditor.tsx의 넓게
+      보기 최대 본문 1200px + 거터 + TOC 240px을 넉넉히 담는 값)을 씌워 그 둘만
+      가운데로 모으는 방식으로 좁혀 해결한다 — TOC가 더 이상 화면 진짜 오른쪽
+      끝에 고정되지 않고 본문과 함께 움직인다.
     */}
-    <div className="h-screen w-full bg-background">
-    <div ref={workspaceRef} className="relative mx-auto flex h-full w-full max-w-[1800px] flex-col md:flex-row">
+    <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
         <button
           type="button"
@@ -337,12 +333,10 @@ export function EditorShell({
           onClick={() => toggleCollapsed(false)}
           aria-label="문서함 펼치기"
           title="문서함 펼치기"
-          // P17-18: `fixed`(뷰포트 기준)였던 것을 `absolute`로 바꿨다 — 워크스페이스
-          // 전체가 이제 가운데 정렬된 `workspaceRef` 박스(`relative`) 안에 있으므로,
-          // 뷰포트 왼쪽 끝(x=0) 대신 그 박스의 왼쪽 끝을 기준으로 삼아야 넓은 화면의
-          // 좌측 여백 안이 아니라 실제 사이드바 자리에 나타난다. 이 박스는 스크롤되지
-          // 않아(h-full, 내부 flex-1만 스크롤) `fixed`와 시각적으로 동일하게 동작한다.
-          className="absolute left-3 top-3 z-40 hidden rounded-btn border border-border bg-surface p-2 text-foreground shadow-md transition-colors duration-default hover:bg-surface-raised md:block"
+          // P17-22: 사이드바가 다시 항상 화면 왼쪽 끝에 고정되므로(위 구조 변경 주석
+          // 참고) `fixed`(뷰포트 기준)로 되돌린다 — P17-18 당시의 `absolute`는
+          // 워크스페이스 전체가 가운데 정렬되던 그 구조에서만 필요했다.
+          className="fixed left-3 top-3 z-40 hidden rounded-btn border border-border bg-surface p-2 text-foreground shadow-md transition-colors duration-default hover:bg-surface-raised md:block"
         >
           <HamburgerIcon />
         </button>
@@ -426,14 +420,28 @@ export function EditorShell({
         )}
       </div>
 
-      <div className="scrollbar-hidden flex-1 overflow-y-auto">{children}</div>
+      {/*
+        P17-22: 본문+TOC를 함께 감싸 최대폭(1300px)을 씌우고 그 묶음을 이 남은
+        공간(flex-1, 사이드바 오른쪽 전체) 안에서 가운데로 보낸다 — 사이드바는
+        위에서 이미 항상 왼쪽 끝에 고정했으니, 넓은 모니터에서 남는 여백은 이제
+        본문+TOC 쪽에서만 흡수한다(TOC가 더 이상 화면의 진짜 오른쪽 끝에 못 박혀
+        있지 않고 본문과 함께 움직인다). 1300px은 Wide mode 본문(1200px,
+        DocumentEditor.tsx)+거터에 여유를 더한 값이다(구현 디테일 판단). 이 최대폭
+        보다 좁은 화면(대부분의 실사용 해상도)에서는 `max-w-[1300px]`가 전혀
+        작동하지 않아(그냥 100% 폭) 기존과 완전히 같게 보인다.
+      */}
+      <div className="flex flex-1 justify-center overflow-hidden">
+        <div className="flex h-full w-full max-w-[1300px]">
+          <div className="scrollbar-hidden flex-1 overflow-y-auto">{children}</div>
 
-      {/* ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형 조건을
-          그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을 아무리 스크롤해도
-          움직이지 않는다(TocRailContext 주석 참고 — 예전엔 이 컬럼이 본문과 같은 flex
-          그룹 안에 있어 `sticky`로 흉내 내야 했고, 그 방식이 반복적으로 버그를 냈다). */}
-      {tocRail && <div className="hidden w-60 shrink-0 xl:block">{tocRail}</div>}
-    </div>
+          {/* ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형
+              조건을 그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을
+              아무리 스크롤해도 움직이지 않는다(TocRailContext 주석 참고 — 예전엔 이
+              컬럼이 본문과 같은 flex 그룹 안에 있어 `sticky`로 흉내 내야 했고, 그
+              방식이 반복적으로 버그를 냈다). */}
+          {tocRail && <div className="hidden w-60 shrink-0 xl:block">{tocRail}</div>}
+        </div>
+      </div>
     </div>
     </UnsavedChangesProvider>
     </TocRailContext.Provider>
