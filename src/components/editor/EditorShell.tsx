@@ -277,17 +277,25 @@ export function EditorShell({
       있고 그 사이 본문만 중앙 정렬되던 기존 구조가, 아주 넓은 모니터에서 본문
       좌우로 점점 커지는 빈 공간을 만든다는 문제 때문이었다.
 
-      P17-22(사용자 추가 요청 — 실사용 확인): 그런데 그 방식은 사이드바까지 함께
-      가운데로 밀려나 사이드바 왼쪽에 아무 콘텐츠도 없는 여백이 생기는 회귀를
-      냈다("LNB 왼쪽 공간 뭘까?"라는 지적, 실측 결과 오른쪽은 본문/TOC가 실제로
-      끝까지 꽉 차 있어 대칭도 아니었다 — VS Code/Slack/Notion처럼 탐색 패널은
-      항상 화면 왼쪽 끝에 고정되는 게 사용자 기대와 맞는다는 것도 확인). 그래서
-      사이드바는 다시 항상 화면 왼쪽 끝에 고정하고(아래 사이드바 wrapper, 폭 조절
-      드래그도 원래의 "커서 x = 폭" 계산으로 되돌림), 넓은 모니터 여백 문제는
-      본문+TOC 묶음에만 최대폭(아래 `max-w-[1300px]`, DocumentEditor.tsx의 넓게
-      보기 최대 본문 1200px + 거터 + TOC 240px을 넉넉히 담는 값)을 씌워 그 둘만
-      가운데로 모으는 방식으로 좁혀 해결한다 — TOC가 더 이상 화면 진짜 오른쪽
-      끝에 고정되지 않고 본문과 함께 움직인다.
+      P17-22(실사용 확인): 그런데 그 방식은 사이드바까지 함께 가운데로 밀려나
+      사이드바 왼쪽에 아무 콘텐츠도 없는 여백이 생기는 회귀를 냈다("LNB 왼쪽
+      공간 뭘까?"). 사이드바는 다시 항상 왼쪽 끝에 고정하고, 본문+TOC 묶음에만
+      최대폭(1300px)을 씌워 그 둘만 가운데로 모으는 방식으로 좁혔었다.
+
+      P17-23(실사용 확인, 계속): 그런데 이번엔 문서 헤더(뒤로가기·공유·저장
+      버튼이 있는 `DocumentEditor.tsx`의 `<header sticky>`)까지 그 "본문+TOC"
+      묶음 안에 들어가 있어서 헤더까지 함께 좁아지고 가운데로 밀렸다("헤더가
+      같이 좁혀졌어. 뒤로 가는 버튼도 공간이 띄워져 있어"). 대부분의 문서 도구
+      (Notion/Confluence 등)처럼 "헤더(툴바)는 항상 자기 칼럼을 꽉 채우고, 본문
+      텍스트만 가운데로 좁힌다"는 사용자 요청에 따라, EditorShell 레벨의
+      본문+TOC 묶음 자체를 없앤다 — TOC는 P17-18 이전처럼 다시 화면 진짜
+      오른쪽 끝에 고정된 독립 컬럼으로 돌아간다. 본문 폭 제한(920/1200px)은
+      DocumentEditor.tsx가 이미 자체적으로(`flex justify-center` + `max-w-*`)
+      하고 있어서 헤더는 자동으로 항상 자기 칼럼(사이드바~TOC 사이) 전체를
+      채운다 — 이 레벨에서 별도로 손볼 게 없다. "넓은 모니터에서 본문 좌우로
+      커지는 빈 공간"(P17-18의 원래 동기)은, 대부분의 읽기 중심 도구가 본문
+      칼럼만 좁히고 툴바는 꽉 채우는 것과 같은 흔한 트레이드오프로 받아들이고
+      더 이상 EditorShell 구조로 해결하지 않는다.
     */}
     <div className="flex h-screen flex-col md:flex-row">
       <div className="flex items-center gap-3 border-b border-border bg-surface px-3 py-2 md:hidden">
@@ -420,28 +428,17 @@ export function EditorShell({
         )}
       </div>
 
-      {/*
-        P17-22: 본문+TOC를 함께 감싸 최대폭(1300px)을 씌우고 그 묶음을 이 남은
-        공간(flex-1, 사이드바 오른쪽 전체) 안에서 가운데로 보낸다 — 사이드바는
-        위에서 이미 항상 왼쪽 끝에 고정했으니, 넓은 모니터에서 남는 여백은 이제
-        본문+TOC 쪽에서만 흡수한다(TOC가 더 이상 화면의 진짜 오른쪽 끝에 못 박혀
-        있지 않고 본문과 함께 움직인다). 1300px은 Wide mode 본문(1200px,
-        DocumentEditor.tsx)+거터에 여유를 더한 값이다(구현 디테일 판단). 이 최대폭
-        보다 좁은 화면(대부분의 실사용 해상도)에서는 `max-w-[1300px]`가 전혀
-        작동하지 않아(그냥 100% 폭) 기존과 완전히 같게 보인다.
-      */}
-      <div className="flex flex-1 justify-center overflow-hidden">
-        <div className="flex h-full w-full max-w-[1300px]">
-          <div className="scrollbar-hidden flex-1 overflow-y-auto">{children}</div>
+      <div className="scrollbar-hidden flex-1 overflow-y-auto">{children}</div>
 
-          {/* ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형
-              조건을 그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을
-              아무리 스크롤해도 움직이지 않는다(TocRailContext 주석 참고 — 예전엔 이
-              컬럼이 본문과 같은 flex 그룹 안에 있어 `sticky`로 흉내 내야 했고, 그
-              방식이 반복적으로 버그를 냈다). */}
-          {tocRail && <div className="hidden w-60 shrink-0 xl:block">{tocRail}</div>}
-        </div>
-      </div>
+      {/* P17-23: TOC는 다시(P17-18 이전과 같이) 화면 진짜 오른쪽 끝에 고정된 독립
+          컬럼이다 — 헤더가 항상 자기 칼럼 전체를 채워야 한다는 요구에 따라
+          본문+TOC를 하나로 묶어 가운데 정렬하던 P17-22의 wrapper를 없앴다.
+          ≥1280px(xl)에서만 노출 — TableOfContents.tsx가 기존에 갖고 있던 반응형
+          조건을 그대로 옮겼다. 사이드바처럼 스크롤 영역 밖 형제 컬럼이라 본문을
+          아무리 스크롤해도 움직이지 않는다(TocRailContext 주석 참고 — 예전엔 이
+          컬럼이 본문과 같은 flex 그룹 안에 있어 `sticky`로 흉내 내야 했고, 그
+          방식이 반복적으로 버그를 냈다). */}
+      {tocRail && <div className="hidden w-60 shrink-0 xl:block">{tocRail}</div>}
     </div>
     </UnsavedChangesProvider>
     </TocRailContext.Provider>
