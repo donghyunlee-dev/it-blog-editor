@@ -18,13 +18,14 @@ import type { FolderNode } from "@/lib/editor/folders";
 const PAGE_SIZE = 30;
 
 /**
- * P13-1: 폴더 트리 들여쓰기 공식(`INDENT_BASE_PX + depth * INDENT_STEP_PX`)이 파일 안에 여러
- * 곳에서 반복돼 상수로 뽑았다. `INDENT_STEP_PX`는 14px→20px로 늘렸다(2026-09-14, 사용자
- * 피드백 — "폴더 안의 페이지 리스트라는 느낌이 안 난다") — 폴더 아이콘 폭에 비해 들여쓰기가
- * 작아 하위 문서가 폴더 안에 담긴 것처럼 보이지 않는 문제였다.
+ * P17-24: 이전엔 `INDENT_BASE_PX + depth * INDENT_STEP_PX`로 깊이마다 들여쓰기를 늘렸는데,
+ * 폴더 안 문서 제목이 보일 공간이 줄어든다는 지적(2026-09-22, 사용자 — "패딩 때문에 페이지
+ * 제목이 많이 보이지 않는다")으로 깊이와 무관한 고정값으로 되돌린다. 폴더/문서는 앞의
+ * 아이콘(`ChevronIcon`/`FolderIcon`/`StatusIcon`)만으로도 구분되므로 깊이별 들여쓰기가
+ * 없어도 된다 — 다만 배경 박스가 사이드바 왼쪽 라인에 완전히 붙지 않도록 최소한의
+ * 여백만 남긴다.
  */
 const INDENT_BASE_PX = 8;
-const INDENT_STEP_PX = 20;
 
 /**
  * P7-4: 폴더 펼침/접힘 상태를 계정별이 아니라 브라우저별로 유지한다 — `EditorShell.tsx`의
@@ -786,7 +787,7 @@ export function EditorSidebar({
       <li
         key={document.pageId}
         className="group flex items-start gap-0.5 rounded-btn"
-        style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }}
+        style={{ paddingLeft: INDENT_BASE_PX }}
         {...treeItemAttrs}
       >
         {row}
@@ -944,15 +945,17 @@ export function EditorSidebar({
           id={`sidebar-folder-${folder.id}`}
           // P8-2: 문서 목록 행과 radius를 맞춘다(rounded-btn 8px → rounded-card 12px,
           // design.md "4. 좌측 사이드바" 벤치마킹 참고) — 같은 트리 안에서 폴더 행만
-          // 다른 radius를 쓰면 어색하다. `pl-1`(P13-2)은 문서 행과 같은 이유로 추가 —
-          // 아이콘이 배경 박스 왼쪽 끝에 바로 붙지 않도록 최소한의 안쪽 여백을 준다.
+          // 다른 radius를 쓰면 어색하다. `pl-2`(P13-2 당시 `pl-1`, P17-25에서 문서 행의
+          // `pl-2`와 맞춤 — 사용자 지적: "폴더의 접는 아이콘과 페이지의 게시 아이콘 왼쪽
+          // 위치를 맞춰 달라")는 문서 행과 같은 이유로 추가 — 아이콘이 배경 박스 왼쪽
+          // 끝에 바로 붙지 않도록 최소한의 안쪽 여백을 준다.
           // hover:bg-surface-raised → sidebar-row-hover 교체 이유는 문서 행과 동일(P13-2,
           // 라이트 모드에서 surface-raised가 surface와 같아 hover가 안 보이던 문제).
           className={
-            "group flex items-center gap-0.5 rounded-card pl-1 pr-1 transition-colors duration-default sidebar-row-hover " +
+            "group flex items-center gap-0.5 rounded-card pl-2 pr-2 transition-colors duration-default sidebar-row-hover " +
             (highlightedFolderId === folder.id ? "bg-brand/10" : "")
           }
-          style={{ paddingLeft: INDENT_BASE_PX + depth * INDENT_STEP_PX }}
+          style={{ paddingLeft: INDENT_BASE_PX }}
         >
           <button
             type="button"
@@ -1014,7 +1017,7 @@ export function EditorSidebar({
           </ul>
         )}
         {isExpanded && isReallyEmpty && (
-          <div style={{ paddingLeft: INDENT_BASE_PX + (depth + 1) * INDENT_STEP_PX }}>
+          <div style={{ paddingLeft: INDENT_BASE_PX }}>
             <EmptyState title="이 폴더에는 아직 문서가 없습니다." />
           </div>
         )}

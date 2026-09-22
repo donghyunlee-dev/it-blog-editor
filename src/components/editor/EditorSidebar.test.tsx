@@ -539,7 +539,9 @@ describe("EditorSidebar 폴더 트리(P7-4)", () => {
     expect(screen.getByRole("link", { name: /업무 문서/ })).toBeInTheDocument();
   });
 
-  it("하위 폴더는 상위 폴더보다 더 들여쓰기된다", () => {
+  it("폴더 깊이와 무관하게 왼쪽 들여쓰기는 고정된 최소 여백만 갖는다", () => {
+    // P17-24: 깊이별로 들여쓰기를 늘리던 것을 없앴다 — 폴더/문서는 아이콘으로 구분되고,
+    // 들여쓰기가 페이지 제목이 보일 공간을 줄인다는 지적(2026-09-22)에 따른 변경이다.
     render(<EditorSidebar documents={DOCS_WITH_FOLDERS} folders={FOLDERS} />);
 
     // P7-5부터 들여쓰기는 토글 버튼이 아니라 그 버튼을 감싸는 행(div, 액션 버튼과 나란히
@@ -550,7 +552,8 @@ describe("EditorSidebar 폴더 트리(P7-4)", () => {
     const topPadding = parseInt(topRow.style.paddingLeft, 10);
     const childPadding = parseInt(childRow.style.paddingLeft, 10);
 
-    expect(childPadding).toBeGreaterThan(topPadding);
+    expect(childPadding).toBe(topPadding);
+    expect(childPadding).toBeGreaterThan(0);
   });
 
   it("접힘 상태는 localStorage에 저장되어 다음 마운트에도 유지된다", async () => {

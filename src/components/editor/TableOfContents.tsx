@@ -309,21 +309,33 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
     );
   }
 
-  // EditorShell의 우측 레일 슬롯으로 실제 UI를 밀어 넣는다(위 클래스 주석 참고) —
-  // headings가 비면 슬롯을 비워(null) 레일 자체가 사라지게 한다(EditorShell.tsx의
-  // `{tocRail && ...}` 조건). Provider 밖(예: 테스트에서 Context 없이 단독 렌더)에서는
-  // setTocRail이 null이라 아무것도 하지 않는다.
+  // EditorShell의 우측 레일 슬롯으로 실제 UI를 밀어 넣는다(위 클래스 주석 참고).
+  //
+  // P17-26: 예전엔 headings가 비면 슬롯 자체를 비웠다(null) — 그러면 EditorShell의
+  // `{tocRail && ...}` 조건 때문에 레일 컬럼(w-60)이 통째로 사라져, 본문을 감싼
+  // `flex-1` 영역의 실제 가용 폭이 바뀐다. 문서를 열 때 본문 DOM이 마운트 다음 커밋에야
+  // 붙는 타이밍(위 클래스 주석의 `immediatelyRender: false` 설명 참고)과 겹치면, 처음엔
+  // 헤딩이 0개로 스캔돼 레일 없이 그려졌다가 헤딩이 뒤늦게 발견되며 레일이 튀어나오는
+  // 순간 본문 폭이 좁아져 좌우로 밀리는 것처럼 보였다(2026-09-22, 사용자 지적 — "toc가
+  // 있을 때와 없을 때, 컨텐츠 사이즈가 맞춰지는 과정에서 좌우로 흔들린다").
+  //
+  // 이제는 헤딩이 있든 없든 바깥 spacer(`<div className="h-14 ...">`)는 항상 레일에
+  // 밀어 넣어 컬럼 자체(가로 폭)는 마운트 시점부터 고정해 두고, 실제 목차
+  // 콘텐츠(`<nav aria-label="이 페이지">`)만 헤딩이 있을 때 그 안에 조건부로 넣는다 —
+  // 그래야 헤딩 스캔 결과가 언제 바뀌든 폭은 그대로고 안쪽 내용만 나타나거나
+  // 사라진다. 헤딩이 하나도 없는 문서에서 "이 페이지" 목차 랜드마크 자체가 없어야
+  // 한다는 접근성 계약(TableOfContents.test.tsx)은 그대로 유지된다 — 바깥 spacer는
+  // `nav`가 아닌 평범한 `div`라 보조기기에 노출되지 않는다.
+  //
+  // Provider 밖(예: 테스트에서 Context 없이 단독 렌더)에서는 setTocRail이 null이라
+  // 아무것도 하지 않는다.
   useEffect(() => {
     if (!setTocRail) {
       return;
     }
-    if (headings.length === 0) {
-      setTocRail(null);
-      return;
-    }
 
     setTocRail(
-      <nav aria-label="이 페이지" className="flex h-full flex-col">
+      <div className="flex h-full flex-col">
         {/*
           문서 헤더(DocumentEditor.tsx의 `<header className="h-14 ...">`)는 본문 스크롤
           영역 안에만 있고, 이 레일은 그 밖의 독립된 컬럼이라 자동으로 헤더 밑에서
@@ -331,19 +343,20 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
           h-14 자리표시 행을 맨 위에 둬서 헤더와 높이를 맞춘다(그 파일의 "두 헤더 모두
           못을 박아" 주석 참고). 이 spacer가 없으면 TOC가 화면 맨 위(헤더보다 위)에서
           시작해 헤더를 무시하고 튀어나온 것처럼 보인다(2026-09-14 실사용 중 발견).
-
-          좌우 여백(pl-12) 없이 레일 전체 폭으로 그린다 — 본문↔TOC 거터(design.md
-          "본문↔TOC 거터 48px")는 아래 콘텐츠 쪽에만 pl-12로 준다. 이 spacer에까지
-          pl-12를 주면 border-b가 48px만큼 안쪽에서 시작해, 본문 헤더의 border-b와
-          만나지 못하고 끊어져 보인다(2026-09-14 실사용 중 발견 — "헤더 라인 연결이
-          안 되어 있어서 분리되어 보인다").
         */}
         <div className="h-14 shrink-0 border-b border-border" aria-hidden="true" />
-        <div className="flex-1 overflow-y-auto pt-10 pr-2 pl-12">
-          <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
-          {renderHeadingList()}
-        </div>
-      </nav>
+        {headings.length > 0 && (
+          // 좌우 여백(pl-12) 없이 레일 전체 폭으로 그린다 — 본문↔TOC 거터(design.md
+          // "본문↔TOC 거터 48px")는 아래 콘텐츠 쪽에만 pl-12로 준다. 위 spacer에까지
+          // pl-12를 주면 border-b가 48px만큼 안쪽에서 시작해, 본문 헤더의 border-b와
+          // 만나지 못하고 끊어져 보인다(2026-09-14 실사용 중 발견 — "헤더 라인 연결이
+          // 안 되어 있어서 분리되어 보인다").
+          <nav aria-label="이 페이지" className="flex-1 overflow-y-auto pt-10 pr-2 pl-12">
+            <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
+            {renderHeadingList()}
+          </nav>
+        )}
+      </div>
     );
     return () => setTocRail(null);
     // renderHeadingList는 매 렌더마다 새로 만들어지는 클로저지만, 그 안에서 읽는
