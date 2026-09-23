@@ -346,12 +346,18 @@ export function TableOfContents({ containerRef, doc }: TableOfContentsProps) {
         */}
         <div className="h-14 shrink-0 border-b border-border" aria-hidden="true" />
         {headings.length > 0 && (
-          // 좌우 여백(pl-12) 없이 레일 전체 폭으로 그린다 — 본문↔TOC 거터(design.md
-          // "본문↔TOC 거터 48px")는 아래 콘텐츠 쪽에만 pl-12로 준다. 위 spacer에까지
-          // pl-12를 주면 border-b가 48px만큼 안쪽에서 시작해, 본문 헤더의 border-b와
-          // 만나지 못하고 끊어져 보인다(2026-09-14 실사용 중 발견 — "헤더 라인 연결이
-          // 안 되어 있어서 분리되어 보인다").
-          <nav aria-label="이 페이지" className="flex-1 overflow-y-auto pt-10 pr-2 pl-12">
+          // 좌우 여백 없이 레일 전체 폭으로 그린다 — 본문↔TOC 거터는 아래 콘텐츠
+          // 쪽에만 준다. 위 spacer에까지 여백을 주면 border-b가 그만큼 안쪽에서
+          // 시작해, 본문 헤더의 border-b와 만나지 못하고 끊어져 보인다(2026-09-14
+          // 실사용 중 발견 — "헤더 라인 연결이 안 되어 있어서 분리되어 보인다").
+          //
+          // P17-26(2026-09-23, 사용자 지적 — "toc 위 라인과 버튼들의 위치가 정돈되지
+          // 않은 느낌"): 이 왼쪽 여백은 원래 `pl-12`(48px, design.md "본문↔TOC
+          // 거터" 벤치마킹 값)였는데, 실측 결과 본문↔TOC 경계선을 기준으로 헤더
+          // 버튼 쪽 여백(`px-6`, 24px)의 정확히 2배라 경계선 양옆 균형이 안 맞았다.
+          // 헤더 버튼과 같은 24px(`pl-6`)로 줄여 경계선 기준 좌우 여백을 맞췄다 —
+          // design.md도 함께 갱신.
+          <nav aria-label="이 페이지" className="flex-1 overflow-y-auto pt-10 pr-2 pl-6">
             <p className="mb-3 text-xs font-semibold text-foreground">이 페이지</p>
             {renderHeadingList()}
           </nav>
