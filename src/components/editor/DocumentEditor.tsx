@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Button, Modal, useToast } from "@sfood/ui";
+import { Badge, Button, Modal, useToast } from "@sfood/ui";
 import type { JSONContent } from "@tiptap/react";
 import { RichTextEditor } from "./RichTextEditor";
 import { TableOfContents } from "./TableOfContents";
@@ -277,6 +277,16 @@ function formatSavedTime(date: Date): string {
  * 하나로 보여준다 — 우선순위는 "저장 중" > "변경사항 있음" > "저장됨 HH:MM". 아직
  * 한 번도 저장한 적 없고 변경도 없는 새 문서(mode="create", 열자마자)는 셋 다 해당이
  * 없어 아무것도 표시하지 않는다.
+ *
+ * P17-26(2026-09-23, 사용자 지적 — "저장됨 텍스트도 위치가 적당해 보이지 않아... 단순
+ * 텍스트보다 뱃지 형식으로"): 아이콘 버튼들 사이에 낀 순수 텍스트라 버튼인지 상태
+ * 표시인지 애매했던 것을, `@sfood/ui`의 `Badge`(CLAUDE.md 우선순위 ① — 새 UI를 만들
+ * 때 이 프로젝트가 이미 쓰는 컴포넌트를 직접 새로 짜지 않는다)로 감싸 색이 있는 알약
+ * 모양 뱃지로 바꿨다. `StatusBadge`(점+텍스트, 배경 없음)도 검토했지만 사용자가
+ * 요청한 "뱃지 형식"에는 배경·테두리가 있는 `Badge` 쪽이 더 맞는다. 상태별 색은
+ * 저장 중=`info`(진행 중, 파랑), 변경사항 있음=`warning`(주의, 호박색), 저장됨=
+ * `success`(완료, 초록) — 기존에도 저장됨만 `text-success`였던 것과 같은 의미,
+ * 나머지 두 상태에도 색 의미를 명시적으로 부여했다.
  */
 function SaveStatusIndicator({
   isSaving,
@@ -299,21 +309,21 @@ function SaveStatusIndicator({
     return null;
   }
 
+  const variant = isSaving ? "info" : isDirty ? "warning" : "success";
+
   return (
-    <span
-      role="status"
-      aria-live="polite"
-      className={[
-        "hidden shrink-0 items-center gap-1 text-xs sm:flex",
-        isDirty && !isSaving ? "text-muted" : "text-success",
-      ].join(" ")}
-    >
-      {!isDirty && !isSaving && (
-        <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-      {label}
+    // Badge 자신의 기본 className(`inline-flex ...`)과 반응형 표시/숨김 유틸리티가
+    // 같은 "display" 속성을 두고 부딪히지 않도록, 숨김/노출은 바깥 span에서만
+    // 담당하고 Badge는 항상 자기 기본 모양 그대로 렌더링한다.
+    <span className="hidden shrink-0 sm:inline-flex" role="status" aria-live="polite">
+      <Badge variant={variant} className="gap-1">
+        {!isDirty && !isSaving && (
+          <svg width="12" height="12" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M4 10.5l4 4 8-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {label}
+      </Badge>
     </span>
   );
 }
