@@ -8,7 +8,23 @@
 
 
 
-> 전체 진행률: 147 / 147 항목 완료(P17-24 추가로 분모 +1) (최근 갱신: 2026-09-23 —
+> 전체 진행률: 148 / 148 항목 완료(P17-25 추가로 분모 +1) (최근 갱신: 2026-09-23 —
+**P17-25**(사용자 추가 요청, 2건 중 1건 진행 — "제목 입력 div와 내용 입력하는 div의
+왼쪽 위치와 가로 width 폭이 다른 것 같아" 지적을 실측(`getBoundingClientRect`)으로
+확인한 결과, 왼쪽은 이미 같았고 실제로는 제목 텍스트 영역 오른쪽이 본문보다 16px
+짧았다 — 포커스 시 배경만 넓어지는 기존 상쇄 패턴(음수 마진+패딩)이 `width: auto`
+(본문 `.ProseMirror`)에서만 좌우로 저절로 넓어지고, `width: 100%`(제목
+`w-full`)에서는 자리만 옮길 뿐 넓어지지 않아 생긴 버그. `w-[calc(100%+1rem)]`로
+교체해 해결. 같은 요청의 두 번째 항목("라이트 모드 배경/입력 모드 화이트 색감을
+노션·컨플루언스풍으로 보완")은 관련 토큰(`--color-background`/`--color-surface`/
+`--color-border`)이 이 프로젝트 코드가 아니라 `@sfood/ui`가 내려주는 디자인
+시스템 값이라 CLAUDE.md의 "토큰 재정의 금지" 규칙과 충돌함을 발견 — 처리 방향
+(①이번만 예외 재정의 ②디자인 시스템 쪽에 변경 요청 ③토큰은 그대로 두고 사용법만
+조정 ④보류)을 사용자에게 확인한 결과 **"일단 보류"**로 결정돼 이번 범위에서
+제외됨(재개 시 `docs/superpowers/tasks/P17-25-title-body-width-alignment/task.md`
+"결정이 필요한 사항" 참고). 산출물:
+`docs/superpowers/tasks/P17-25-title-body-width-alignment/{task,plan,result,test}.md`).
+이전 갱신: 2026-09-23 —
 **P17-24**(사용자 추가 요청, 3건 묶음 — (1) 사이드바 폴더 트리 깊이별 들여쓰기가
 페이지 제목이 보일 공간을 줄인다는 지적으로 깊이와 무관한 고정 들여쓰기(8px)로
 전환. (2) 후속 지적 — 폴더 행 접힘/펼침 화살표와 문서 행 게시 상태 아이콘의 왼쪽
@@ -1300,6 +1316,25 @@ top-14`라 스크롤 시 `overflow-y-auto` 컨테이너 맨 위에 붙는데, �
   `docs/superpowers/tasks/P17-24-sidebar-toc-layout-polish/{task,plan,result,test}.md`,
   src/components/editor/EditorSidebar.tsx, src/components/editor/EditorSidebar.test.tsx,
   src/components/editor/TableOfContents.tsx
+- [x] (완료, P17-25 — 사용자 추가 요청, 2건 중 1건 진행) 문서 제목·본문 입력 영역
+  폭 불일치 수정 — "제목 입력 div와 내용 입력하는 div의 왼쪽 위치와 가로 width
+  폭이 다른 것 같아" 지적을 임시 디버그 라우트(P17-21과 같은 패턴, AX Auth 게이트
+  밖, 검증 후 삭제)에서 `getBoundingClientRect()`/`getComputedStyle()`로 실측해
+  원인을 확인했다 — 왼쪽 시작 위치는 이미 같았고(44.5px), 실제로는 제목 텍스트
+  영역의 오른쪽 끝이 본문보다 16px 짧았다. 포커스 시 배경만 넓게 깔리는 기존
+  패턴(음수 마진 + 같은 크기 패딩으로 평소 레이아웃은 그대로 유지)이 `width: auto`
+  (본문 `.ProseMirror`, 기본 block 요소)에서는 음수 마진만큼 박스가 저절로
+  넓어지는데, `width: 100%`로 고정된 제목 `<textarea>`(`w-full`)에서는 마진을 줘도
+  자리만 옮겨갈 뿐 박스가 넓어지지 않아 생긴 버그였다. `w-full`을
+  `w-[calc(100%+1rem)]`(마진으로 줄어드는 0.5rem×2를 폭에 미리 더함)로 바꿔 본문과
+  좌우 정확히 일치시켰다. 같은 요청의 두 번째 항목(라이트 모드 배경/입력 모드
+  화이트 색감을 노션·컨플루언스풍으로 보완)은 관련 토큰(`--color-background`/
+  `--color-surface`/`--color-border`)이 `@sfood/ui`가 내려주는 디자인 시스템
+  값이라 CLAUDE.md의 "@sfood/ui 토큰을 프로젝트 CSS에서 하드코딩·재정의하지
+  않는다" 규칙과 충돌함을 발견 — 처리 방향을 사용자에게 직접 확인한 결과 "일단
+  보류"로 결정돼 이번 범위에서 제외됐다(재개 시 선택지는 `task.md` 참고). 산출물:
+  `docs/superpowers/tasks/P17-25-title-body-width-alignment/{task,plan,result,test}.md`,
+  src/components/editor/DocumentEditor.tsx
 
 ### Phase 18 — 이미지/문서 링크 카드 크기 조절 + 하이퍼링크 열기 (신규, 2026-09-17 계획)
 목표·원인 조사·범위 밖은 위 "단계별 개발 계획"의 Phase 18 절 참고.

@@ -215,7 +215,19 @@ function TitleTextarea({
       // 가능한지 판단이 되면 좋겠다"). px-2/-mx-2(패딩을 같은 크기의 음수 마진으로
       // 상쇄)로 평소 글자 위치는 그대로 두면서, 포커스 시에만 배경색이 살짝 넓게
       // 깔리게 한다 — 레이아웃이 움직이지 않는다.
-      className="-mx-2 w-full resize-none overflow-hidden rounded-md border-none bg-transparent px-2 text-4xl font-bold leading-tight text-foreground outline-none transition-colors duration-default placeholder:text-muted focus:bg-surface-raised"
+      //
+      // P17-25(2026-09-23, 사용자 지적 — "제목 입력 div와 내용 입력하는 div의 왼쪽
+      // 위치와 가로 width 폭이 다른 것 같아"): `w-full`(`width: 100%`)은 값이 고정된
+      // 길이라 음수 마진을 줘도 그 자리에서 옆으로 밀리기만 할 뿐 박스 자체가 넓어지지
+      // 않는다 — 본문의 `.ProseMirror`(RichTextEditor.tsx, 같은 -마진/+패딩 상쇄
+      // 패턴)는 `width: auto`(기본 block 요소)라 음수 마진만큼 저절로 넓어져 좌우
+      // 테두리가 부모(920px 컬럼)의 양쪽 끝에 딱 맞춰지는데, 이 textarea는 `width:
+      // 920px`로 고정된 채 왼쪽으로만 8px 밀려 오른쪽 끝이 부모보다 16px(패딩 8px×2)
+      // 짧아졌다(실측: 제목 텍스트 오른쪽 끝 948.5px vs 부모/본문 오른쪽 끝
+      // 964.5px). `w-full`을 `w-[calc(100%+1rem)]`(마진으로 줄어드는 8px×2=1rem을
+      // 폭에 미리 더해 둠)로 바꿔, `.ProseMirror`처럼 좌우 대칭으로 넓어지게
+      // 맞췄다 — 왼쪽 시작 위치는 원래도 일치했다(둘 다 44.5px).
+      className="-mx-2 w-[calc(100%+1rem)] resize-none overflow-hidden rounded-md border-none bg-transparent px-2 text-4xl font-bold leading-tight text-foreground outline-none transition-colors duration-default placeholder:text-muted focus:bg-surface-raised"
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onKeyDown={(event) => {
